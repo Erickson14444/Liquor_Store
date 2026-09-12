@@ -1,3 +1,6 @@
+Antes del terminar:
+cd Liquor_Store
+
 para agregar cambios:
 git add .
 git commit -m "Descripcion"
