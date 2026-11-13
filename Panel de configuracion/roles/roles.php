@@ -319,19 +319,16 @@ $tipoMsg = $_GET['tipo'] ?? 'exito';
                       </span>
                     </td>
                     <td class="text-center">
-                      <span class="status-badge <?= $esActivo ? 'active' : 'inactive' ?>">
-                        <?= $esActivo ? 'ACTIVO' : 'INACTIVO' ?>
-                      </span>
+                      <label class="toggle-wrap" title="Cambiar estado del rol">
+                        <input type="checkbox" <?= $esActivo ? 'checked' : '' ?> <?= ($r['nombre'] === 'Administrador') ? 'disabled' : '' ?> onchange="toggleEstadoRol('<?= $r['rol_id'] ?>', this.checked, this)" />
+                        <span class="toggle-slider"></span>
+                        <span class="toggle-text"><?= $esActivo ? 'Activo' : 'Inactivo' ?></span>
+                      </label>
                     </td>
                     <td class="text-right action-btns">
                       <button type="button" class="btn-sm btn-outline" onclick='editarRol(<?= json_encode($r, JSON_HEX_APOS | JSON_HEX_QUOT) ?>)'>
                         Editar Permisos
                       </button>
-                      <?php if ($r['nombre'] !== 'Administrador'): ?>
-                        <button type="button" class="btn-sm <?= $esActivo ? 'btn-danger' : 'btn-gold' ?>" onclick="toggleEstadoRol('<?= $r['rol_id'] ?>')">
-                          <?= $esActivo ? 'Desactivar' : 'Activar' ?>
-                        </button>
-                      <?php endif; ?>
                     </td>
                   </tr>
                 <?php endforeach; ?>

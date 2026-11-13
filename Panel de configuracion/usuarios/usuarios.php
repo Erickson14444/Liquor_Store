@@ -158,15 +158,14 @@ $tipoMsg = $_GET['tipo'] ?? 'exito';
                     <?= $u['ultimo_acceso'] ? date('d/m/Y H:i', strtotime($u['ultimo_acceso'])) : 'Nunca' ?>
                   </td>
                   <td class="text-center">
-                    <span class="status-badge <?= $esActivo ? 'active' : 'inactive' ?>">
-                      <?= $esActivo ? 'ACTIVO' : 'INACTIVO' ?>
-                    </span>
+                    <label class="toggle-wrap" title="Cambiar estado de acceso">
+                      <input type="checkbox" <?= $esActivo ? 'checked' : '' ?> onchange="toggleEstadoUsuario('<?= $u['usuario_id'] ?>', this.checked, this)" />
+                      <span class="toggle-slider"></span>
+                      <span class="toggle-text"><?= $esActivo ? 'Activo' : 'Inactivo' ?></span>
+                    </label>
                   </td>
                   <td class="text-right action-btns">
                     <button type="button" class="btn-sm btn-outline" onclick='editarUsuario(<?= json_encode($u) ?>)'>Editar</button>
-                    <button type="button" class="btn-sm <?= $esActivo ? 'btn-danger' : 'btn-gold' ?>" onclick="toggleEstadoUsuario('<?= $u['usuario_id'] ?>')">
-                      <?= $esActivo ? 'Desactivar' : 'Activar' ?>
-                    </button>
                   </td>
                 </tr>
               <?php endforeach; ?>

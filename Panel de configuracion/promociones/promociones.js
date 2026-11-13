@@ -32,7 +32,8 @@ function abrirModal() {
       document.getElementById('modalPromo').classList.add('open');
     }
 
-    function cerrarModal() {
+    function cerrarModal(forzar = false) {
+      if (!forzar && !confirm('¿Estás seguro de que deseas cancelar?')) return;
       document.getElementById('modalPromo').classList.remove('open');
     }
 

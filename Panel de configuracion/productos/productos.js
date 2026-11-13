@@ -28,7 +28,8 @@ function abrirModal() {
       document.getElementById('modalProducto').classList.add('open');
     }
 
-    function cerrarModal() {
+    function cerrarModal(forzar = false) {
+      if (!forzar && !confirm('¿Estás seguro de que deseas cancelar?')) return;
       document.getElementById('modalProducto').classList.remove('open');
     }
 

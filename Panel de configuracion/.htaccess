@@ -1,0 +1,6 @@
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+    RewriteBase "/Liquor_Store/Panel de configuracion/"
+    # Redirigir automáticamente las rutas antiguas por módulo a las nuevas carpetas por mantenimiento
+    RewriteRule ^(?:catalogo|directorio|finanzas|logistica|seguridad)/([a-z0-9-]+)\.(php|js)$ $1/$1.$2 [R=302,L,QSA]
+</IfModule>

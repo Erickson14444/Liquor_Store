@@ -116,14 +116,13 @@ $tipoMsg = $_GET['tipo'] ?? 'exito';
               <th>Contactos</th>
               <th class="text-center">Categoría</th>
               <th class="text-right">Crédito</th>
-              <th class="text-center">Estado</th>
               <th class="text-right">Acciones</th>
             </tr>
           </thead>
           <tbody id="tablaBody">
             <?php if (empty($clientes)): ?>
               <tr>
-                <td colspan="8" class="text-center" style="padding: 30px; color: #888;">
+                <td colspan="7" class="text-center" style="padding: 30px; color: #888;">
                   No hay clientes registrados en la base de datos. Haz clic en <strong>+ Nuevo Cliente</strong> para crear el primero.
                 </td>
               </tr>
@@ -164,16 +163,8 @@ $tipoMsg = $_GET['tipo'] ?? 'exito';
                       <span style="font-size: 0.82rem; font-weight: normal; color: #888;">Sólo Contado</span>
                     <?php endif; ?>
                   </td>
-                  <td class="text-center">
-                    <span class="status-badge <?= $esActivo ? 'active' : 'inactive' ?>" id="status-<?= $cli['cliente_id'] ?>">
-                      <?= $esActivo ? 'ACTIVO' : 'INACTIVO' ?>
-                    </span>
-                  </td>
                   <td class="text-right action-btns">
                     <button type="button" class="btn-sm btn-outline" onclick='editarCliente(<?= json_encode($cli) ?>)'>Editar</button>
-                    <button type="button" class="btn-sm <?= $esActivo ? 'btn-danger' : 'btn-gold' ?>" onclick="toggleEstadoCliente('<?= $cli['cliente_id'] ?>', <?= $esActivo ? 'true' : 'false' ?>)">
-                      <?= $esActivo ? 'Desactivar' : 'Activar' ?>
-                    </button>
                   </td>
                 </tr>
               <?php endforeach; ?>

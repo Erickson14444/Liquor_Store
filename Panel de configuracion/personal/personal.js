@@ -218,7 +218,8 @@ let pestanaActiva = new URLSearchParams(window.location.search).get('tab') === '
       setTimeout(() => document.getElementById('emp_nombre_razon_social').focus(), 100);
     }
 
-    function cerrarModalEmpleado() {
+    function cerrarModalEmpleado(forzar = false) {
+      if (!forzar && !confirm('¿Estás seguro de que deseas cancelar?')) return;
       document.getElementById('modalEmpleado').classList.remove('open');
     }
 
@@ -241,7 +242,7 @@ let pestanaActiva = new URLSearchParams(window.location.search).get('tab') === '
         .then(res => {
           btn.disabled = false;
           if (res.status === 'success') {
-            cerrarModalEmpleado();
+            cerrarModalEmpleado(true);
             mostrarToast(res.message);
             setTimeout(() => location.href = 'personal.php?tab=personal&msg=' + encodeURIComponent(res.message) + '&tipo=exito', 400);
           } else {
@@ -323,7 +324,8 @@ let pestanaActiva = new URLSearchParams(window.location.search).get('tab') === '
       setTimeout(() => document.getElementById('rep_numero_licencia').focus(), 100);
     }
 
-    function cerrarModalRepartidor() {
+    function cerrarModalRepartidor(forzar = false) {
+      if (!forzar && !confirm('¿Estás seguro de que deseas cancelar?')) return;
       document.getElementById('modalRepartidor').classList.remove('open');
     }
 
@@ -346,7 +348,7 @@ let pestanaActiva = new URLSearchParams(window.location.search).get('tab') === '
         .then(res => {
           btn.disabled = false;
           if (res.status === 'success') {
-            cerrarModalRepartidor();
+            cerrarModalRepartidor(true);
             mostrarToast(res.message);
             setTimeout(() => location.href = 'personal.php?tab=repartidores&msg=' + encodeURIComponent(res.message) + '&tipo=exito', 400);
           } else {
@@ -430,8 +432,8 @@ let pestanaActiva = new URLSearchParams(window.location.search).get('tab') === '
     // Cerrar modales con tecla Escape
     document.addEventListener('keydown', (e) => {
       if (e.key === 'Escape') {
-        cerrarModalEmpleado();
-        cerrarModalRepartidor();
+        if (document.getElementById('modalEmpleado').classList.contains('open')) cerrarModalEmpleado();
+        if (document.getElementById('modalRepartidor').classList.contains('open')) cerrarModalRepartidor();
       }
     });
 

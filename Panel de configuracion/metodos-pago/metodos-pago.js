@@ -134,7 +134,8 @@ let metodosData = _datosMetodos ? JSON.parse(_datosMetodos.dataset.metodos || '[
     }
 
     // CERRAR MODAL
-    function cerrarModal() {
+    function cerrarModal(forzar = false) {
+      if (!forzar && !confirm("¿Estás seguro de que deseas cancelar?")) return;
       modalMetodo.classList.remove("open");
       formMetodo.reset();
       editandoId = null;
@@ -193,7 +194,7 @@ let metodosData = _datosMetodos ? JSON.parse(_datosMetodos.dataset.metodos || '[
             });
             showToast(`Método "${descripcion}" registrado en PostgreSQL`);
           }
-          cerrarModal();
+          cerrarModal(true);
           renderTabla(inputBuscar.value);
         } else {
           showToast(data.message || "Error al guardar método");

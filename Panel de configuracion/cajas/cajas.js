@@ -128,7 +128,8 @@ let cajasData = _datosCajas ? JSON.parse(_datosCajas.dataset.cajas || '[]') : []
     }
 
     // CERRAR MODAL
-    function cerrarModal() {
+    function cerrarModal(forzar = false) {
+      if (!forzar && !confirm("¿Estás seguro de que deseas cancelar?")) return;
       modalCaja.classList.remove("open");
       formCaja.reset();
       editandoId = null;
@@ -176,7 +177,7 @@ let cajasData = _datosCajas ? JSON.parse(_datosCajas.dataset.cajas || '[]') : []
             });
             showToast(`Caja "${nombre_equipo}" registrada en PostgreSQL`);
           }
-          cerrarModal();
+          cerrarModal(true);
           renderTabla(inputBuscar.value);
         } else {
           showToast(data.message || "Error al guardar la caja");

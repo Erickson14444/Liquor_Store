@@ -116,14 +116,13 @@ $tipoMsg = $_GET['tipo'] ?? 'exito';
               <th>Contacto</th>
               <th class="text-center">Crédito Habitual</th>
               <th class="text-center">Retención ISR</th>
-              <th class="text-center">Estado</th>
               <th class="text-right">Acciones</th>
             </tr>
           </thead>
           <tbody id="tablaBody">
             <?php if (empty($proveedores)): ?>
               <tr>
-                <td colspan="8" class="text-center" style="padding: 30px; color: #888;">
+                <td colspan="7" class="text-center" style="padding: 30px; color: #888;">
                   No hay proveedores registrados. Haz clic en <strong>+ Nuevo Proveedor</strong> para agregar el primero.
                 </td>
               </tr>
@@ -155,16 +154,8 @@ $tipoMsg = $_GET['tipo'] ?? 'exito';
                   <td class="text-center">
                     <span class="badge-isr"><?= number_format($prv['retencion_isr_porc'], 2) ?>%</span>
                   </td>
-                  <td class="text-center">
-                    <span class="status-badge <?= $esActivo ? 'active' : 'inactive' ?>">
-                      <?= $esActivo ? 'ACTIVO' : 'INACTIVO' ?>
-                    </span>
-                  </td>
                   <td class="text-right action-btns">
                     <button type="button" class="btn-sm btn-outline" onclick='editarProveedor(<?= json_encode($prv) ?>)'>Editar</button>
-                    <button type="button" class="btn-sm <?= $esActivo ? 'btn-danger' : 'btn-gold' ?>" onclick="toggleEstadoProveedor('<?= $prv['proveedor_id'] ?>', <?= $esActivo ? 'true' : 'false' ?>)">
-                      <?= $esActivo ? 'Desactivar' : 'Activar' ?>
-                    </button>
                   </td>
                 </tr>
               <?php endforeach; ?>

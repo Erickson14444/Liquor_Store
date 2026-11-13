@@ -28,7 +28,8 @@ function abrirModal() {
       document.getElementById('modalUsuario').classList.add('open');
     }
 
-    function cerrarModal() {
+    function cerrarModal(forzar = false) {
+      if (!forzar && !confirm('¿Estás seguro de que deseas cancelar?')) return;
       document.getElementById('modalUsuario').classList.remove('open');
     }
 
@@ -36,9 +37,8 @@ function abrirModal() {
       if (e.target.id === 'modalUsuario') cerrarModal();
     }
 
-    function toggleEstadoUsuario(usuarioId) {
-      if (!confirm("¿Deseas alternar el estado de acceso de este usuario?")) return;
-
+    function toggleEstadoUsuario(usuarioId, checked, checkboxEl) {
+      const toggleText = checkboxEl ? checkboxEl.parentElement.querySelector('.toggle-text') : null;
       const fd = new FormData();
       fd.append('accion', 'cambiar_estado');
       fd.append('usuario_id', usuarioId);
@@ -48,13 +48,17 @@ function abrirModal() {
         .then(r => r.json())
         .then(data => {
           if (data.status === 'success') {
+            if (toggleText) toggleText.textContent = checked ? 'Activo' : 'Inactivo';
             mostrarToast(data.message);
-            setTimeout(() => location.reload(), 600);
           } else {
+            if (checkboxEl) checkboxEl.checked = !checked;
+            if (toggleText) toggleText.textContent = (!checked) ? 'Activo' : 'Inactivo';
             alert(data.message || 'Error al cambiar estado');
           }
         })
         .catch(err => {
+          if (checkboxEl) checkboxEl.checked = !checked;
+          if (toggleText) toggleText.textContent = (!checked) ? 'Activo' : 'Inactivo';
           console.error(err);
           alert('Error al comunicarse con el servidor.');
         });

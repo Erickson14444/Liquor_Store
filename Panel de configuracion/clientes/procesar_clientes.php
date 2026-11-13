@@ -287,6 +287,29 @@ try {
     // ========================================================================
     // ACCIÓN: CAMBIAR ESTADO / PERMITE CRÉDITO
     // ========================================================================
+    if ($accion === 'cambiar_estado' || $accion === 'toggle_estado') {
+        $clienteId   = trim($_POST['cliente_id'] ?? $_POST['id'] ?? '');
+        $nuevoEstado = filter_var($_POST['estado'] ?? true, FILTER_VALIDATE_BOOLEAN);
+
+        if (empty($clienteId)) {
+            throw new Exception("Identificador de cliente no proporcionado.");
+        }
+
+        $pdo->beginTransaction();
+        $stmtGetPer = $pdo->prepare("SELECT persona_id FROM identidad.clientes WHERE cliente_id = ?");
+        $stmtGetPer->execute([$clienteId]);
+        $personaId = $stmtGetPer->fetchColumn();
+
+        if ($personaId) {
+            $stmtUpd = $pdo->prepare("UPDATE identidad.personas SET estado = ? WHERE persona_id = ?");
+            $stmtUpd->execute([$nuevoEstado ? 'true' : 'false', $personaId]);
+        }
+
+        $pdo->commit();
+        $txt = $nuevoEstado ? 'ACTIVO' : 'INACTIVO';
+        responder('success', "Estado del cliente actualizado a {$txt}.", ['estado' => $nuevoEstado]);
+    }
+
     if ($accion === 'cambiar_credito') {
         $clienteId = trim($_POST['cliente_id'] ?? '');
         $permite   = filter_var($_POST['permite_credito'] ?? false, FILTER_VALIDATE_BOOLEAN);

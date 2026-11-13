@@ -80,7 +80,8 @@ let cuentas = _datosCuentas ? JSON.parse(_datosCuentas.dataset.cuentas || '[]') 
       document.getElementById('modalCuenta').classList.add('open');
     }
 
-    function cerrarModal() {
+    function cerrarModal(forzar = false) {
+      if (!forzar && !confirm('¿Estás seguro de que deseas cancelar?')) return;
       document.getElementById('modalCuenta').classList.remove('open');
       editandoId = null;
     }
@@ -110,7 +111,7 @@ let cuentas = _datosCuentas ? JSON.parse(_datosCuentas.dataset.cuentas || '[]') 
           } else {
             cuentas.push(data);
           }
-          cerrarModal();
+          cerrarModal(true);
           showToast('Cuenta guardada en PostgreSQL exitosamente.');
           renderizarTabla(document.getElementById('buscar').value);
         } else {

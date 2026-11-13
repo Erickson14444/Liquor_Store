@@ -319,7 +319,6 @@ $tipoMsg = $_GET['tipo'] ?? 'exito';
     <div class="modal-box" style="max-width: 640px;">
       <div class="modal-header">
         <h3 class="modal-title" id="modalTituloEmpleado">Nuevo Empleado</h3>
-        <button type="button" class="btn-close" onclick="cerrarModalEmpleado()">✕</button>
       </div>
 
       <form id="formEmpleado" onsubmit="guardarEmpleado(event)">
@@ -414,7 +413,6 @@ $tipoMsg = $_GET['tipo'] ?? 'exito';
     <div class="modal-box" style="max-width: 580px;">
       <div class="modal-header">
         <h3 class="modal-title" id="modalTituloRepartidor">Asignar Repartidor Delivery</h3>
-        <button type="button" class="btn-close" onclick="cerrarModalRepartidor()">✕</button>
       </div>
 
       <form id="formRepartidor" onsubmit="guardarRepartidor(event)">

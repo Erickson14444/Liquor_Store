@@ -160,7 +160,8 @@
       document.getElementById('modalProveedor').classList.add('open');
     }
 
-    function cerrarModal() {
+    function cerrarModal(forzar = false) {
+      if (!forzar && !confirm('¿Estás seguro de que deseas cancelar?')) return;
       document.getElementById('modalProveedor').classList.remove('open');
     }
 
@@ -168,28 +169,29 @@
       if (e.target.id === 'modalProveedor') cerrarModal();
     }
 
-    function toggleEstadoProveedor(proveedorId, esActivoActual) {
-      const nuevoEstado = !esActivoActual;
-      const accionTxt = nuevoEstado ? 'Activar' : 'Desactivar';
-      if (!confirm(`¿Deseas ${accionTxt} este proveedor?`)) return;
-
+    function toggleEstadoProveedor(proveedorId, checked, checkboxEl) {
+      const toggleText = checkboxEl ? checkboxEl.parentElement.querySelector('.toggle-text') : null;
       const fd = new FormData();
       fd.append('accion', 'cambiar_estado');
       fd.append('proveedor_id', proveedorId);
-      fd.append('estado', nuevoEstado ? 'true' : 'false');
+      fd.append('estado', checked ? 'true' : 'false');
       fd.append('format', 'json');
 
       fetch('procesar_proveedores.php', { method: 'POST', body: fd })
         .then(r => r.json())
         .then(data => {
           if (data.status === 'success') {
+            if (toggleText) toggleText.textContent = checked ? 'Activo' : 'Inactivo';
             mostrarToast(data.message);
-            setTimeout(() => location.reload(), 600);
           } else {
+            if (checkboxEl) checkboxEl.checked = !checked;
+            if (toggleText) toggleText.textContent = (!checked) ? 'Activo' : 'Inactivo';
             alert(data.message || 'Error al cambiar estado');
           }
         })
         .catch(err => {
+          if (checkboxEl) checkboxEl.checked = !checked;
+          if (toggleText) toggleText.textContent = (!checked) ? 'Activo' : 'Inactivo';
           console.error(err);
           alert('Error al comunicarse con el servidor.');
         });
