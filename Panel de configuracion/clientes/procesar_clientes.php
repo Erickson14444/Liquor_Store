@@ -170,8 +170,8 @@ try {
                 throw new Exception("El código de cliente '{$codigoCliente}' ya está registrado. Por favor genera o digita otro.");
             }
         } else {
-            $stmtChkCod = $pdo->prepare("SELECT 1 FROM identidad.clientes WHERE UPPER(codigo_cliente) = ? AND cliente_id != ?");
-            $stmtChkCod->execute([$codigoCliente, $clienteId]);
+            $stmtChkCod = $pdo->prepare("SELECT 1 FROM identidad.clientes WHERE UPPER(codigo_cliente) = ? AND persona_id != ?");
+            $stmtChkCod->execute([$codigoCliente, $clienteId ?: $personaId]);
             if ($stmtChkCod->fetchColumn()) {
                 throw new Exception("El código '{$codigoCliente}' ya pertenece a otro cliente registrado.");
             }
@@ -275,9 +275,9 @@ try {
             $stmtUpCli = $pdo->prepare("
                 UPDATE identidad.clientes 
                 SET codigo_cliente = ?, categoria_cliente = ?, permite_credito = ?, limite_credito = ?
-                WHERE cliente_id = ?
+                WHERE persona_id = ?
             ");
-            $stmtUpCli->execute([$codigoCliente, $categoriaCliente, $permiteCredito ? 'true' : 'false', $limiteCredito, $clienteId]);
+            $stmtUpCli->execute([$codigoCliente, $categoriaCliente, $permiteCredito ? 'true' : 'false', $limiteCredito, $clienteId ?: $personaId]);
 
             $pdo->commit();
             responder('success', "Datos del cliente {$codigoCliente} actualizados correctamente.");
@@ -296,7 +296,7 @@ try {
         }
 
         $pdo->beginTransaction();
-        $stmtGetPer = $pdo->prepare("SELECT persona_id FROM identidad.clientes WHERE cliente_id = ?");
+        $stmtGetPer = $pdo->prepare("SELECT persona_id FROM identidad.clientes WHERE persona_id = ?");
         $stmtGetPer->execute([$clienteId]);
         $personaId = $stmtGetPer->fetchColumn();
 

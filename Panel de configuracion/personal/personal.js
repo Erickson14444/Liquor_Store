@@ -43,7 +43,13 @@ let pestanaActiva = new URLSearchParams(window.location.search).get('tab') === '
     // ------------------------------------------
     function formatearDocumento(input) {
       const tipo = document.getElementById('emp_tipo_documento').value;
+      const ev = window.event;
+      const isDelete = ev && ev.inputType && ev.inputType.startsWith('delete');
       let val = input.value.replace(/[^0-9]/g, '');
+
+      if ((tipo === 'CEDULA' || tipo === 'RNC') && isDelete && input.dataset.prevDocDigits === val && val.length > 0) {
+        val = val.slice(0, -1);
+      }
 
       if (tipo === 'CEDULA') {
         if (val.length > 11) val = val.substring(0, 11);
@@ -52,6 +58,7 @@ let pestanaActiva = new URLSearchParams(window.location.search).get('tab') === '
         if (val.length > 3) formatted += '-' + val.substring(3, Math.min(10, val.length));
         if (val.length > 10) formatted += '-' + val.substring(10, 11);
         input.value = formatted;
+        input.dataset.prevDocDigits = val;
       } else if (tipo === 'RNC') {
         if (val.length > 11) val = val.substring(0, 11);
         if (val.length <= 9) {
@@ -64,27 +71,46 @@ let pestanaActiva = new URLSearchParams(window.location.search).get('tab') === '
         } else {
           input.value = val;
         }
+        input.dataset.prevDocDigits = val;
       }
     }
 
     function formatearTelefono(input) {
+      const ev = window.event;
+      const isDelete = ev && ev.inputType && ev.inputType.startsWith('delete');
       let val = input.value.replace(/[^0-9]/g, '');
+
+      // Si el usuario borró un paréntesis, espacio o guion, eliminar también el dígito anterior
+      if (isDelete && input.dataset.prevDigits === val && val.length > 0) {
+        val = val.slice(0, -1);
+      }
+
       if (val.length > 10) val = val.substring(0, 10);
-      let formatted = '';
-      if (val.length > 0) formatted += '(' + val.substring(0, Math.min(3, val.length));
-      if (val.length >= 3) formatted += ') ' + val.substring(3, Math.min(6, val.length));
-      if (val.length >= 6) formatted += '-' + val.substring(6, Math.min(10, val.length));
-      input.value = formatted;
+
+      if (val.length > 6) {
+        input.value = '(' + val.substring(0, 3) + ') ' + val.substring(3, 6) + '-' + val.substring(6, 10);
+      } else if (val.length > 3) {
+        input.value = '(' + val.substring(0, 3) + ') ' + val.substring(3);
+      } else {
+        input.value = val;
+      }
+      input.dataset.prevDigits = val;
     }
 
     function formatearLicencia(input) {
+      const ev = window.event;
+      const isDelete = ev && ev.inputType && ev.inputType.startsWith('delete');
       let val = input.value.replace(/[^0-9]/g, '');
+      if (isDelete && input.dataset.prevLicDigits === val && val.length > 0) {
+        val = val.slice(0, -1);
+      }
       if (val.length > 11) val = val.substring(0, 11);
       let formatted = '';
       if (val.length > 0) formatted += val.substring(0, Math.min(3, val.length));
       if (val.length > 3) formatted += '-' + val.substring(3, Math.min(10, val.length));
       if (val.length > 10) formatted += '-' + val.substring(10, 11);
       input.value = formatted;
+      input.dataset.prevLicDigits = val;
     }
 
     function alSeleccionarEmpleadoRepartidor(select) {
@@ -130,10 +156,9 @@ let pestanaActiva = new URLSearchParams(window.location.search).get('tab') === '
       if (p.telefono_principal) document.getElementById('emp_telefono_principal').value = p.telefono_principal;
       if (p.email) document.getElementById('emp_email').value = p.email;
 
-      const rolExtra = p.resumen_roles ? ' [' + p.resumen_roles + ']' : '';
       feedback.style.display = 'block';
-      feedback.textContent = '✨ Persona localizada en identidad.personas (' + p.nombre_razon_social + rolExtra + '). Sus datos principales se han rellenado y NO se creará registro duplicado en personas.';
-      mostrarToast('✨ Datos de identidad.personas cargados automáticamente.');
+      feedback.textContent = 'Persona existente';
+      mostrarToast('Persona existente');
     }
 
     function verificarTerceroLive(doc) {
@@ -203,8 +228,14 @@ let pestanaActiva = new URLSearchParams(window.location.search).get('tab') === '
       document.getElementById('emp_empleado_id').value = emp.empleado_id;
       document.getElementById('emp_persona_id').value = emp.persona_id;
       document.getElementById('emp_codigo_empleado').value = emp.codigo_empleado;
-      document.getElementById('emp_cargo').value = emp.cargo;
-      document.getElementById('emp_tipo_documento').value = emp.tipo_documento || 'CEDULA';
+      const mapaCargos = {
+        'Cajero POS': 'Cajero',
+        'Sommelier / Asesor': 'Asesor',
+        'Contador / Auditor': 'Contador',
+        'Seguridad / Control': 'Seguridad'
+      };
+      document.getElementById('emp_cargo').value = mapaCargos[emp.cargo] || emp.cargo;
+      document.getElementById('emp_tipo_documento').value = (emp.tipo_documento === 'PASAPORTE') ? 'PASAPORTE' : 'CEDULA';
       document.getElementById('emp_documento_identidad').value = emp.documento_identidad;
       document.getElementById('emp_nombre_razon_social').value = emp.nombre_razon_social;
       document.getElementById('emp_telefono_principal').value = emp.telefono_principal || '';

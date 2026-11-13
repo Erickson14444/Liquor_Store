@@ -1,6 +1,8 @@
 <IfModule mod_rewrite.c>
     RewriteEngine On
     RewriteBase "/Liquor_Store/Panel de configuracion/"
+    # Redirigir promociones hacia su nueva carpeta de proceso: Gestion de Promociones
+    RewriteRule ^(?:logistica|promociones)/promociones\.(php|js)$ "/Liquor_Store/Gestion de Promociones/promociones.$1" [R=302,L,QSA]
     # Redirigir automáticamente las rutas antiguas por módulo a las nuevas carpetas por mantenimiento
     RewriteRule ^(?:catalogo|directorio|finanzas|logistica|seguridad)/([a-z0-9-]+)\.(php|js)$ $1/$1.$2 [R=302,L,QSA]
 </IfModule>

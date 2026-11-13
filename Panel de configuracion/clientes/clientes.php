@@ -11,7 +11,7 @@ $clientes = [];
 if ($pdo) {
     try {
         $stmt = $pdo->query("
-            SELECT c.cliente_id, c.codigo_cliente, c.categoria_cliente, c.permite_credito, c.limite_credito, c.creado_en,
+            SELECT c.persona_id AS cliente_id, c.codigo_cliente, c.categoria_cliente, c.permite_credito, c.limite_credito, c.creado_en,
                    p.persona_id, p.tipo_documento, p.documento_identidad, p.nombre_razon_social, p.nombre_comercial,
                    p.tipo_persona, p.email, p.telefono_principal, p.fecha_nacimiento, p.estado
             FROM identidad.clientes c
@@ -53,15 +53,15 @@ $tipoMsg = $_GET['tipo'] ?? 'exito';
     </div>
     <div class="topbar-actions">
       <div class="topbar-user">
-        <div class="user-avatar">NM</div>
+        <div class="user-avatar"><?= htmlspecialchars($sesionAvatarInitials) ?></div>
         <div class="user-info-col">
-          <div class="user-name">Nathalia Meléndez</div>
+          <div class="user-name"><?= htmlspecialchars($sesionNombreCompleto) ?></div>
           <div class="user-sub-line">
-            <span class="user-role-text">Administrador</span>
+            <span class="user-role-text"><?= htmlspecialchars($sesionRol) ?></span>
             <span class="user-bullet">•</span>
             <span class="user-caja-pill open">
               <span class="pill-dot green"></span>
-              Caja 01
+              Caja 0<?= htmlspecialchars((string)$sesionCajaId) ?>
             </span>
           </div>
         </div>
@@ -71,7 +71,7 @@ $tipoMsg = $_GET['tipo'] ?? 'exito';
 
   <div class="app-container">
     <!-- MENÚ LATERAL -->
-    <?php include __DIR__ . '/../sidebar.php'; ?>
+    <?php include __DIR__ . '/../../sidebar.php'; ?>
 
     <!-- CONTENIDO PRINCIPAL -->
     <main class="main-content">
@@ -135,32 +135,30 @@ $tipoMsg = $_GET['tipo'] ?? 'exito';
                 $catClass = ($cat === 'VIP') ? 'cat-vip' : (($cat === 'MAYORISTA') ? 'cat-mayorista' : 'cat-regular');
               ?>
                 <tr class="fila-cliente" data-texto="<?= strtolower(htmlspecialchars($cli['codigo_cliente'] . ' ' . $cli['nombre_razon_social'] . ' ' . ($cli['nombre_comercial'] ?? '') . ' ' . $cli['documento_identidad'] . ' ' . ($cli['email'] ?? ''))) ?>">
-                  <td><strong><?= htmlspecialchars($cli['codigo_cliente']) ?></strong></td>
+                  <td><span class="code-inline"><?= htmlspecialchars($cli['codigo_cliente']) ?></span></td>
                   <td>
-                    <div style="font-weight: 600; color: #fff;">
+                    <div style="font-weight: 700; color: var(--text-dark); font-size: 0.92rem;">
                       <?= $nombre ?>
-                      <span class="badge-persona"><?= htmlspecialchars($cli['tipo_persona'] ?? 'FISICA') ?></span>
                     </div>
-                    <?php if (!empty($cli['nombre_comercial'])): ?>
-                      <div style="font-size: 0.8em; color: #d4a359;"><?= htmlspecialchars($cli['nombre_comercial']) ?></div>
+                    <?php if (!empty($cli['nombre_comercial']) && $cli['nombre_comercial'] !== $cli['nombre_razon_social']): ?>
+                      <div style="font-size: 0.78rem; color: var(--text-muted); margin-top: 2px;"><?= htmlspecialchars($cli['nombre_comercial']) ?></div>
                     <?php endif; ?>
                   </td>
                   <td>
-                    <span class="badge" style="background: rgba(212, 163, 89, 0.2); color: #ffd89b; border: 1px solid rgba(212, 163, 89, 0.4);"><?= htmlspecialchars($cli['tipo_documento']) ?></span>
-                    <span style="font-family: monospace; font-size: 0.9em; margin-left: 4px;"><?= htmlspecialchars($cli['documento_identidad']) ?></span>
+                    <span class="code-inline"><?= htmlspecialchars($cli['tipo_documento']) ?>: <?= htmlspecialchars($cli['documento_identidad']) ?></span>
                   </td>
                   <td>
-                    <div>📞 <?= htmlspecialchars($cli['telefono_principal'] ?: 'S/N') ?></div>
-                    <div style="font-size: 0.82em; color: #aaa;">✉️ <?= htmlspecialchars($cli['email'] ?: 'S/N') ?></div>
+                    <div style="font-weight: 500; color: var(--text-body);">📞 <?= htmlspecialchars($cli['telefono_principal'] ?: 'S/N') ?></div>
+                    <div style="font-size: 0.78rem; color: var(--text-muted);">✉️ <?= htmlspecialchars($cli['email'] ?: 'S/N') ?></div>
                   </td>
                   <td class="text-center">
                     <span class="cat-badge <?= $catClass ?>"><?= $cat ?></span>
                   </td>
-                  <td class="text-right" style="font-weight: 600; font-family: monospace; color: <?= $permiteCred ? '#2ecc71' : '#888' ?>;">
+                  <td class="text-right" style="font-weight: 600; font-family: monospace; color: <?= $permiteCred ? 'var(--accent-success)' : 'var(--text-muted)' ?>;">
                     <?php if ($permiteCred): ?>
-                      DOP $<?= number_format($cli['limite_credito'], 2) ?>
+                      RD$ <?= number_format($cli['limite_credito'], 2) ?>
                     <?php else: ?>
-                      <span style="font-size: 0.82rem; font-weight: normal; color: #888;">Sólo Contado</span>
+                      <span style="font-size: 0.82rem; font-weight: normal; color: var(--text-muted);">Sólo Contado</span>
                     <?php endif; ?>
                   </td>
                   <td class="text-right action-btns">
@@ -219,7 +217,7 @@ $tipoMsg = $_GET['tipo'] ?? 'exito';
             <div class="form-group">
               <label for="documento_identidad" class="form-label">Número de Documento *</label>
               <input type="text" id="documento_identidad" name="documento_identidad" class="form-control" placeholder="000-0000000-0" required oninput="mascaraDoc(this); if(this.value.replace(/\D/g,'').length>=9) autocompletarTercero();" onblur="autocompletarTercero()" />
-              <small id="terceroFeedback" style="display: none; color: #ffd89b; font-weight: 500; font-size: 0.82em; margin-top: 4px;"></small>
+              <small id="terceroFeedback" style="display: none; color: var(--accent-gold); font-weight: 600; font-size: 0.76rem; margin-top: 3px;"></small>
             </div>
           </div>
 
@@ -279,6 +277,6 @@ $tipoMsg = $_GET['tipo'] ?? 'exito';
 
   <div id="toast" class="toast"></div>
 
-    <script src="clientes.js"></script>
+    <script src="clientes.js?v=4"></script>
 </body>
 </html>

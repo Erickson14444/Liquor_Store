@@ -81,8 +81,10 @@ let secuencias = _datosSecuencias ? JSON.parse(_datosSecuencias.dataset.secuenci
             secuencias.push(data);
           }
           cerrarModal(true);
-          showToast('Bloque NCF guardado en PostgreSQL.');
+          showToast('Bloque NCF guardado exitosamente.');
           renderizarTabla();
+        } else {
+          showToast('Error: ' + (data.message || 'No se pudo guardar la secuencia.'));
         }
       } catch (e) {
         showToast('Error de conexión.');
