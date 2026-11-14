@@ -64,15 +64,15 @@ $tipoMsg = $_GET['tipo'] ?? 'exito';
     </div>
     <div class="topbar-actions">
       <div class="topbar-user">
-        <div class="user-avatar">NM</div>
+        <div class="user-avatar"><?= htmlspecialchars($sesionAvatarInitials) ?></div>
         <div class="user-info-col">
-          <div class="user-name">Nathalia Meléndez</div>
+          <div class="user-name"><?= htmlspecialchars($sesionNombreCompleto) ?></div>
           <div class="user-sub-line">
-            <span class="user-role-text">Administrador</span>
+            <span class="user-role-text"><?= htmlspecialchars($sesionRol) ?></span>
             <span class="user-bullet">•</span>
             <span class="user-caja-pill open">
               <span class="pill-dot green"></span>
-              Caja 01
+              Caja 0<?= htmlspecialchars((string)$sesionCajaId) ?>
             </span>
           </div>
         </div>
@@ -82,7 +82,7 @@ $tipoMsg = $_GET['tipo'] ?? 'exito';
 
   <div class="app-container">
     <!-- MENÚ LATERAL (PANEL DE CONFIGURACIÓN AL FINAL) -->
-    <?php include __DIR__ . '/../sidebar.php'; ?>
+    <?php include __DIR__ . '/../../sidebar.php'; ?>
 
     <!-- CONTENIDO PRINCIPAL -->
     <main class="main-content">
@@ -158,15 +158,14 @@ $tipoMsg = $_GET['tipo'] ?? 'exito';
                     <?= $u['ultimo_acceso'] ? date('d/m/Y H:i', strtotime($u['ultimo_acceso'])) : 'Nunca' ?>
                   </td>
                   <td class="text-center">
-                    <span class="status-badge <?= $esActivo ? 'active' : 'inactive' ?>">
-                      <?= $esActivo ? 'ACTIVO' : 'INACTIVO' ?>
-                    </span>
+                    <label class="toggle-wrap" title="Cambiar estado de acceso">
+                      <input type="checkbox" <?= $esActivo ? 'checked' : '' ?> onchange="toggleEstadoUsuario('<?= $u['usuario_id'] ?>', this.checked, this)" />
+                      <span class="toggle-slider"></span>
+                      <span class="toggle-text"><?= $esActivo ? 'Activo' : 'Inactivo' ?></span>
+                    </label>
                   </td>
                   <td class="text-right action-btns">
                     <button type="button" class="btn-sm btn-outline" onclick='editarUsuario(<?= json_encode($u) ?>)'>Editar</button>
-                    <button type="button" class="btn-sm <?= $esActivo ? 'btn-danger' : 'btn-gold' ?>" onclick="toggleEstadoUsuario('<?= $u['usuario_id'] ?>')">
-                      <?= $esActivo ? 'Desactivar' : 'Activar' ?>
-                    </button>
                   </td>
                 </tr>
               <?php endforeach; ?>

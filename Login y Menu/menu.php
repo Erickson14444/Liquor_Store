@@ -1,29 +1,14 @@
 <?php
-session_start();
+require_once __DIR__ . '/../config/conexion.php';
 
-// Fallback para pruebas si no hay sesión activa o si no es array
-if (empty($_SESSION['usuario']) || !is_array($_SESSION['usuario'])) {
-    $_SESSION['usuario'] = [
-        'id'              => 1,
-        'username'        => 'nmelendez',
-        'nombre_completo' => 'Nathalia Meléndez',
-        'email'           => 'admin@cavaybarrica.do',
-        'rol'             => 'Administrador',
-        'caja_id'         => 1
-    ];
-}
-
-$user = $_SESSION['usuario'];
-$cajaId = $user['caja_id'] ?? 1;
-$nombreCompleto = $user['nombre_completo'] ?? 'Nathalia Meléndez';
-$userRol = $user['rol'] ?? 'Administrador';
+$user           = $_SESSION['usuario'] ?? [];
+$cajaId         = $sesionCajaId;
+$nombreCompleto = $sesionNombreCompleto;
+$userRol        = $sesionRol;
+$avatarInitials = $sesionAvatarInitials;
 
 // Zona horaria de República Dominicana
 date_default_timezone_set('America/Santo_Domingo');
-
-// Obtener iniciales para el avatar
-$nombres = explode(' ', $nombreCompleto);
-$avatarInitials = strtoupper(substr($nombres[0] ?? 'N', 0, 1) . substr($nombres[1] ?? 'M', 0, 1));
 
 // Fecha y hora del sistema en español
 $diasEsp = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
@@ -173,10 +158,19 @@ try {
         } catch (Throwable $e) {}
 
         try {
-            $totalProductos   = (int)$pdo->query("SELECT COUNT(*) FROM inventario.productos_maestro WHERE activo = TRUE")->fetchColumn();
-            $totalClientes    = (int)$pdo->query("SELECT COUNT(*) FROM identidad.clientes WHERE activo = TRUE")->fetchColumn();
-            $totalPersonal    = (int)$pdo->query("SELECT COUNT(*) FROM identidad.empleados WHERE estado_laboral = 'ACTIVO'")->fetchColumn();
-            $totalProveedores = (int)$pdo->query("SELECT COUNT(*) FROM compras.proveedores WHERE activo = TRUE")->fetchColumn();
+            $totalProductos = (int)$pdo->query("SELECT COUNT(*) FROM inventario.productos_maestro")->fetchColumn();
+        } catch (Throwable $e) {}
+
+        try {
+            $totalClientes = (int)$pdo->query("SELECT COUNT(*) FROM identidad.clientes")->fetchColumn();
+        } catch (Throwable $e) {}
+
+        try {
+            $totalPersonal = (int)$pdo->query("SELECT COUNT(*) FROM identidad.empleados WHERE estado_laboral = 'ACTIVO'")->fetchColumn();
+        } catch (Throwable $e) {}
+
+        try {
+            $totalProveedores = (int)$pdo->query("SELECT COUNT(*) FROM identidad.proveedores")->fetchColumn();
         } catch (Throwable $e) {}
     }
 } catch (Throwable $e) {}
@@ -217,7 +211,7 @@ try {
             <span class="user-bullet">•</span>
             <span class="user-caja-pill open">
               <span class="pill-dot green"></span>
-              Caja 0<?= htmlspecialchars($cajaId) ?>
+              Caja 0<?= htmlspecialchars((string)$cajaId) ?>
             </span>
           </div>
         </div>
@@ -227,7 +221,7 @@ try {
 
   <div class="app-container app-layout">
     <!-- ==================== SIDEBAR UNIFICADO ==================== -->
-    <?php include __DIR__ . '/../Panel de configuracion/sidebar.php'; ?>
+    <?php include __DIR__ . '/../sidebar.php'; ?>
 
     <!-- ==================== MAIN CONTENT (DASHBOARD HUB) ==================== -->
     <main class="main-content">
@@ -235,7 +229,7 @@ try {
       <!-- Welcome Banner Simplificado y Elegante -->
       <section class="welcome-banner">
         <div class="welcome-text">
-          <h1>¡Bienvenida, <?= htmlspecialchars(explode(' ', $nombreCompleto)[0] ?? 'Nathalia') ?>! 👋</h1>
+          <h1>¡Hola, <?= htmlspecialchars(explode(' ', $nombreCompleto)[0] ?? $nombreCompleto) ?>! 👋</h1>
           <p>Panel de control operativo y administrativo de <strong>House &amp; Ice</strong>.</p>
         </div>
         <div class="welcome-date-badge">
@@ -470,11 +464,11 @@ try {
               </div>
             </a>
 
-            <a href="#" class="dash-process-item" onclick="alert('Proceso de Despacho Delivery en desarrollo'); return false;">
+            <a href="../Ventas y Facturacion/Delivery/delivery.php" class="dash-process-item">
               <div class="dash-process-icon">🛵</div>
               <div class="dash-process-info">
                 <h4>Despacho Delivery</h4>
-                <p>Asignación de ruta y flota</p>
+                <p>Horarios y asignación de zonas</p>
               </div>
             </a>
 
@@ -483,6 +477,14 @@ try {
               <div class="dash-process-info">
                 <h4>Lotes, Ajustes y Traslados</h4>
                 <p>Control de stock y bodegas</p>
+              </div>
+            </a>
+
+            <a href="../Gestion de Promociones/promociones.php" class="dash-process-item">
+              <div class="dash-process-icon">🎁</div>
+              <div class="dash-process-info">
+                <h4>Gestión de Promociones</h4>
+                <p>Campañas y carrito de reglas</p>
               </div>
             </a>
 

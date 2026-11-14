@@ -47,12 +47,13 @@ if ($pdo) {
         ");
         $repartidores = $stmtRep->fetchAll(PDO::FETCH_ASSOC) ?: [];
 
-        // 3. Empleados disponibles para asignar como Repartidores
+        // 3. Empleados disponibles para asignar como Repartidores (únicamente con cargo de Repartidor Delivery)
         $stmtDisp = $pdo->query("
             SELECT e.empleado_id, e.codigo_empleado, e.cargo, p.nombre_razon_social, p.documento_identidad, p.tipo_documento, p.telefono_principal
             FROM identidad.empleados e
             JOIN identidad.personas p ON e.persona_id = p.persona_id
             WHERE e.estado_laboral = 'ACTIVO'
+              AND (e.cargo ILIKE '%Repartidor%' OR e.cargo ILIKE '%Delivery%')
               AND e.empleado_id NOT IN (SELECT empleado_id FROM identidad.repartidores)
             ORDER BY p.nombre_razon_social ASC
         ");
@@ -92,15 +93,15 @@ $tipoMsg = $_GET['tipo'] ?? 'exito';
     </div>
     <div class="topbar-actions">
       <div class="topbar-user">
-        <div class="user-avatar">NM</div>
+        <div class="user-avatar"><?= htmlspecialchars($sesionAvatarInitials) ?></div>
         <div class="user-info-col">
-          <div class="user-name">Nathalia Meléndez</div>
+          <div class="user-name"><?= htmlspecialchars($sesionNombreCompleto) ?></div>
           <div class="user-sub-line">
-            <span class="user-role-text">Administrador</span>
+            <span class="user-role-text"><?= htmlspecialchars($sesionRol) ?></span>
             <span class="user-bullet">•</span>
             <span class="user-caja-pill open">
               <span class="pill-dot green"></span>
-              Caja 01
+              Caja 0<?= htmlspecialchars((string)$sesionCajaId) ?>
             </span>
           </div>
         </div>
@@ -110,7 +111,7 @@ $tipoMsg = $_GET['tipo'] ?? 'exito';
 
   <div class="app-container">
     <!-- MENÚ LATERAL -->
-    <?php include __DIR__ . '/../sidebar.php'; ?>
+    <?php include __DIR__ . '/../../sidebar.php'; ?>
 
     <!-- CONTENIDO PRINCIPAL -->
     <main class="main-content">
@@ -193,9 +194,11 @@ $tipoMsg = $_GET['tipo'] ?? 'exito';
                       <?php endif; ?>
                     </td>
                     <td>
-                      <span style="font-weight: 600; color: #8c581c;"><?= htmlspecialchars($emp['cargo']) ?></span>
+                      <div style="font-weight: 600; color: #8c581c;"><?= htmlspecialchars($emp['cargo']) ?></div>
                       <?php if ($emp['es_repartidor'] > 0): ?>
-                        <span style="font-size: 0.72rem; background: #e8f4fd; color: #0277bd; padding: 2px 6px; border-radius: 4px; margin-left: 4px; border: 1px solid #b3e5fc;">🛵 Delivery</span>
+                        <div style="margin-top: 4px;">
+                          <span style="display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; font-size: 0.72rem; background: #e8f4fd; color: #0277bd; padding: 2px 8px; border-radius: 4px; border: 1px solid #b3e5fc; font-weight: 600;">🛵 Delivery</span>
+                        </div>
                       <?php endif; ?>
                     </td>
                     <td>
@@ -319,7 +322,6 @@ $tipoMsg = $_GET['tipo'] ?? 'exito';
     <div class="modal-box" style="max-width: 640px;">
       <div class="modal-header">
         <h3 class="modal-title" id="modalTituloEmpleado">Nuevo Empleado</h3>
-        <button type="button" class="btn-close" onclick="cerrarModalEmpleado()">✕</button>
       </div>
 
       <form id="formEmpleado" onsubmit="guardarEmpleado(event)">
@@ -338,14 +340,14 @@ $tipoMsg = $_GET['tipo'] ?? 'exito';
             <div class="form-group">
               <label for="emp_cargo" class="form-label">Cargo / Puesto de Trabajo *</label>
               <select id="emp_cargo" name="cargo" class="form-control" required>
-                <option value="Cajero POS">Cajero POS</option>
+                <option value="Cajero">Cajero</option>
                 <option value="Supervisor de Turno">Supervisor de Turno</option>
                 <option value="Encargado de Almacén">Encargado de Almacén</option>
                 <option value="Repartidor Delivery">Repartidor Delivery</option>
-                <option value="Sommelier / Asesor">Sommelier / Asesor</option>
+                <option value="Asesor">Asesor</option>
                 <option value="Gerente de Tienda">Gerente de Tienda</option>
-                <option value="Contador / Auditor">Contador / Auditor</option>
-                <option value="Seguridad / Control">Seguridad / Control</option>
+                <option value="Contador">Contador</option>
+                <option value="Seguridad">Seguridad</option>
               </select>
             </div>
           </div>
@@ -355,25 +357,24 @@ $tipoMsg = $_GET['tipo'] ?? 'exito';
               <label for="emp_tipo_documento" class="form-label">Tipo de Documento *</label>
               <select id="emp_tipo_documento" name="tipo_documento" class="form-control" onchange="aplicarMascaraDocumento()">
                 <option value="CEDULA">Cédula Dominicana</option>
-                <option value="RNC">RNC</option>
                 <option value="PASAPORTE">Pasaporte Extranjero</option>
               </select>
             </div>
             <div class="form-group">
               <label for="emp_documento_identidad" class="form-label">Número de Documento *</label>
               <input type="text" id="emp_documento_identidad" name="documento_identidad" class="form-control" required placeholder="000-0000000-0" oninput="formatearDocumento(this); verificarTerceroLive(this.value);" />
-              <small id="feedbackTercero" style="display: none; color: #1f7a3f; font-size: 0.78rem; margin-top: 3px; font-weight: 600;"></small>
+              <small id="feedbackTercero" style="display: none; color: var(--accent-gold); font-size: 0.76rem; margin-top: 3px; font-weight: 600;"></small>
             </div>
           </div>
 
           <div class="form-group">
-            <label for="emp_nombre_razon_social" class="form-label">Nombre Completo (Nombres y Apellidos) *</label>
+            <label for="emp_nombre_razon_social" class="form-label">Nombre Completo *</label>
             <input type="text" id="emp_nombre_razon_social" name="nombre_razon_social" class="form-control" required placeholder="Ej. Juan Carlos Pérez Morales" onblur="verificarTerceroPorNombre(this.value)" />
           </div>
 
           <div class="form-row-2">
             <div class="form-group">
-              <label for="emp_telefono_principal" class="form-label">Teléfono Móvil (WhatsApp)</label>
+              <label for="emp_telefono_principal" class="form-label">Teléfono Móvil</label>
               <input type="text" id="emp_telefono_principal" name="telefono_principal" class="form-control" placeholder="(809) 000-0000" oninput="formatearTelefono(this)" />
             </div>
             <div class="form-group">
@@ -390,10 +391,10 @@ $tipoMsg = $_GET['tipo'] ?? 'exito';
             <div class="form-group">
               <label for="emp_estado_laboral" class="form-label">Estado Laboral *</label>
               <select id="emp_estado_laboral" name="estado_laboral" class="form-control" required>
-                <option value="ACTIVO">ACTIVO (Laborando)</option>
+                <option value="ACTIVO">ACTIVO</option>
                 <option value="VACACIONES">VACACIONES</option>
                 <option value="SUSPENDIDO">SUSPENDIDO</option>
-                <option value="INACTIVO">INACTIVO (Desvinculado)</option>
+                <option value="INACTIVO">INACTIVO</option>
               </select>
             </div>
           </div>
@@ -414,7 +415,6 @@ $tipoMsg = $_GET['tipo'] ?? 'exito';
     <div class="modal-box" style="max-width: 580px;">
       <div class="modal-header">
         <h3 class="modal-title" id="modalTituloRepartidor">Asignar Repartidor Delivery</h3>
-        <button type="button" class="btn-close" onclick="cerrarModalRepartidor()">✕</button>
       </div>
 
       <form id="formRepartidor" onsubmit="guardarRepartidor(event)">
@@ -425,16 +425,16 @@ $tipoMsg = $_GET['tipo'] ?? 'exito';
           <div class="form-group" id="grupoSelectEmpleado">
             <label for="rep_empleado_id" class="form-label">Empleado a Designar *</label>
             <select id="rep_empleado_id" name="empleado_id" class="form-control" required onchange="alSeleccionarEmpleadoRepartidor(this)">
-              <option value="">-- Selecciona un empleado activo del personal --</option>
+              <option value="">-- Selecciona un repartidor disponible --</option>
               <?php foreach ($empleadosDisponibles as $ed): ?>
                 <option value="<?= htmlspecialchars($ed['empleado_id']) ?>"
                         data-documento="<?= htmlspecialchars($ed['documento_identidad'] ?? '') ?>"
                         data-telefono="<?= htmlspecialchars($ed['telefono_principal'] ?? '') ?>">
-                  <?= htmlspecialchars($ed['codigo_empleado']) ?> • <?= htmlspecialchars($ed['nombre_razon_social']) ?> (<?= htmlspecialchars($ed['cargo']) ?>)
+                  <?= htmlspecialchars($ed['codigo_empleado']) ?> • <?= htmlspecialchars($ed['nombre_razon_social']) ?>
                 </option>
               <?php endforeach; ?>
             </select>
-            <small style="color: #8e8071; font-size: 0.78rem;">Solo se listan empleados activos que aún no tienen ficha de repartidor</small>
+            <small style="color: #8e8071; font-size: 0.78rem;">Solo se listan empleados con cargo Repartidor Delivery sin ficha asignada</small>
           </div>
 
           <div id="infoRepartidorEditando" style="display: none; margin-bottom: 15px; padding: 10px; background: #fdf4e7; border-radius: 6px; border: 1px solid #e6c89c;">
@@ -445,10 +445,10 @@ $tipoMsg = $_GET['tipo'] ?? 'exito';
             <div class="form-group">
               <label for="rep_numero_licencia" class="form-label">Licencia de Conducir *</label>
               <input type="text" id="rep_numero_licencia" name="numero_licencia" class="form-control" required maxlength="13" placeholder="000-0000000-0" oninput="formatearLicencia(this)" />
-              <small style="color: #8e8071; font-size: 0.76rem;">Formato oficial INTRANT / Cédula (000-0000000-0)</small>
+              <small style="color: #8e8071; font-size: 0.76rem;">Formato oficial INTRANT / Cédula</small>
             </div>
             <div class="form-group">
-              <label for="rep_telefono_principal" class="form-label">Teléfono Móvil (WhatsApp) *</label>
+              <label for="rep_telefono_principal" class="form-label">Teléfono Móvil *</label>
               <input type="text" id="rep_telefono_principal" name="telefono_principal" class="form-control" required maxlength="14" placeholder="(809) 000-0000" oninput="formatearTelefono(this)" />
               <small style="color: #8e8071; font-size: 0.76rem;">Número de contacto en ruta</small>
             </div>
@@ -477,10 +477,10 @@ $tipoMsg = $_GET['tipo'] ?? 'exito';
             <div class="form-group">
               <label for="rep_estado_logistico" class="form-label">Estado Logístico en Tiempo Real *</label>
               <select id="rep_estado_logistico" name="estado_logistico" class="form-control" required>
-                <option value="BASE">BASE (Disponible en local)</option>
-                <option value="EN_RUTA_CON_ESPACIO">EN RUTA (Con espacio)</option>
-                <option value="EN_RUTA_LLENO">EN RUTA (Capacidad máxima)</option>
-                <option value="INACTIVO">INACTIVO (Fuera de servicio)</option>
+                <option value="BASE">BASE</option>
+                <option value="EN_RUTA_CON_ESPACIO">EN RUTA CON ESPACIO</option>
+                <option value="EN_RUTA_LLENO">EN RUTA LLENO</option>
+                <option value="INACTIVO">INACTIVO</option>
               </select>
             </div>
           </div>
@@ -497,7 +497,7 @@ $tipoMsg = $_GET['tipo'] ?? 'exito';
   <!-- TOAST DE NOTIFICACIONES -->
   <div id="toast" class="toast"></div>
 
-    <script src="personal.js"></script>
+    <script src="personal.js?v=4"></script>
 </body>
 </html>
 

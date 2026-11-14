@@ -107,7 +107,8 @@ let pestanaActiva = new URLSearchParams(window.location.search).get('tab') === '
       setTimeout(() => document.getElementById('rol_nombre').focus(), 100);
     }
 
-    function cerrarModalRol() {
+    function cerrarModalRol(forzar = false) {
+      if (!forzar && !confirm('¿Estás seguro de que deseas cancelar?')) return;
       document.getElementById('modalRol').classList.remove('open');
     }
 
@@ -119,9 +120,8 @@ let pestanaActiva = new URLSearchParams(window.location.search).get('tab') === '
       document.querySelectorAll('.chk-permiso').forEach(c => c.checked = marcar);
     }
 
-    function toggleEstadoRol(rolId) {
-      if (!confirm("¿Deseas alternar el estado de activación de este rol?")) return;
-
+    function toggleEstadoRol(rolId, checked, checkboxEl) {
+      const toggleText = checkboxEl ? checkboxEl.parentElement.querySelector('.toggle-text') : null;
       const fd = new FormData();
       fd.append('accion', 'cambiar_estado');
       fd.append('rol_id', rolId);
@@ -132,13 +132,17 @@ let pestanaActiva = new URLSearchParams(window.location.search).get('tab') === '
         .then(r => r.json())
         .then(data => {
           if (data.status === 'success') {
+            if (toggleText) toggleText.textContent = checked ? 'Activo' : 'Inactivo';
             mostrarToast(data.message);
-            setTimeout(() => location.href = 'roles.php?tab=roles&msg=' + encodeURIComponent(data.message) + '&tipo=exito', 400);
           } else {
+            if (checkboxEl) checkboxEl.checked = !checked;
+            if (toggleText) toggleText.textContent = (!checked) ? 'Activo' : 'Inactivo';
             alert(data.message || 'Error al cambiar estado');
           }
         })
         .catch(err => {
+          if (checkboxEl) checkboxEl.checked = !checked;
+          if (toggleText) toggleText.textContent = (!checked) ? 'Activo' : 'Inactivo';
           console.error(err);
           alert('Error al comunicarse con el servidor.');
         });
@@ -175,7 +179,8 @@ let pestanaActiva = new URLSearchParams(window.location.search).get('tab') === '
       setTimeout(() => document.getElementById('permiso_clave').focus(), 100);
     }
 
-    function cerrarModalPermiso() {
+    function cerrarModalPermiso(forzar = false) {
+      if (!forzar && !confirm('¿Estás seguro de que deseas cancelar?')) return;
       document.getElementById('modalPermiso').classList.remove('open');
     }
 
@@ -257,8 +262,8 @@ let pestanaActiva = new URLSearchParams(window.location.search).get('tab') === '
     // Cerrar modales con tecla Escape
     document.addEventListener('keydown', (e) => {
       if (e.key === 'Escape') {
-        cerrarModalRol();
-        cerrarModalPermiso();
+        if (document.getElementById('modalRol').classList.contains('open')) cerrarModalRol();
+        if (document.getElementById('modalPermiso').classList.contains('open')) cerrarModalPermiso();
       }
     });
 

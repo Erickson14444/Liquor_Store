@@ -67,7 +67,8 @@ let zonas = _datosZonas ? JSON.parse(_datosZonas.dataset.zonas || '[]') : [];
       document.getElementById('modalZona').classList.add('open');
     }
 
-    function cerrarModal() {
+    function cerrarModal(forzar = false) {
+      if (!forzar && !confirm('¿Estás seguro de que deseas cancelar?')) return;
       document.getElementById('modalZona').classList.remove('open');
       editandoId = null;
     }
@@ -91,7 +92,7 @@ let zonas = _datosZonas ? JSON.parse(_datosZonas.dataset.zonas || '[]') : [];
           } else {
             zonas.push(data);
           }
-          cerrarModal();
+          cerrarModal(true);
           showToast('Zona guardada en PostgreSQL.');
           renderizarTabla();
         }

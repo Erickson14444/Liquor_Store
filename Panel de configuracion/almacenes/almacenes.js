@@ -30,7 +30,8 @@ function abrirModal() {
       setTimeout(() => document.getElementById('nombre').focus(), 100);
     }
 
-    function cerrarModal() {
+    function cerrarModal(forzar = false) {
+      if (!forzar && !confirm('¿Estás seguro de que deseas cancelar?')) return;
       document.getElementById('modalAlmacen').classList.remove('open');
     }
 
@@ -65,7 +66,7 @@ function abrirModal() {
         const data = await res.json();
 
         if (data.status === 'success') {
-          cerrarModal();
+          cerrarModal(true);
           location.reload();
         } else {
           alert('Aviso: ' + (data.message || 'No se pudo guardar el almacén.'));

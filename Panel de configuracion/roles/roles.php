@@ -207,15 +207,15 @@ $tipoMsg = $_GET['tipo'] ?? 'exito';
     </div>
     <div class="topbar-actions">
       <div class="topbar-user">
-        <div class="user-avatar">NM</div>
+        <div class="user-avatar"><?= htmlspecialchars($sesionAvatarInitials) ?></div>
         <div class="user-info-col">
-          <div class="user-name">Nathalia Meléndez</div>
+          <div class="user-name"><?= htmlspecialchars($sesionNombreCompleto) ?></div>
           <div class="user-sub-line">
-            <span class="user-role-text">Administrador</span>
+            <span class="user-role-text"><?= htmlspecialchars($sesionRol) ?></span>
             <span class="user-bullet">•</span>
             <span class="user-caja-pill open">
               <span class="pill-dot green"></span>
-              Caja 01
+              Caja 0<?= htmlspecialchars((string)$sesionCajaId) ?>
             </span>
           </div>
         </div>
@@ -225,7 +225,7 @@ $tipoMsg = $_GET['tipo'] ?? 'exito';
 
   <div class="app-container">
     <!-- MENÚ LATERAL -->
-    <?php include __DIR__ . '/../sidebar.php'; ?>
+    <?php include __DIR__ . '/../../sidebar.php'; ?>
 
     <!-- CONTENIDO PRINCIPAL -->
     <main class="main-content">
@@ -319,19 +319,16 @@ $tipoMsg = $_GET['tipo'] ?? 'exito';
                       </span>
                     </td>
                     <td class="text-center">
-                      <span class="status-badge <?= $esActivo ? 'active' : 'inactive' ?>">
-                        <?= $esActivo ? 'ACTIVO' : 'INACTIVO' ?>
-                      </span>
+                      <label class="toggle-wrap" title="Cambiar estado del rol">
+                        <input type="checkbox" <?= $esActivo ? 'checked' : '' ?> <?= ($r['nombre'] === 'Administrador') ? 'disabled' : '' ?> onchange="toggleEstadoRol('<?= $r['rol_id'] ?>', this.checked, this)" />
+                        <span class="toggle-slider"></span>
+                        <span class="toggle-text"><?= $esActivo ? 'Activo' : 'Inactivo' ?></span>
+                      </label>
                     </td>
                     <td class="text-right action-btns">
                       <button type="button" class="btn-sm btn-outline" onclick='editarRol(<?= json_encode($r, JSON_HEX_APOS | JSON_HEX_QUOT) ?>)'>
                         Editar Permisos
                       </button>
-                      <?php if ($r['nombre'] !== 'Administrador'): ?>
-                        <button type="button" class="btn-sm <?= $esActivo ? 'btn-danger' : 'btn-gold' ?>" onclick="toggleEstadoRol('<?= $r['rol_id'] ?>')">
-                          <?= $esActivo ? 'Desactivar' : 'Activar' ?>
-                        </button>
-                      <?php endif; ?>
                     </td>
                   </tr>
                 <?php endforeach; ?>

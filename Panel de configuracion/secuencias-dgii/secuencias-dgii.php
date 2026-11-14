@@ -40,15 +40,15 @@ if ($pdo) {
     </div>
     <div class="topbar-actions">
       <div class="topbar-user">
-        <div class="user-avatar">NM</div>
+        <div class="user-avatar"><?= htmlspecialchars($sesionAvatarInitials) ?></div>
         <div class="user-info-col">
-          <div class="user-name">Nathalia Meléndez</div>
+          <div class="user-name"><?= htmlspecialchars($sesionNombreCompleto) ?></div>
           <div class="user-sub-line">
-            <span class="user-role-text">Administrador</span>
+            <span class="user-role-text"><?= htmlspecialchars($sesionRol) ?></span>
             <span class="user-bullet">•</span>
             <span class="user-caja-pill open">
               <span class="pill-dot green"></span>
-              Caja 01
+              Caja 0<?= htmlspecialchars((string)$sesionCajaId) ?>
             </span>
           </div>
         </div>
@@ -57,7 +57,7 @@ if ($pdo) {
   </header>
 
   <div class="app-container">
-    <?php include __DIR__ . '/../sidebar.php'; ?>
+    <?php include __DIR__ . '/../../sidebar.php'; ?>
 
     <main class="main-content">
       <div class="page-header">
@@ -110,10 +110,15 @@ if ($pdo) {
             <select id="tipo_comprobante" class="form-control" required>
               <option value="B01">B01 - Factura de Crédito Fiscal</option>
               <option value="B02">B02 - Factura de Consumo Final</option>
-              <option value="B04">B04 - Nota de Crédito</option>
               <option value="B03">B03 - Nota de Débito</option>
-              <option value="B14">B14 - Regímenes Especiales</option>
-              <option value="B15">B15 - Gubernamental</option>
+              <option value="B04">B04 - Nota de Crédito</option>
+              <option value="B11">B11 - Comprobante de Compras (Proveedores Informales)</option>
+              <option value="B12">B12 - Registro Único de Ingresos</option>
+              <option value="B13">B13 - Comprobante para Gastos Menores (Caja Chica)</option>
+              <option value="B14">B14 - Comprobante para Regímenes Especiales</option>
+              <option value="B15">B15 - Comprobante Gubernamental</option>
+              <option value="B16">B16 - Comprobante para Exportaciones</option>
+              <option value="B17">B17 - Comprobante para Pagos al Exterior</option>
             </select>
           </div>
           <div class="form-row">
@@ -156,6 +161,6 @@ if ($pdo) {
   <div id="toast" class="toast">Guardado correctamente</div>
 
     <div id="datosSecuencias" data-secuencias="<?= htmlspecialchars(json_encode($secuenciasDb, JSON_UNESCAPED_UNICODE), ENT_QUOTES, 'UTF-8') ?>" style="display:none;"></div>
-  <script src="secuencias-dgii.js"></script>
+  <script src="secuencias-dgii.js?v=2"></script>
 </body>
 </html>

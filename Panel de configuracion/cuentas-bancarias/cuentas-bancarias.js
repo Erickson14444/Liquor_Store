@@ -61,10 +61,43 @@ let cuentas = _datosCuentas ? JSON.parse(_datosCuentas.dataset.cuentas || '[]') 
       }
     }
 
+    function validarInputNumeroCuenta(input) {
+      const limpio = input.value.replace(/\D/g, '').slice(0, 20);
+      if (input.value !== limpio) {
+        input.value = limpio;
+      }
+      const errEl = document.getElementById('errorNumeroCuenta');
+      if (!errEl) return;
+
+      if (limpio.length > 0 && limpio.length < 8) {
+        errEl.textContent = `Faltan ${8 - limpio.length} dígito(s) (mínimo 8 dígitos).`;
+        errEl.style.display = 'block';
+      } else if (/^0+$/.test(limpio)) {
+        errEl.textContent = 'El número de cuenta no puede contener solo ceros.';
+        errEl.style.display = 'block';
+      } else {
+        const duplicada = cuentas.some(
+          c => String(c.numero_cuenta) === limpio && Number(c.id) !== Number(editandoId)
+        );
+        if (duplicada) {
+          errEl.textContent = '⚠️ Este número de cuenta ya está registrado.';
+          errEl.style.display = 'block';
+        } else {
+          errEl.style.display = 'none';
+          errEl.textContent = '';
+        }
+      }
+    }
+
     function abrirModal(id = null) {
       editandoId = id;
       const form = document.getElementById('formCuenta');
       form.reset();
+      const errEl = document.getElementById('errorNumeroCuenta');
+      if (errEl) {
+        errEl.style.display = 'none';
+        errEl.textContent = '';
+      }
       if (id) {
         const c = cuentas.find(i => i.id === id);
         if (c) {
@@ -80,18 +113,47 @@ let cuentas = _datosCuentas ? JSON.parse(_datosCuentas.dataset.cuentas || '[]') 
       document.getElementById('modalCuenta').classList.add('open');
     }
 
-    function cerrarModal() {
+    function cerrarModal(forzar = false) {
+      if (!forzar && !confirm('¿Estás seguro de que deseas cancelar?')) return;
       document.getElementById('modalCuenta').classList.remove('open');
       editandoId = null;
     }
 
     async function guardarCuenta(e) {
       e.preventDefault();
+      const nombreBanco = document.getElementById('nombre_banco').value.trim();
+      const numeroCuentaInput = document.getElementById('numero_cuenta');
+      const numeroCuenta = numeroCuentaInput.value.replace(/\D/g, '').trim();
+      const errEl = document.getElementById('errorNumeroCuenta');
+
+      if (!/^\d{8,20}$/.test(numeroCuenta) || /^0+$/.test(numeroCuenta)) {
+        if (errEl) {
+          errEl.textContent = 'Ingrese un número de cuenta válido (de 8 a 20 dígitos numéricos).';
+          errEl.style.display = 'block';
+        }
+        showToast('Error: El número de cuenta debe tener entre 8 y 20 dígitos numéricos.');
+        numeroCuentaInput.focus();
+        return;
+      }
+
+      const duplicada = cuentas.some(
+        c => String(c.numero_cuenta) === numeroCuenta && Number(c.id) !== Number(editandoId)
+      );
+      if (duplicada) {
+        if (errEl) {
+          errEl.textContent = '⚠️ Este número de cuenta ya está registrado.';
+          errEl.style.display = 'block';
+        }
+        showToast('Error: Ese número de cuenta ya existe.');
+        numeroCuentaInput.focus();
+        return;
+      }
+
       const fd = new FormData();
       fd.append('action', 'guardar');
       if (editandoId) fd.append('id', editandoId);
-      fd.append('nombre_banco', document.getElementById('nombre_banco').value.trim());
-      fd.append('numero_cuenta', document.getElementById('numero_cuenta').value.trim());
+      fd.append('nombre_banco', nombreBanco);
+      fd.append('numero_cuenta', numeroCuenta);
       fd.append('tipo_cuenta', document.getElementById('tipo_cuenta').value);
       fd.append('moneda', document.getElementById('moneda').value);
 
@@ -110,7 +172,7 @@ let cuentas = _datosCuentas ? JSON.parse(_datosCuentas.dataset.cuentas || '[]') 
           } else {
             cuentas.push(data);
           }
-          cerrarModal();
+          cerrarModal(true);
           showToast('Cuenta guardada en PostgreSQL exitosamente.');
           renderizarTabla(document.getElementById('buscar').value);
         } else {

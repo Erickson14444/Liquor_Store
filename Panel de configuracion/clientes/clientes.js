@@ -3,7 +3,16 @@
     // ==========================================
     function mascaraDoc(input) {
       const tipo = document.getElementById('tipo_documento').value;
+      const ev = window.event;
+      const isDelete = ev && ev.inputType && ev.inputType.startsWith('delete');
       let val = input.value.replace(/\D/g, '');
+
+      if (tipo === 'CEDULA' || tipo === 'RNC') {
+        if (isDelete && input.dataset.prevDocDigits === val && val.length > 0) {
+          val = val.slice(0, -1);
+        }
+      }
+
       if (tipo === 'CEDULA') {
         if (val.length > 11) val = val.substring(0, 11);
         if (val.length > 3 && val.length <= 10) {
@@ -13,6 +22,7 @@
         } else {
           input.value = val;
         }
+        input.dataset.prevDocDigits = val;
       } else if (tipo === 'RNC') {
         if (val.length > 9) val = val.substring(0, 9);
         if (val.length > 1 && val.length <= 8) {
@@ -22,23 +32,32 @@
         } else {
           input.value = val;
         }
+        input.dataset.prevDocDigits = val;
       } else {
         input.value = input.value.toUpperCase();
       }
     }
 
     function mascaraTelefono(input) {
+      const ev = window.event;
+      const isDelete = ev && ev.inputType && ev.inputType.startsWith('delete');
       let val = input.value.replace(/\D/g, '');
+
+      // Si el usuario borró un paréntesis, espacio o guion, eliminar también el dígito anterior
+      if (isDelete && input.dataset.prevDigits === val && val.length > 0) {
+        val = val.slice(0, -1);
+      }
+
       if (val.length > 10) val = val.substring(0, 10);
+
       if (val.length > 6) {
         input.value = '(' + val.substring(0, 3) + ') ' + val.substring(3, 6) + '-' + val.substring(6, 10);
       } else if (val.length > 3) {
         input.value = '(' + val.substring(0, 3) + ') ' + val.substring(3);
-      } else if (val.length > 0) {
-        input.value = '(' + val;
       } else {
-        input.value = '';
+        input.value = val;
       }
+      input.dataset.prevDigits = val;
     }
 
     function aplicarMascaraDoc() {
@@ -62,12 +81,25 @@
       const tp = document.getElementById('tipo_persona').value;
       const lbl = document.getElementById('labelNombre');
       const inp = document.getElementById('nombre_razon_social');
+      const selDoc = document.getElementById('tipo_documento');
+      const optRnc = selDoc ? selDoc.querySelector('option[value="RNC"]') : null;
+      const optCed = selDoc ? selDoc.querySelector('option[value="CEDULA"]') : null;
+      const optPas = selDoc ? selDoc.querySelector('option[value="PASAPORTE"]') : null;
+
       if (tp === 'JURIDICA') {
         lbl.textContent = 'Razón Social de la Empresa *';
         inp.placeholder = 'Ej. Distribuidora del Cibao SAS';
+        if (optRnc) optRnc.hidden = false;
+        if (optCed) optCed.hidden = true;
+        if (optPas) optPas.hidden = true;
+        if (selDoc && selDoc.value !== 'RNC') selDoc.value = 'RNC';
       } else {
         lbl.textContent = 'Nombres y Apellidos *';
         inp.placeholder = 'Ej. Juan Pérez';
+        if (optRnc) optRnc.hidden = true;
+        if (optCed) optCed.hidden = false;
+        if (optPas) optPas.hidden = false;
+        if (selDoc && selDoc.value === 'RNC') selDoc.value = 'CEDULA';
       }
     }
 
@@ -97,11 +129,10 @@
         ajustarTipoPersona();
       }
       if (feedback) {
-        const rolExtra = p.resumen_roles ? ' [' + p.resumen_roles + ']' : '';
         feedback.style.display = 'block';
-        feedback.textContent = '✨ Persona localizada en identidad.personas (' + (p.nombre_razon_social || p.primer_nombre) + rolExtra + '). Sus datos principales se han rellenado y NO se creará registro duplicado en personas.';
+        feedback.textContent = 'Persona existente';
       }
-      mostrarToast('✨ Datos de identidad.personas cargados automáticamente.');
+      mostrarToast('Persona existente');
     }
 
     function autocompletarTercero() {
@@ -193,7 +224,8 @@
       document.getElementById('modalCliente').classList.add('open');
     }
 
-    function cerrarModal() {
+    function cerrarModal(forzar = false) {
+      if (!forzar && !confirm('¿Estás seguro de que deseas cancelar?')) return;
       document.getElementById('modalCliente').classList.remove('open');
     }
 
@@ -201,28 +233,29 @@
       if (e.target.id === 'modalCliente') cerrarModal();
     }
 
-    function toggleEstadoCliente(clienteId, esActivoActual) {
-      const nuevoEstado = !esActivoActual;
-      const accionTxt = nuevoEstado ? 'Activar' : 'Desactivar';
-      if (!confirm(`¿Deseas ${accionTxt} este cliente?`)) return;
-
+    function toggleEstadoCliente(clienteId, checked, checkboxEl) {
+      const toggleText = checkboxEl ? checkboxEl.parentElement.querySelector('.toggle-text') : null;
       const fd = new FormData();
       fd.append('accion', 'cambiar_estado');
       fd.append('cliente_id', clienteId);
-      fd.append('estado', nuevoEstado ? 'true' : 'false');
+      fd.append('estado', checked ? 'true' : 'false');
       fd.append('format', 'json');
 
       fetch('procesar_clientes.php', { method: 'POST', body: fd })
         .then(r => r.json())
         .then(data => {
           if (data.status === 'success') {
+            if (toggleText) toggleText.textContent = checked ? 'Activo' : 'Inactivo';
             mostrarToast(data.message);
-            setTimeout(() => location.reload(), 600);
           } else {
+            if (checkboxEl) checkboxEl.checked = !checked;
+            if (toggleText) toggleText.textContent = (!checked) ? 'Activo' : 'Inactivo';
             alert(data.message || 'Error al cambiar estado');
           }
         })
         .catch(err => {
+          if (checkboxEl) checkboxEl.checked = !checked;
+          if (toggleText) toggleText.textContent = (!checked) ? 'Activo' : 'Inactivo';
           console.error(err);
           alert('Error al comunicarse con el servidor.');
         });

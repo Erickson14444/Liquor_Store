@@ -52,7 +52,8 @@ let secuencias = _datosSecuencias ? JSON.parse(_datosSecuencias.dataset.secuenci
       document.getElementById('modalSecuencia').classList.add('open');
     }
 
-    function cerrarModal() {
+    function cerrarModal(forzar = false) {
+      if (!forzar && !confirm('¿Estás seguro de que deseas cancelar?')) return;
       document.getElementById('modalSecuencia').classList.remove('open');
       editandoId = null;
     }
@@ -79,9 +80,11 @@ let secuencias = _datosSecuencias ? JSON.parse(_datosSecuencias.dataset.secuenci
           } else {
             secuencias.push(data);
           }
-          cerrarModal();
-          showToast('Bloque NCF guardado en PostgreSQL.');
+          cerrarModal(true);
+          showToast('Bloque NCF guardado exitosamente.');
           renderizarTabla();
+        } else {
+          showToast('Error: ' + (data.message || 'No se pudo guardar la secuencia.'));
         }
       } catch (e) {
         showToast('Error de conexión.');

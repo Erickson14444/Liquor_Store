@@ -40,15 +40,15 @@ if ($pdo) {
     </div>
     <div class="topbar-actions">
       <div class="topbar-user">
-        <div class="user-avatar">NM</div>
+        <div class="user-avatar"><?= htmlspecialchars($sesionAvatarInitials) ?></div>
         <div class="user-info-col">
-          <div class="user-name">Nathalia Meléndez</div>
+          <div class="user-name"><?= htmlspecialchars($sesionNombreCompleto) ?></div>
           <div class="user-sub-line">
-            <span class="user-role-text">Administrador</span>
+            <span class="user-role-text"><?= htmlspecialchars($sesionRol) ?></span>
             <span class="user-bullet">•</span>
             <span class="user-caja-pill open">
               <span class="pill-dot green"></span>
-              Caja 01
+              Caja 0<?= htmlspecialchars((string)$sesionCajaId) ?>
             </span>
           </div>
         </div>
@@ -57,7 +57,7 @@ if ($pdo) {
   </header>
 
   <div class="app-container">
-    <?php include __DIR__ . '/../sidebar.php'; ?>
+    <?php include __DIR__ . '/../../sidebar.php'; ?>
 
     <main class="main-content">
       <div class="page-header">
@@ -120,7 +120,20 @@ if ($pdo) {
           </div>
           <div class="form-group">
             <label class="form-label" for="numero_cuenta">NÚMERO DE CUENTA *</label>
-            <input type="text" id="numero_cuenta" class="form-control" placeholder="Ej. 7845129630" required />
+            <input
+              type="text"
+              id="numero_cuenta"
+              class="form-control"
+              placeholder="Ej. 7845129630 (8 a 20 dígitos)"
+              inputmode="numeric"
+              minlength="8"
+              maxlength="20"
+              onkeydown="if(['Backspace','Delete','Tab','Escape','Enter','ArrowLeft','ArrowRight','Home','End'].includes(event.key) || event.ctrlKey || event.metaKey) return true; if(!/^[0-9]$/.test(event.key)) { event.preventDefault(); return false; }"
+              oninput="this.value = this.value.replace(/[^0-9]/g, '').slice(0, 20); if(typeof validarInputNumeroCuenta === 'function') validarInputNumeroCuenta(this);"
+              required
+            />
+            <small id="errorNumeroCuenta" style="display: none; color: var(--accent-danger); font-size: 0.76rem; font-weight: 600; margin-top: 3px;"></small>
+            <small style="color: var(--text-muted); font-size: 0.75rem;">Solo números (entre 8 y 20 dígitos, sin letras ni símbolos).</small>
           </div>
           <div class="form-row">
             <div class="form-group">
@@ -150,6 +163,6 @@ if ($pdo) {
   <div id="toast" class="toast">Guardado correctamente</div>
 
     <div id="datosCuentas" data-cuentas="<?= htmlspecialchars(json_encode($cuentasDb, JSON_UNESCAPED_UNICODE), ENT_QUOTES, 'UTF-8') ?>" style="display:none;"></div>
-  <script src="cuentas-bancarias.js"></script>
+  <script src="cuentas-bancarias.js?v=3"></script>
 </body>
 </html>

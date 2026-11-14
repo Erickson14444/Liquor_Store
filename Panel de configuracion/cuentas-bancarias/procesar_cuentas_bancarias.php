@@ -14,12 +14,27 @@ try {
     if ($action === 'guardar') {
         $id = !empty($_POST['id']) ? intval($_POST['id']) : null;
         $nombre_banco = trim($_POST['nombre_banco'] ?? '');
-        $numero_cuenta = trim($_POST['numero_cuenta'] ?? '');
+        $numero_cuenta = preg_replace('/\D/', '', trim($_POST['numero_cuenta'] ?? ''));
         $tipo_cuenta = $_POST['tipo_cuenta'] ?? 'CORRIENTE';
         $moneda = $_POST['moneda'] ?? 'DOP';
 
         if (empty($nombre_banco) || empty($numero_cuenta)) {
             throw new Exception("Banco y número de cuenta son obligatorios.");
+        }
+
+        if (!preg_match('/^\d{8,20}$/', $numero_cuenta) || preg_match('/^0+$/', $numero_cuenta)) {
+            throw new Exception("El número de cuenta debe contener entre 8 y 20 dígitos numéricos válidos.");
+        }
+
+        if ($id) {
+            $stmtDup = $pdo->prepare("SELECT COUNT(*) FROM tesoreria.cuentas_bancarias WHERE numero_cuenta = ? AND id <> ?");
+            $stmtDup->execute([$numero_cuenta, $id]);
+        } else {
+            $stmtDup = $pdo->prepare("SELECT COUNT(*) FROM tesoreria.cuentas_bancarias WHERE numero_cuenta = ?");
+            $stmtDup->execute([$numero_cuenta]);
+        }
+        if ((int)$stmtDup->fetchColumn() > 0) {
+            throw new Exception("Este número de cuenta bancaria ya se encuentra registrado.");
         }
 
         if ($id) {

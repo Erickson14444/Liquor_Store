@@ -11,7 +11,7 @@ $proveedores = [];
 if ($pdo) {
     try {
         $stmt = $pdo->query("
-            SELECT prv.proveedor_id, prv.codigo_proveedor, prv.dias_credito_habitual, prv.retencion_isr_porc, prv.creado_en,
+            SELECT prv.persona_id AS proveedor_id, prv.codigo_proveedor, prv.dias_credito_habitual, prv.retencion_isr_porc, prv.creado_en,
                    p.persona_id, p.documento_identidad, p.tipo_documento, p.nombre_razon_social, p.nombre_comercial,
                    p.tipo_persona, p.telefono_principal, p.email, p.estado
             FROM identidad.proveedores prv
@@ -53,15 +53,15 @@ $tipoMsg = $_GET['tipo'] ?? 'exito';
     </div>
     <div class="topbar-actions">
       <div class="topbar-user">
-        <div class="user-avatar">NM</div>
+        <div class="user-avatar"><?= htmlspecialchars($sesionAvatarInitials) ?></div>
         <div class="user-info-col">
-          <div class="user-name">Nathalia Meléndez</div>
+          <div class="user-name"><?= htmlspecialchars($sesionNombreCompleto) ?></div>
           <div class="user-sub-line">
-            <span class="user-role-text">Administrador</span>
+            <span class="user-role-text"><?= htmlspecialchars($sesionRol) ?></span>
             <span class="user-bullet">•</span>
             <span class="user-caja-pill open">
               <span class="pill-dot green"></span>
-              Caja 01
+              Caja 0<?= htmlspecialchars((string)$sesionCajaId) ?>
             </span>
           </div>
         </div>
@@ -71,7 +71,7 @@ $tipoMsg = $_GET['tipo'] ?? 'exito';
 
   <div class="app-container">
     <!-- MENÚ LATERAL -->
-    <?php include __DIR__ . '/../sidebar.php'; ?>
+    <?php include __DIR__ . '/../../sidebar.php'; ?>
 
     <!-- CONTENIDO PRINCIPAL -->
     <main class="main-content">
@@ -116,14 +116,13 @@ $tipoMsg = $_GET['tipo'] ?? 'exito';
               <th>Contacto</th>
               <th class="text-center">Crédito Habitual</th>
               <th class="text-center">Retención ISR</th>
-              <th class="text-center">Estado</th>
               <th class="text-right">Acciones</th>
             </tr>
           </thead>
           <tbody id="tablaBody">
             <?php if (empty($proveedores)): ?>
               <tr>
-                <td colspan="8" class="text-center" style="padding: 30px; color: #888;">
+                <td colspan="7" class="text-center" style="padding: 30px; color: #888;">
                   No hay proveedores registrados. Haz clic en <strong>+ Nuevo Proveedor</strong> para agregar el primero.
                 </td>
               </tr>
@@ -135,36 +134,28 @@ $tipoMsg = $_GET['tipo'] ?? 'exito';
                 $com = htmlspecialchars($prv['nombre_comercial'] ?? '');
               ?>
                 <tr class="fila-prov" data-texto="<?= strtolower(htmlspecialchars($prv['codigo_proveedor'] . ' ' . $nom . ' ' . $com . ' ' . $doc . ' ' . ($prv['email'] ?? ''))) ?>">
-                  <td><strong><?= htmlspecialchars($prv['codigo_proveedor']) ?></strong></td>
+                  <td><span class="code-inline"><?= htmlspecialchars($prv['codigo_proveedor']) ?></span></td>
                   <td>
-                    <div style="font-weight: 600; color: #fff;"><?= $nom ?></div>
+                    <div style="font-weight: 700; color: var(--text-dark); font-size: 0.92rem;"><?= $nom ?></div>
                     <?php if (!empty($com) && $com !== $nom): ?>
-                      <div style="font-size: 0.8rem; color: #d4a359;"><?= $com ?></div>
+                      <div style="font-size: 0.78rem; color: var(--text-muted); margin-top: 2px;"><?= $com ?></div>
                     <?php endif; ?>
                   </td>
                   <td>
-                    <span class="badge-rnc"><?= htmlspecialchars($prv['tipo_documento']) ?>: <?= $doc ?></span>
+                    <span class="code-inline"><?= htmlspecialchars($prv['tipo_documento']) ?>: <?= $doc ?></span>
                   </td>
                   <td>
-                    <div>📞 <?= htmlspecialchars($prv['telefono_principal'] ?: 'S/N') ?></div>
-                    <div style="font-size: 0.82em; color: #aaa;">✉️ <?= htmlspecialchars($prv['email'] ?: 'S/N') ?></div>
+                    <div style="font-weight: 500; color: var(--text-body);">📞 <?= htmlspecialchars($prv['telefono_principal'] ?: 'S/N') ?></div>
+                    <div style="font-size: 0.78rem; color: var(--text-muted);">✉️ <?= htmlspecialchars($prv['email'] ?: 'S/N') ?></div>
                   </td>
-                  <td class="text-center" style="font-weight: 600;">
+                  <td class="text-center" style="font-weight: 600; color: var(--text-dark);">
                     <?= intval($prv['dias_credito_habitual']) ?> días
                   </td>
                   <td class="text-center">
-                    <span class="badge-isr"><?= number_format($prv['retencion_isr_porc'], 2) ?>%</span>
-                  </td>
-                  <td class="text-center">
-                    <span class="status-badge <?= $esActivo ? 'active' : 'inactive' ?>">
-                      <?= $esActivo ? 'ACTIVO' : 'INACTIVO' ?>
-                    </span>
+                    <span class="code-inline"><?= number_format($prv['retencion_isr_porc'], 2) ?>%</span>
                   </td>
                   <td class="text-right action-btns">
                     <button type="button" class="btn-sm btn-outline" onclick='editarProveedor(<?= json_encode($prv) ?>)'>Editar</button>
-                    <button type="button" class="btn-sm <?= $esActivo ? 'btn-danger' : 'btn-gold' ?>" onclick="toggleEstadoProveedor('<?= $prv['proveedor_id'] ?>', <?= $esActivo ? 'true' : 'false' ?>)">
-                      <?= $esActivo ? 'Desactivar' : 'Activar' ?>
-                    </button>
                   </td>
                 </tr>
               <?php endforeach; ?>
@@ -212,7 +203,7 @@ $tipoMsg = $_GET['tipo'] ?? 'exito';
             <div class="form-group">
               <label for="documento_identidad" class="form-label">Número de RNC / Cédula *</label>
               <input type="text" id="documento_identidad" name="documento_identidad" class="form-control" placeholder="0-00-00000-0" required oninput="mascaraDoc(this); if(this.value.replace(/\D/g,'').length>=9) autocompletarTercero();" onblur="autocompletarTercero()" />
-              <small id="terceroFeedback" style="display: none; color: #ffd89b; font-weight: 500; font-size: 0.82em; margin-top: 4px;"></small>
+              <small id="terceroFeedback" style="display: none; color: var(--accent-gold); font-weight: 600; font-size: 0.76rem; margin-top: 3px;"></small>
             </div>
             <div class="form-group">
               <label for="nombre_razon_social" class="form-label">Razón Social *</label>
@@ -269,6 +260,6 @@ $tipoMsg = $_GET['tipo'] ?? 'exito';
 
   <div id="toast" class="toast"></div>
 
-    <script src="proveedores.js"></script>
+    <script src="proveedores.js?v=3"></script>
 </body>
 </html>

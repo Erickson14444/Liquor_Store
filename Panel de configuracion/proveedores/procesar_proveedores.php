@@ -163,8 +163,8 @@ try {
                 throw new Exception("El código de proveedor '{$codigoProveedor}' ya está registrado. Genera o digita otro código único.");
             }
         } else {
-            $stmtChkCod = $pdo->prepare("SELECT 1 FROM identidad.proveedores WHERE UPPER(codigo_proveedor) = ? AND proveedor_id != ?");
-            $stmtChkCod->execute([$codigoProveedor, $proveedorId]);
+            $stmtChkCod = $pdo->prepare("SELECT 1 FROM identidad.proveedores WHERE UPPER(codigo_proveedor) = ? AND persona_id != ?");
+            $stmtChkCod->execute([$codigoProveedor, $proveedorId ?: $personaId]);
             if ($stmtChkCod->fetchColumn()) {
                 throw new Exception("El código de proveedor '{$codigoProveedor}' ya pertenece a otro proveedor registrado.");
             }
@@ -256,9 +256,9 @@ try {
                 SET codigo_proveedor = ?,
                     dias_credito_habitual = ?,
                     retencion_isr_porc = ?
-                WHERE proveedor_id = ?
+                WHERE persona_id = ?
             ");
-            $stmtUpdProv->execute([$codigoProveedor, $diasCredito, $retencionIsr, $proveedorId]);
+            $stmtUpdProv->execute([$codigoProveedor, $diasCredito, $retencionIsr, $proveedorId ?: $personaId]);
 
             $pdo->commit();
             responder('success', "Proveedor '{$razonSocial}' ({$codigoProveedor}) actualizado exitosamente.");
@@ -274,7 +274,7 @@ try {
         }
 
         $pdo->beginTransaction();
-        $stmtGetPer = $pdo->prepare("SELECT persona_id FROM identidad.proveedores WHERE proveedor_id = ?");
+        $stmtGetPer = $pdo->prepare("SELECT persona_id FROM identidad.proveedores WHERE persona_id = ?");
         $stmtGetPer->execute([$proveedorId]);
         $personaId = $stmtGetPer->fetchColumn();
 

@@ -32,7 +32,8 @@ function actualizarPrecioSugerido() {
       document.getElementById('modalPresentacion').classList.add('open');
     }
 
-    function cerrarModal() {
+    function cerrarModal(forzar = false) {
+      if (!forzar && !confirm('¿Estás seguro de que deseas cancelar?')) return;
       document.getElementById('modalPresentacion').classList.remove('open');
     }
 

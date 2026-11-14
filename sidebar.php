@@ -1,43 +1,43 @@
 <?php
 /**
  * ============================================================================
- * Barra Lateral de Navegación Unificada (Sidebar)
- * House & Ice • Sistema Administrativo
+ * Barra Lateral de Navegación Unificada (Sidebar Principal)
+ * Ubicación: Raíz del proyecto (c:\xampp\htdocs\Liquor_Store\sidebar.php)
+ * House & Ice • Sistema Administrativo (ERP Licorero)
  * ============================================================================
  */
 
 $currentPage = basename($_SERVER['PHP_SELF']);
 $currentDir  = basename(dirname($_SERVER['PHP_SELF']));
 
-// Detección de contexto para rutas relativas automáticas
+// Detección de nivel de carpeta respecto a la raíz del proyecto (Liquor_Store/)
 $isSubdir = in_array($currentDir, [
     'almacenes', 'cajas', 'clasificaciones', 'clientes', 'cuentas-bancarias',
-    'metodos-pago', 'personal', 'presentaciones', 'productos', 'promociones',
-    'proveedores', 'roles', 'secuencias-dgii', 'usuarios', 'zonas-delivery'
+    'metodos-pago', 'personal', 'presentaciones', 'productos',
+    'proveedores', 'roles', 'secuencias-dgii', 'usuarios', 'zonas-delivery',
+    'Delivery'
 ]);
-$isMenu   = ($currentDir === 'Login y Menu' || $currentPage === 'menu.php');
 
-if ($isMenu) {
-    $menuLink   = 'menu.php';
-    $logoutLink = 'logout.php';
-    $cfgPfx     = '../Panel de configuracion/';
-} elseif ($isSubdir) {
-    $menuLink   = '../../Login y Menu/menu.php';
-    $logoutLink = '../../Login y Menu/logout.php';
-    $cfgPfx     = '../';
+if ($isSubdir) {
+    $rootPfx = '../../';
+} elseif ($currentDir === 'Liquor_Store') {
+    $rootPfx = './';
 } else {
-    // Si se accede desde la raíz de Panel de configuracion/
-    $menuLink   = '../Login y Menu/menu.php';
-    $logoutLink = '../Login y Menu/logout.php';
-    $cfgPfx     = './';
+    $rootPfx = '../';
 }
+
+$menuLink   = $rootPfx . 'Login y Menu/menu.php';
+$logoutLink = $rootPfx . 'Login y Menu/logout.php';
+$cfgPfx     = $rootPfx . 'Panel de configuracion/';
+$promoPfx   = $rootPfx . 'Gestion de Promociones/';
+$ventasPfx  = $rootPfx . 'Ventas y Facturacion/';
 
 // Lista de páginas pertenecientes al panel de configuración
 $configPages = [
     'clasificaciones.php', 'productos.php', 'presentaciones.php', 'almacenes.php',
     'clientes.php', 'proveedores.php', 'personal.php',
     'cajas.php', 'secuencias-dgii.php', 'cuentas-bancarias.php', 'metodos-pago.php',
-    'zonas-delivery.php', 'promociones.php',
+    'zonas-delivery.php',
     'roles.php', 'usuarios.php'
 ];
 
@@ -45,13 +45,13 @@ $configPages = [
 $isIdentidadActive   = in_array($currentPage, ['clientes.php', 'proveedores.php', 'personal.php']);
 $isSeguridadActive   = false;
 $isInventarioActive  = false;
-$isVentasActive      = false;
-$isPromocionesActive = false;
+$isVentasActive      = in_array($currentPage, ['delivery.php']);
+$isPromocionesActive = in_array($currentPage, ['promociones.php']);
 $isBancosActive      = false;
 $isConfigOnlyActive  = in_array($currentPage, [
     'clasificaciones.php', 'productos.php', 'presentaciones.php', 'almacenes.php',
     'cajas.php', 'secuencias-dgii.php', 'cuentas-bancarias.php', 'metodos-pago.php',
-    'zonas-delivery.php', 'promociones.php',
+    'zonas-delivery.php',
     'roles.php', 'usuarios.php'
 ]);
 $isConfigActive      = (!empty($configPages) && is_array($configPages)) ? in_array($currentPage, $configPages) : false;
@@ -115,7 +115,7 @@ $isConfigActive      = (!empty($configPages) && is_array($configPages)) ? in_arr
         <li><a href="#" class="sidebar-sublink" onclick="alert('Apertura y Arqueo Ciego de Caja en desarrollo'); return false;"><span>🔒</span> Apertura y Cierre Caja</a></li>
         <li><a href="#" class="sidebar-sublink" onclick="alert('Historial de Facturas en desarrollo'); return false;"><span>🧾</span> Historial de Ventas</a></li>
         <li><a href="#" class="sidebar-sublink" onclick="alert('Proceso de Cotizaciones en desarrollo'); return false;"><span>📝</span> Cotizaciones</a></li>
-        <li><a href="#" class="sidebar-sublink" onclick="alert('Despacho y Enrutamiento Delivery en desarrollo'); return false;"><span>🛵</span> Despacho Delivery</a></li>
+        <li><a href="<?= $ventasPfx ?>Delivery/delivery.php" class="sidebar-sublink <?= ($currentPage === 'delivery.php') ? 'active' : '' ?>"><span>🛵</span> Despacho Delivery</a></li>
         <li><a href="#" class="sidebar-sublink" onclick="alert('Proceso de Cuentas por Cobrar (CxC) en desarrollo'); return false;"><span>💳</span> Cuentas por Cobrar (CxC)</a></li>
       </ul>
     </li>
@@ -133,13 +133,14 @@ $isConfigActive      = (!empty($configPages) && is_array($configPages)) ? in_arr
       </ul>
     </li>
 
-    <!-- MÓDULO 6: Gestión de Promociones (SOLO PROCESOS) ▸ -->
+    <!-- MÓDULO 6: Gestión de Promociones (PROCESOS) ▸ -->
     <li class="sidebar-item <?= $isPromocionesActive ? '' : 'collapsed' ?>" id="menuPromociones">
       <div class="sidebar-link <?= $isPromocionesActive ? 'active' : '' ?>" onclick="toggleSidebarMenu('menuPromociones')">
         <span>🎁 Gestión de Promociones</span>
         <span class="sidebar-chevron">▸</span>
       </div>
       <ul class="sidebar-subnav">
+        <li><a href="<?= $promoPfx ?>promociones.php" class="sidebar-sublink <?= ($currentPage === 'promociones.php') ? 'active' : '' ?>"><span>🎁</span> Campañas y Reglas</a></li>
         <li><a href="#" class="sidebar-sublink" onclick="alert('Emisión y Canje de Cupones en desarrollo'); return false;"><span>🏷️</span> Cupones &amp; Descuentos</a></li>
       </ul>
     </li>
@@ -170,7 +171,6 @@ $isConfigActive      = (!empty($configPages) && is_array($configPages)) ? in_arr
 
     <!-- ======================================================= -->
     <!-- PANEL DE CONFIGURACIÓN (UBICADO ABAJO DE REPORTES)       -->
-    <!-- (SIN DIVISIONES DE MÓDULO, LISTADO LIMPIO)              -->
     <!-- ======================================================= -->
     <li class="sidebar-item <?= $isConfigOnlyActive ? '' : 'collapsed' ?>" id="menuConfiguracion">
       <div class="sidebar-link <?= $isConfigOnlyActive ? 'active' : '' ?>" onclick="toggleSidebarMenu('menuConfiguracion')" style="cursor: pointer;">
@@ -192,7 +192,6 @@ $isConfigActive      = (!empty($configPages) && is_array($configPages)) ? in_arr
         <li><a href="<?= $cfgPfx ?>cuentas-bancarias/cuentas-bancarias.php" class="sidebar-sublink <?= ($currentPage === 'cuentas-bancarias.php') ? 'active' : '' ?>"><span>🏦</span> Cuentas Bancarias</a></li>
         <li><a href="<?= $cfgPfx ?>metodos-pago/metodos-pago.php" class="sidebar-sublink <?= ($currentPage === 'metodos-pago.php') ? 'active' : '' ?>"><span>💳</span> Métodos de Pago</a></li>
         <li><a href="<?= $cfgPfx ?>zonas-delivery/zonas-delivery.php" class="sidebar-sublink <?= ($currentPage === 'zonas-delivery.php') ? 'active' : '' ?>"><span>📍</span> Zonas Delivery</a></li>
-        <li><a href="<?= $cfgPfx ?>promociones/promociones.php" class="sidebar-sublink <?= ($currentPage === 'promociones.php') ? 'active' : '' ?>"><span>🎁</span> Promociones</a></li>
       </ul>
     </li>
 
@@ -243,3 +242,4 @@ $isConfigActive      = (!empty($configPages) && is_array($configPages)) ? in_arr
     }
   }
 </script>
+

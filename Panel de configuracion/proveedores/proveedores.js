@@ -3,7 +3,16 @@
     // ==========================================
     function mascaraDoc(input) {
       const tipo = document.getElementById('tipo_documento').value;
+      const ev = window.event;
+      const isDelete = ev && ev.inputType && ev.inputType.startsWith('delete');
       let val = input.value.replace(/\D/g, '');
+
+      if (tipo === 'RNC' || tipo === 'CEDULA') {
+        if (isDelete && input.dataset.prevDocDigits === val && val.length > 0) {
+          val = val.slice(0, -1);
+        }
+      }
+
       if (tipo === 'RNC') {
         if (val.length > 9) val = val.substring(0, 9);
         if (val.length > 1 && val.length <= 8) {
@@ -13,6 +22,7 @@
         } else {
           input.value = val;
         }
+        input.dataset.prevDocDigits = val;
       } else if (tipo === 'CEDULA') {
         if (val.length > 11) val = val.substring(0, 11);
         if (val.length > 3 && val.length <= 10) {
@@ -22,23 +32,32 @@
         } else {
           input.value = val;
         }
+        input.dataset.prevDocDigits = val;
       } else {
         input.value = input.value.toUpperCase();
       }
     }
 
     function mascaraTelefono(input) {
+      const ev = window.event;
+      const isDelete = ev && ev.inputType && ev.inputType.startsWith('delete');
       let val = input.value.replace(/\D/g, '');
+
+      // Si el usuario borró un paréntesis, espacio o guion, eliminar también el dígito anterior
+      if (isDelete && input.dataset.prevDigits === val && val.length > 0) {
+        val = val.slice(0, -1);
+      }
+
       if (val.length > 10) val = val.substring(0, 10);
+
       if (val.length > 6) {
         input.value = '(' + val.substring(0, 3) + ') ' + val.substring(3, 6) + '-' + val.substring(6, 10);
       } else if (val.length > 3) {
         input.value = '(' + val.substring(0, 3) + ') ' + val.substring(3);
-      } else if (val.length > 0) {
-        input.value = '(' + val;
       } else {
-        input.value = '';
+        input.value = val;
       }
+      input.dataset.prevDigits = val;
     }
 
     function aplicarMascaraDoc() {
@@ -71,11 +90,10 @@
       if (p.email) document.getElementById('email').value = p.email;
       if (p.tipo_persona) document.getElementById('tipo_persona').value = p.tipo_persona;
       if (feedback) {
-        const rolExtra = p.resumen_roles ? ' [' + p.resumen_roles + ']' : '';
         feedback.style.display = 'block';
-        feedback.textContent = '✨ Persona localizada en identidad.personas (' + (p.nombre_razon_social || p.primer_nombre) + rolExtra + '). Sus datos se han rellenado y NO se duplicará en personas.';
+        feedback.textContent = 'Persona existente';
       }
-      mostrarToast('✨ Datos de identidad.personas cargados automáticamente.');
+      mostrarToast('Persona existente');
     }
 
     function autocompletarTercero() {
@@ -160,7 +178,8 @@
       document.getElementById('modalProveedor').classList.add('open');
     }
 
-    function cerrarModal() {
+    function cerrarModal(forzar = false) {
+      if (!forzar && !confirm('¿Estás seguro de que deseas cancelar?')) return;
       document.getElementById('modalProveedor').classList.remove('open');
     }
 
@@ -168,28 +187,29 @@
       if (e.target.id === 'modalProveedor') cerrarModal();
     }
 
-    function toggleEstadoProveedor(proveedorId, esActivoActual) {
-      const nuevoEstado = !esActivoActual;
-      const accionTxt = nuevoEstado ? 'Activar' : 'Desactivar';
-      if (!confirm(`¿Deseas ${accionTxt} este proveedor?`)) return;
-
+    function toggleEstadoProveedor(proveedorId, checked, checkboxEl) {
+      const toggleText = checkboxEl ? checkboxEl.parentElement.querySelector('.toggle-text') : null;
       const fd = new FormData();
       fd.append('accion', 'cambiar_estado');
       fd.append('proveedor_id', proveedorId);
-      fd.append('estado', nuevoEstado ? 'true' : 'false');
+      fd.append('estado', checked ? 'true' : 'false');
       fd.append('format', 'json');
 
       fetch('procesar_proveedores.php', { method: 'POST', body: fd })
         .then(r => r.json())
         .then(data => {
           if (data.status === 'success') {
+            if (toggleText) toggleText.textContent = checked ? 'Activo' : 'Inactivo';
             mostrarToast(data.message);
-            setTimeout(() => location.reload(), 600);
           } else {
+            if (checkboxEl) checkboxEl.checked = !checked;
+            if (toggleText) toggleText.textContent = (!checked) ? 'Activo' : 'Inactivo';
             alert(data.message || 'Error al cambiar estado');
           }
         })
         .catch(err => {
+          if (checkboxEl) checkboxEl.checked = !checked;
+          if (toggleText) toggleText.textContent = (!checked) ? 'Activo' : 'Inactivo';
           console.error(err);
           alert('Error al comunicarse con el servidor.');
         });

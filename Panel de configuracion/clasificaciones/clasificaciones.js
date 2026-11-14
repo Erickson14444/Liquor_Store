@@ -201,7 +201,8 @@ let categoriasData = _datosClasif ? JSON.parse(_datosClasif.dataset.categorias |
       itemNombre.focus();
     }
 
-    function cerrarModal() {
+    function cerrarModal(forzar = false) {
+      if (!forzar && !confirm("¿Estás seguro de que deseas cancelar?")) return;
       modalClasificacion.classList.remove("open");
       editandoId = null;
     }
@@ -238,7 +239,7 @@ let categoriasData = _datosClasif ? JSON.parse(_datosClasif.dataset.categorias |
             coleccion.push({ id: data.id, nombre: data.nombre, activo: true });
             showToast(`${singular} "${data.nombre}" creada y guardada en PostgreSQL.`);
           }
-          cerrarModal();
+          cerrarModal(true);
           renderTabla(inputBuscar.value);
         } else {
           showToast('Error: ' + data.message, true);
