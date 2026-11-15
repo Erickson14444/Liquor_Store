@@ -440,10 +440,10 @@ try {
 
           <!-- Accesos directos exclusivamente a PROCESOS (sin mezclar mantenimientos) -->
           <div class="dash-process-grid">
-            <a href="#" class="dash-process-item" onclick="alert('Proceso de Facturación POS en desarrollo'); return false;">
+            <a href="../Ventas y Facturacion/Facturacion/facturacion.php" class="dash-process-item">
               <div class="dash-process-icon">🛒</div>
               <div class="dash-process-info">
-                <h4>Punto de Venta (POS)</h4>
+                <h4>Facturación (POS)</h4>
                 <p>Facturación y emisión NCF</p>
               </div>
             </a>

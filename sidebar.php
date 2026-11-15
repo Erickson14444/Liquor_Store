@@ -15,7 +15,7 @@ $isSubdir = in_array($currentDir, [
     'almacenes', 'cajas', 'clasificaciones', 'clientes', 'cuentas-bancarias',
     'metodos-pago', 'personal', 'presentaciones', 'productos',
     'proveedores', 'roles', 'secuencias-dgii', 'usuarios', 'zonas-delivery',
-    'Delivery'
+    'Delivery', 'Facturacion'
 ]);
 
 if ($isSubdir) {
@@ -45,7 +45,7 @@ $configPages = [
 $isIdentidadActive   = in_array($currentPage, ['clientes.php', 'proveedores.php', 'personal.php']);
 $isSeguridadActive   = false;
 $isInventarioActive  = false;
-$isVentasActive      = in_array($currentPage, ['delivery.php']);
+$isVentasActive      = in_array($currentPage, ['delivery.php', 'facturacion.php']);
 $isPromocionesActive = in_array($currentPage, ['promociones.php']);
 $isBancosActive      = false;
 $isConfigOnlyActive  = in_array($currentPage, [
@@ -111,7 +111,7 @@ $isConfigActive      = (!empty($configPages) && is_array($configPages)) ? in_arr
         <span class="sidebar-chevron">▸</span>
       </div>
       <ul class="sidebar-subnav">
-        <li><a href="#" class="sidebar-sublink" onclick="alert('Punto de Venta POS en desarrollo'); return false;"><span>🛒</span> Punto de Venta (POS)</a></li>
+        <li><a href="<?= $ventasPfx ?>Facturacion/facturacion.php" class="sidebar-sublink <?= ($currentPage === 'facturacion.php') ? 'active' : '' ?>"><span>🛒</span> Facturación (POS)</a></li>
         <li><a href="#" class="sidebar-sublink" onclick="alert('Apertura y Arqueo Ciego de Caja en desarrollo'); return false;"><span>🔒</span> Apertura y Cierre Caja</a></li>
         <li><a href="#" class="sidebar-sublink" onclick="alert('Historial de Facturas en desarrollo'); return false;"><span>🧾</span> Historial de Ventas</a></li>
         <li><a href="#" class="sidebar-sublink" onclick="alert('Proceso de Cotizaciones en desarrollo'); return false;"><span>📝</span> Cotizaciones</a></li>

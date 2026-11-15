@@ -151,6 +151,9 @@ try {
             $benePorcentaje  = (isset($regla['beneficio_porcentaje']) && $regla['beneficio_porcentaje'] !== '' && $regla['beneficio_porcentaje'] !== null && floatval($regla['beneficio_porcentaje']) > 0)
                                ? floatval($regla['beneficio_porcentaje'])
                                : null;
+            if ($benePorcentaje !== null && $benePorcentaje > 0 && $benePorcentaje < 1) {
+                $benePorcentaje = round($benePorcentaje * 100, 2);
+            }
             $beneMontoFijo   = (isset($regla['beneficio_monto_fijo']) && $regla['beneficio_monto_fijo'] !== '' && $regla['beneficio_monto_fijo'] !== null && floatval($regla['beneficio_monto_fijo']) > 0)
                                ? floatval($regla['beneficio_monto_fijo'])
                                : null;

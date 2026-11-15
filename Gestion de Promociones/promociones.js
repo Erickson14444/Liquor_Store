@@ -4,6 +4,7 @@
  */
 
 let carritoReglas = [];
+let indiceReglaEditando = -1;
 
 function actualizarControlesDinamicos() {
   const tipo = document.getElementById('tipo_promocion').value;
@@ -12,6 +13,7 @@ function actualizarControlesDinamicos() {
   const bloqueMontoMin = document.getElementById('bloqueMontoMinimoCabecera');
   const hintTipo = document.getElementById('hintTipoPromocion');
 
+  const filaAlcance = document.getElementById('filaAlcanceRegla');
   const grupoProductoA = document.getElementById('grupoProductoA');
   const grupoMarca = document.getElementById('grupoMarca');
   const grupoCategoria = document.getElementById('grupoCategoria');
@@ -26,11 +28,15 @@ function actualizarControlesDinamicos() {
   grupoMarca.style.display = '';
   grupoCategoria.style.display = '';
   grupoProductoB.style.display = 'none';
+  if (filaAlcance) filaAlcance.className = 'form-row-3';
 
   labelProductoA.textContent = 'Producto Específico (Opcional)';
   labelCantidad.textContent = 'Cantidad Mínima Requerida *';
 
   if (tipo === 'VOLUMEN') {
+    grupoMarca.style.display = 'none';
+    document.getElementById('regla_marca_id').value = '';
+    if (filaAlcance) filaAlcance.className = 'form-row-2';
     hintTipo.textContent = 'Descuento automático al comprar X o más unidades';
     labelProductoA.textContent = 'Producto por Volumen';
     labelCantidad.textContent = 'Cantidad Mínima (Ej. 3 o más) *';
@@ -66,6 +72,7 @@ function actualizarControlesDinamicos() {
 
 function limpiarControlesRegla() {
   const tipo = document.getElementById('tipo_promocion').value;
+  indiceReglaEditando = -1;
   document.getElementById('regla_producto_a').value = '0';
   document.getElementById('regla_marca_id').value = '';
   document.getElementById('regla_categoria_id').value = '';
@@ -73,9 +80,44 @@ function limpiarControlesRegla() {
   document.getElementById('regla_cantidad').value = (tipo === 'VOLUMEN') ? '3' : '1';
   document.getElementById('regla_beneficio_porcentaje').value = '';
   document.getElementById('regla_beneficio_monto_fijo').value = '';
+
+  const titulo = document.getElementById('tituloConstructorRegla');
+  const btnAccion = document.getElementById('btnAccionRegla');
+  const btnNueva = document.getElementById('btnNuevaReglaAdicional');
+  if (titulo) titulo.textContent = 'Controles Dinámicos • Configurar Regla a Agregar';
+  if (btnAccion) btnAccion.textContent = '+ Agregar Regla al Carrito';
+  if (btnNueva) btnNueva.style.display = 'none';
 }
 
-function agregarReglaAlCarrito() {
+function prepararNuevaRegla() {
+  limpiarControlesRegla();
+  renderizarCarritoReglas();
+}
+
+function cargarReglaEnControles(index) {
+  const r = carritoReglas[index];
+  if (!r) return;
+
+  indiceReglaEditando = index;
+  document.getElementById('regla_producto_a').value = String(r.condicion_producto_id || 0);
+  document.getElementById('regla_marca_id').value = r.marca_id ? String(r.marca_id) : '';
+  document.getElementById('regla_categoria_id').value = r.condicion_categoria_id ? String(r.condicion_categoria_id) : '';
+  document.getElementById('regla_producto_b').value = r.beneficio_producto_id ? String(r.beneficio_producto_id) : '';
+  document.getElementById('regla_cantidad').value = String(r.cantidad_requerida || 1);
+  document.getElementById('regla_beneficio_porcentaje').value = (r.beneficio_porcentaje !== null && r.beneficio_porcentaje !== undefined) ? String(r.beneficio_porcentaje) : '';
+  document.getElementById('regla_beneficio_monto_fijo').value = (r.beneficio_monto_fijo !== null && r.beneficio_monto_fijo !== undefined) ? String(r.beneficio_monto_fijo) : '';
+
+  const titulo = document.getElementById('tituloConstructorRegla');
+  const btnAccion = document.getElementById('btnAccionRegla');
+  const btnNueva = document.getElementById('btnNuevaReglaAdicional');
+  if (titulo) titulo.textContent = `Controles Dinámicos • Editando Regla #${index + 1}`;
+  if (btnAccion) btnAccion.textContent = `✓ Actualizar Regla #${index + 1}`;
+  if (btnNueva) btnNueva.style.display = 'inline-flex';
+
+  renderizarCarritoReglas();
+}
+
+function agregarReglaAlCarrito(silencioso = false) {
   const tipo = document.getElementById('tipo_promocion').value;
 
   const selProdA = document.getElementById('regla_producto_a');
@@ -86,7 +128,7 @@ function agregarReglaAlCarrito() {
   const prodAId = parseInt(selProdA.value || '0', 10);
   const prodATexto = prodAId > 0 ? (selProdA.options[selProdA.selectedIndex]?.dataset?.texto || selProdA.options[selProdA.selectedIndex]?.text || '') : '';
 
-  const marcaId = selMarca.value ? parseInt(selMarca.value, 10) : null;
+  const marcaId = (tipo !== 'VOLUMEN' && tipo !== 'CROSS_SELLING' && selMarca.value) ? parseInt(selMarca.value, 10) : null;
   const marcaTexto = marcaId ? (selMarca.options[selMarca.selectedIndex]?.dataset?.texto || selMarca.options[selMarca.selectedIndex]?.text || '') : '';
 
   const categoriaId = selCat.value ? parseInt(selCat.value, 10) : null;
@@ -99,38 +141,41 @@ function agregarReglaAlCarrito() {
   const porcStr = document.getElementById('regla_beneficio_porcentaje').value.trim();
   const montoStr = document.getElementById('regla_beneficio_monto_fijo').value.trim();
 
-  const beneficioPorcentaje = porcStr !== '' ? parseFloat(porcStr) : null;
+  let beneficioPorcentaje = porcStr !== '' ? parseFloat(porcStr) : null;
+  if (beneficioPorcentaje !== null && !isNaN(beneficioPorcentaje) && beneficioPorcentaje > 0 && beneficioPorcentaje < 1) {
+    beneficioPorcentaje = Math.round(beneficioPorcentaje * 10000) / 100;
+  }
   const beneficioMontoFijo = montoStr !== '' ? parseFloat(montoStr) : null;
 
   // Validaciones según tipo de regla
   if (isNaN(cantidad) || cantidad < 1) {
-    alert('La cantidad mínima requerida debe ser al menos 1.');
-    return;
+    if (!silencioso) alert('La cantidad mínima requerida debe ser al menos 1.');
+    return false;
   }
 
   if (tipo === 'CROSS_SELLING') {
     if (!prodAId || prodAId <= 0) {
-      alert('En Cross-Selling debes seleccionar el Producto A (Condición de Compra).');
-      return;
+      if (!silencioso) alert('En Cross-Selling debes seleccionar el Producto A (Condición de Compra).');
+      return false;
     }
     if (!prodBId || prodBId <= 0) {
-      alert('En Cross-Selling debes seleccionar el Producto B (Producto con Beneficio en Combo).');
-      return;
+      if (!silencioso) alert('En Cross-Selling debes seleccionar el Producto B (Producto con Beneficio en Combo).');
+      return false;
     }
   }
 
   if ((beneficioPorcentaje === null || isNaN(beneficioPorcentaje) || beneficioPorcentaje <= 0) &&
       (beneficioMontoFijo === null || isNaN(beneficioMontoFijo) || beneficioMontoFijo <= 0)) {
-    alert('Debes indicar un % de Descuento (1% a 100%) o un Monto Fijo de Rebaja en RD$.');
-    return;
+    if (!silencioso) alert('Debes indicar un % de Descuento (1% a 100%) o un Monto Fijo de Rebaja en RD$.');
+    return false;
   }
 
   if (beneficioPorcentaje !== null && (beneficioPorcentaje <= 0 || beneficioPorcentaje > 100)) {
-    alert('El porcentaje de descuento debe estar entre 0.5% y 100%.');
-    return;
+    if (!silencioso) alert('El porcentaje de descuento debe estar entre 0.5% y 100%.');
+    return false;
   }
 
-  carritoReglas.push({
+  const nuevaReglaObj = {
     condicion_producto_id: prodAId > 0 ? prodAId : 0,
     producto_a_texto: prodATexto,
     marca_id: marcaId,
@@ -142,14 +187,44 @@ function agregarReglaAlCarrito() {
     producto_b_texto: prodBTexto,
     beneficio_porcentaje: beneficioPorcentaje,
     beneficio_monto_fijo: beneficioMontoFijo
-  });
+  };
 
-  limpiarControlesRegla();
-  renderizarCarritoReglas();
+  if (indiceReglaEditando >= 0 && indiceReglaEditando < carritoReglas.length) {
+    // Actualizar la regla que se estaba editando sin duplicarla
+    carritoReglas[indiceReglaEditando] = nuevaReglaObj;
+    if (!silencioso) {
+      mostrarToast(`Regla #${indiceReglaEditando + 1} actualizada en el carrito.`);
+    }
+    cargarReglaEnControles(indiceReglaEditando);
+  } else {
+    // Verificar si ya existe una regla con exactamente el mismo alcance (Producto + Marca + Categoría + Producto B)
+    const idxExistente = carritoReglas.findIndex(r =>
+      Number(r.condicion_producto_id || 0) === Number(nuevaReglaObj.condicion_producto_id || 0) &&
+      Number(r.marca_id || 0) === Number(nuevaReglaObj.marca_id || 0) &&
+      Number(r.condicion_categoria_id || 0) === Number(nuevaReglaObj.condicion_categoria_id || 0) &&
+      Number(r.beneficio_producto_id || 0) === Number(nuevaReglaObj.beneficio_producto_id || 0)
+    );
+
+    if (idxExistente !== -1) {
+      carritoReglas[idxExistente] = nuevaReglaObj;
+      cargarReglaEnControles(idxExistente);
+    } else {
+      carritoReglas.push(nuevaReglaObj);
+      limpiarControlesRegla();
+      renderizarCarritoReglas();
+    }
+  }
+
+  return true;
 }
 
 function eliminarReglaDelCarrito(index) {
   carritoReglas.splice(index, 1);
+  if (indiceReglaEditando === index) {
+    limpiarControlesRegla();
+  } else if (indiceReglaEditando > index) {
+    indiceReglaEditando--;
+  }
   renderizarCarritoReglas();
 }
 
@@ -194,14 +269,20 @@ function renderizarCarritoReglas() {
       beneficioHtml = `<span class="rule-chip-benefit">-RD$ ${parseFloat(r.beneficio_monto_fijo).toFixed(2)}</span>`;
     }
 
+    const estaEditando = (idx === indiceReglaEditando);
+    const estiloFila = estaEditando ? 'style="background: #fdf6ec;"' : '';
+
     return `
-      <tr>
+      <tr ${estiloFila}>
         <td><strong>${idx + 1}</strong></td>
         <td>${alcanceHtml}</td>
         <td><strong>&ge; ${parseInt(r.cantidad_requerida, 10)} uds.</strong></td>
         <td>${prodBHtml}</td>
         <td>${beneficioHtml}</td>
-        <td style="text-align: right;">
+        <td style="text-align: right; white-space: nowrap;">
+          <button type="button" class="btn-sm btn-outline" onclick="cargarReglaEnControles(${idx})" style="margin-right: 4px;">
+            ${estaEditando ? 'Editando' : 'Editar'}
+          </button>
           <button type="button" class="btn-sm btn-danger" onclick="eliminarReglaDelCarrito(${idx})">Eliminar</button>
         </td>
       </tr>
@@ -273,7 +354,12 @@ function editarPromo(pr) {
     beneficio_monto_fijo: r.beneficio_monto_fijo !== null && r.beneficio_monto_fijo !== '' ? parseFloat(r.beneficio_monto_fijo) : null
   }));
 
-  renderizarCarritoReglas();
+  // Si la campaña tiene reglas, cargar automáticamente la primera regla en el Paso 2 para que se pueda editar directo
+  if (carritoReglas.length > 0) {
+    cargarReglaEnControles(0);
+  } else {
+    renderizarCarritoReglas();
+  }
   document.getElementById('modalPromo').classList.add('open');
 }
 
@@ -298,6 +384,19 @@ function guardarCampanaConReglas(e) {
   if (tipo === 'HAPPY_HOUR' && (!horaInicio || !horaFin)) {
     alert('Para una campaña de tipo HAPPY_HOUR debes especificar la Hora de Inicio y la Hora de Fin.');
     return;
+  }
+
+  // Si el usuario está editando una regla en el Paso 2 o escribió un descuento en el Paso 2, aplicarlo automáticamente antes de enviar
+  const porcPend = document.getElementById('regla_beneficio_porcentaje').value.trim();
+  const montoPend = document.getElementById('regla_beneficio_monto_fijo').value.trim();
+  if (indiceReglaEditando >= 0 && (porcPend !== '' || montoPend !== '')) {
+    const ok = agregarReglaAlCarrito(true);
+    if (!ok) {
+      agregarReglaAlCarrito(false);
+      return;
+    }
+  } else if (carritoReglas.length === 0 && (porcPend !== '' || montoPend !== '')) {
+    agregarReglaAlCarrito();
   }
 
   if (carritoReglas.length === 0) {

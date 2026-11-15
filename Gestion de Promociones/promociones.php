@@ -58,6 +58,13 @@ if ($pdo) {
 
         $detallesPorCampana = [];
         foreach ($detallesRaw as $d) {
+            if (!empty($d['beneficio_porcentaje'])) {
+                $pVal = floatval($d['beneficio_porcentaje']);
+                if ($pVal > 0 && $pVal < 1) {
+                    $pVal = round($pVal * 100, 2);
+                }
+                $d['beneficio_porcentaje'] = $pVal;
+            }
             $detallesPorCampana[$d['promocion_id']][] = $d;
         }
 
@@ -106,7 +113,7 @@ $tipoMsg = $_GET['tipo'] ?? 'exito';
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>House &amp; Ice • Gestión de Promociones</title>
-  <link rel="stylesheet" href="styles.css?v=16" />
+  <link rel="stylesheet" href="styles.css?v=17" />
 </head>
 <body>
 
@@ -180,108 +187,119 @@ $tipoMsg = $_GET['tipo'] ?? 'exito';
           </div>
         </div>
 
-        <table class="data-table">
-          <thead>
-            <tr>
-              <th>Campaña Promocional</th>
-              <th>Tipo de Regla</th>
-              <th>Vigencia (Fechas)</th>
-              <th>Horario / Días</th>
-              <th>Reglas Configuradas (Condición &rarr; Beneficio)</th>
-              <th class="text-center">Estado</th>
-              <th class="text-right">Acciones</th>
-            </tr>
-          </thead>
-          <tbody id="tablaBody">
-            <?php if (empty($promociones)): ?>
+        <div class="table-wrapper">
+          <table class="data-table">
+            <thead>
               <tr>
-                <td colspan="7" class="text-center" style="padding: 30px; color: #888;">
-                  No hay campañas registradas. Haz clic en <strong>+ Nueva Campaña Promocional</strong> para configurar reglas.
-                </td>
+                <th>Campaña Promocional</th>
+                <th>Tipo de Regla</th>
+                <th>Vigencia</th>
+                <th>Horario / Días</th>
+                <th>Reglas Configuradas</th>
+                <th class="text-center">Estado</th>
+                <th class="text-right" style="padding-right: 20px;">Acciones</th>
               </tr>
-            <?php else: ?>
-              <?php foreach ($promociones as $pr):
-                $esActiva = ($pr['estado'] === 'ACTIVA');
-                $reglasCamp = $pr['reglas'] ?? [];
-                $textoBusqueda = $pr['nombre_promocion'] . ' ' . $pr['tipo_promocion'];
-                foreach ($reglasCamp as $rc) {
-                    $textoBusqueda .= ' ' . ($rc['producto_sku'] ?? '') . ' ' . ($rc['producto_nombre'] ?? '') . ' ' . ($rc['marca_nombre'] ?? '') . ' ' . ($rc['categoria_nombre'] ?? '');
-                }
-              ?>
-                <tr class="fila-promo" data-texto="<?= strtolower(htmlspecialchars($textoBusqueda)) ?>">
-                  <td>
-                    <strong style="color: #211813; font-size: 1em;"><?= htmlspecialchars($pr['nombre_promocion']) ?></strong>
-                    <?php if (floatval($pr['monto_minimo_factura']) > 0): ?>
-                      <div style="font-size: 0.8em; color: #8a7b70;">Mínimo factura: RD$ <?= number_format(floatval($pr['monto_minimo_factura']), 2) ?></div>
-                    <?php endif; ?>
-                    <div style="font-size: 0.76em; color: #a66e2e; font-weight: 600; margin-top: 2px;">
-                      <?= count($reglasCamp) ?> regla(s) asociada(s)
-                    </div>
-                  </td>
-                  <td>
-                    <span class="badge" style="background: #eadecd; color: #5a3818; font-weight: 700;"><?= htmlspecialchars($pr['tipo_promocion']) ?></span>
-                  </td>
-                  <td>
-                    <div style="font-size: 0.86em; color: #333;">Desde: <strong><?= htmlspecialchars($pr['fecha_inicio']) ?></strong></div>
-                    <div style="font-size: 0.86em; color: #333;">Hasta: <strong><?= htmlspecialchars($pr['fecha_fin']) ?></strong></div>
-                  </td>
-                  <td>
-                    <div style="font-size: 0.85em; font-weight: 600; color: #4a3b32;"><?= htmlspecialchars($pr['dias_semana'] ?: 'TODOS') ?></div>
-                    <?php if (!empty($pr['hora_inicio']) && !empty($pr['hora_fin'])): ?>
-                      <div style="font-size: 0.8em; color: #a66e2e; font-weight: 600;">⏰ <?= substr($pr['hora_inicio'], 0, 5) ?> - <?= substr($pr['hora_fin'], 0, 5) ?></div>
-                    <?php else: ?>
-                      <div style="font-size: 0.78em; color: #888;">Todo el día</div>
-                    <?php endif; ?>
-                  </td>
-                  <td>
-                    <?php if (empty($reglasCamp)): ?>
-                      <span style="color: #999; font-size: 0.84em;">Sin reglas detalladas</span>
-                    <?php else: ?>
-                      <div class="rule-chip-list">
-                        <?php foreach ($reglasCamp as $rc):
-                          $alcancePartes = [];
-                          if (!empty($rc['condicion_producto_id']) && intval($rc['condicion_producto_id']) > 0) {
-                              $alcancePartes[] = '🍾 ' . ($rc['producto_sku'] ?: ('Prod #' . $rc['condicion_producto_id']));
-                          }
-                          if (!empty($rc['marca_id']) && intval($rc['marca_id']) > 0) {
-                              $alcancePartes[] = '🏷️ Marca: ' . ($rc['marca_nombre'] ?: ('#' . $rc['marca_id']));
-                          }
-                          if (!empty($rc['condicion_categoria_id']) && intval($rc['condicion_categoria_id']) > 0) {
-                              $alcancePartes[] = '📁 Cat: ' . ($rc['categoria_nombre'] ?: ('#' . $rc['condicion_categoria_id']));
-                          }
-                          $alcanceTexto = !empty($alcancePartes) ? implode(' + ', $alcancePartes) : '🌐 Catálogo General';
-                        ?>
-                          <div class="rule-chip">
-                            <strong><?= htmlspecialchars($alcanceTexto) ?></strong>
-                            <span>(Cant &ge; <?= intval($rc['cantidad_requerida']) ?>)</span>
-                            <?php if (!empty($rc['beneficio_producto_id']) && intval($rc['beneficio_producto_id']) > 0): ?>
-                              <span>&rarr; Combo: <strong><?= htmlspecialchars($rc['beneficio_producto_sku'] ?: ('Prod #' . $rc['beneficio_producto_id'])) ?></strong></span>
-                            <?php endif; ?>
-                            <?php if (!empty($rc['beneficio_porcentaje'])): ?>
-                              <span class="rule-chip-benefit">-<?= number_format(floatval($rc['beneficio_porcentaje']), 0) ?>% OFF</span>
-                            <?php elseif (!empty($rc['beneficio_monto_fijo'])): ?>
-                              <span class="rule-chip-benefit">-RD$ <?= number_format(floatval($rc['beneficio_monto_fijo']), 2) ?></span>
-                            <?php endif; ?>
-                          </div>
-                        <?php endforeach; ?>
-                      </div>
-                    <?php endif; ?>
-                  </td>
-                  <td class="text-center">
-                    <label class="toggle-wrap" title="Activar o Pausar Campaña en PostgreSQL">
-                      <input type="checkbox" <?= $esActiva ? 'checked' : '' ?> onchange="toggleEstadoPromo(<?= intval($pr['id']) ?>, this.checked, this)" />
-                      <span class="toggle-slider"></span>
-                      <span class="toggle-text"><?= $esActiva ? 'Activa' : 'Inactiva' ?></span>
-                    </label>
-                  </td>
-                  <td class="text-right action-btns">
-                    <button type="button" class="btn-sm btn-outline" onclick='editarPromo(<?= json_encode($pr, JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE) ?>)'>Editar</button>
+            </thead>
+            <tbody id="tablaBody">
+              <?php if (empty($promociones)): ?>
+                <tr>
+                  <td colspan="7" class="text-center" style="padding: 30px; color: #888;">
+                    No hay campañas registradas. Haz clic en <strong>+ Nueva Campaña Promocional</strong> para configurar reglas.
                   </td>
                 </tr>
-              <?php endforeach; ?>
-            <?php endif; ?>
-          </tbody>
-        </table>
+              <?php else: ?>
+                <?php foreach ($promociones as $pr):
+                  $esActiva = ($pr['estado'] === 'ACTIVA');
+                  $reglasCamp = $pr['reglas'] ?? [];
+                  $textoBusqueda = $pr['nombre_promocion'] . ' ' . $pr['tipo_promocion'];
+                  foreach ($reglasCamp as $rc) {
+                      $textoBusqueda .= ' ' . ($rc['producto_sku'] ?? '') . ' ' . ($rc['producto_nombre'] ?? '') . ' ' . ($rc['marca_nombre'] ?? '') . ' ' . ($rc['categoria_nombre'] ?? '');
+                  }
+                ?>
+                  <tr class="fila-promo" data-texto="<?= strtolower(htmlspecialchars($textoBusqueda)) ?>">
+                    <td>
+                      <strong style="color: #211813; font-size: 0.96em;"><?= htmlspecialchars($pr['nombre_promocion']) ?></strong>
+                      <?php if (floatval($pr['monto_minimo_factura']) > 0): ?>
+                        <div style="font-size: 0.78em; color: #8a7b70;">Mínimo factura: RD$ <?= number_format(floatval($pr['monto_minimo_factura']), 2) ?></div>
+                      <?php endif; ?>
+                      <div style="font-size: 0.75em; color: #a66e2e; font-weight: 600; margin-top: 2px;">
+                        <?= count($reglasCamp) ?> regla(s) asociada(s)
+                      </div>
+                    </td>
+                    <td>
+                      <span class="badge" style="background: #eadecd; color: #5a3818; font-weight: 700;"><?= htmlspecialchars($pr['tipo_promocion']) ?></span>
+                    </td>
+                    <td style="white-space: nowrap;">
+                      <div style="font-size: 0.84em; color: #333;">Desde: <strong><?= htmlspecialchars($pr['fecha_inicio']) ?></strong></div>
+                      <div style="font-size: 0.84em; color: #333;">Hasta: <strong><?= htmlspecialchars($pr['fecha_fin']) ?></strong></div>
+                    </td>
+                    <td style="white-space: nowrap;">
+                      <div style="font-size: 0.84em; font-weight: 600; color: #4a3b32;"><?= htmlspecialchars($pr['dias_semana'] ?: 'TODOS') ?></div>
+                      <?php if (!empty($pr['hora_inicio']) && !empty($pr['hora_fin'])): ?>
+                        <div style="font-size: 0.78em; color: #a66e2e; font-weight: 600;">⏰ <?= substr($pr['hora_inicio'], 0, 5) ?> - <?= substr($pr['hora_fin'], 0, 5) ?></div>
+                      <?php else: ?>
+                        <div style="font-size: 0.76em; color: #888;">Todo el día</div>
+                      <?php endif; ?>
+                    </td>
+                    <td>
+                      <?php if (empty($reglasCamp)): ?>
+                        <span style="color: #999; font-size: 0.84em;">Sin reglas detalladas</span>
+                      <?php else: ?>
+                        <div class="rule-chip-list">
+                          <?php foreach ($reglasCamp as $rc):
+                            $alcancePartes = [];
+                            if (!empty($rc['condicion_producto_id']) && intval($rc['condicion_producto_id']) > 0) {
+                                $nombreProdChip = !empty($rc['producto_nombre']) ? $rc['producto_nombre'] : ($rc['producto_sku'] ?: ('Prod #' . $rc['condicion_producto_id']));
+                                $alcancePartes[] = '🍾 ' . $nombreProdChip;
+                            }
+                            if (!empty($rc['marca_id']) && intval($rc['marca_id']) > 0) {
+                                $alcancePartes[] = '🏷️ Marca: ' . ($rc['marca_nombre'] ?: ('#' . $rc['marca_id']));
+                            }
+                            if (!empty($rc['condicion_categoria_id']) && intval($rc['condicion_categoria_id']) > 0) {
+                                $alcancePartes[] = '📁 Cat: ' . ($rc['categoria_nombre'] ?: ('#' . $rc['condicion_categoria_id']));
+                            }
+                            $alcanceTexto = !empty($alcancePartes) ? implode(' + ', $alcancePartes) : '🌐 Catálogo General';
+
+                            $porcVal = !empty($rc['beneficio_porcentaje']) ? floatval($rc['beneficio_porcentaje']) : 0;
+                            if ($porcVal > 0 && $porcVal < 1) {
+                                $porcVal = round($porcVal * 100, 2);
+                            }
+                            $porcTexto = ($porcVal > 0)
+                                ? ((floor($porcVal) == $porcVal) ? number_format($porcVal, 0) : rtrim(rtrim(number_format($porcVal, 2, '.', ''), '0'), '.'))
+                                : '';
+                          ?>
+                            <div class="rule-chip">
+                              <strong><?= htmlspecialchars($alcanceTexto) ?></strong>
+                              <span>(Cant &ge; <?= intval($rc['cantidad_requerida']) ?>)</span>
+                              <?php if (!empty($rc['beneficio_producto_id']) && intval($rc['beneficio_producto_id']) > 0): ?>
+                                <span>&rarr; Combo: <strong><?= htmlspecialchars($rc['beneficio_producto_nombre'] ?: ($rc['beneficio_producto_sku'] ?: ('Prod #' . $rc['beneficio_producto_id']))) ?></strong></span>
+                              <?php endif; ?>
+                              <?php if ($porcVal > 0): ?>
+                                <span class="rule-chip-benefit">-<?= $porcTexto ?>% OFF</span>
+                              <?php elseif (!empty($rc['beneficio_monto_fijo'])): ?>
+                                <span class="rule-chip-benefit">-RD$ <?= number_format(floatval($rc['beneficio_monto_fijo']), 2) ?></span>
+                              <?php endif; ?>
+                            </div>
+                          <?php endforeach; ?>
+                        </div>
+                      <?php endif; ?>
+                    </td>
+                    <td class="text-center" style="white-space: nowrap;">
+                      <label class="toggle-wrap" title="Activar o Pausar Campaña en PostgreSQL">
+                        <input type="checkbox" <?= $esActiva ? 'checked' : '' ?> onchange="toggleEstadoPromo(<?= intval($pr['id']) ?>, this.checked, this)" />
+                        <span class="toggle-slider"></span>
+                        <span class="toggle-text"><?= $esActiva ? 'Activa' : 'Inactiva' ?></span>
+                      </label>
+                    </td>
+                    <td class="text-right action-btns" style="padding-right: 20px;">
+                      <button type="button" class="btn-sm btn-outline" onclick='editarPromo(<?= json_encode($pr, JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE) ?>)'>Editar</button>
+                    </td>
+                  </tr>
+                <?php endforeach; ?>
+              <?php endif; ?>
+            </tbody>
+          </table>
+        </div>
 
         <div class="table-card-footer">
           <span id="footerInfo">Total: <?= count($promociones) ?> campañas configuradas</span>
@@ -410,10 +428,10 @@ $tipoMsg = $_GET['tipo'] ?? 'exito';
               <span style="font-size: 0.78rem; color: #8a6d4b;">Puedes agregar múltiples reglas a la misma campaña</span>
             </div>
 
-            <div class="form-row-3">
+            <div class="form-row-2" id="filaAlcanceRegla">
               <!-- Producto A (Condición) -->
               <div class="form-group" id="grupoProductoA">
-                <label for="regla_producto_a" class="form-label" id="labelProductoA">Producto Condición (Producto A)</label>
+                <label for="regla_producto_a" class="form-label" id="labelProductoA">Producto por Volumen</label>
                 <select id="regla_producto_a" class="form-control">
                   <option value="0">-- Cualquier Producto / No específico --</option>
                   <?php foreach ($productos as $pr): ?>
@@ -425,7 +443,7 @@ $tipoMsg = $_GET['tipo'] ?? 'exito';
               </div>
 
               <!-- Marca (Vinculada a inventario.marca para ofertas de temporada o Happy Hours por marca) -->
-              <div class="form-group" id="grupoMarca">
+              <div class="form-group" id="grupoMarca" style="display: none;">
                 <label for="regla_marca_id" class="form-label">Marca (Oferta por Marca Completa)</label>
                 <select id="regla_marca_id" class="form-control">
                   <option value="">-- Todas las Marcas --</option>
@@ -476,8 +494,8 @@ $tipoMsg = $_GET['tipo'] ?? 'exito';
                 <label for="regla_beneficio_porcentaje" class="form-label">% Descuento (1% - 100%)</label>
                 <input
                   type="number"
-                  step="0.5"
-                  min="0.5"
+                  step="any"
+                  min="0.01"
                   max="100"
                   id="regla_beneficio_porcentaje"
                   class="form-control"
@@ -501,8 +519,11 @@ $tipoMsg = $_GET['tipo'] ?? 'exito';
               </div>
             </div>
 
-            <div style="display: flex; justify-content: flex-end; margin-top: 10px;">
-              <button type="button" class="btn btn-gold" onclick="agregarReglaAlCarrito()">
+            <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 10px;">
+              <button type="button" class="btn btn-secondary" id="btnNuevaReglaAdicional" onclick="prepararNuevaRegla()" style="display: none;">
+                + Agregar Otra Regla Distinta
+              </button>
+              <button type="button" class="btn btn-gold" id="btnAccionRegla" onclick="agregarReglaAlCarrito()">
                 + Agregar Regla al Carrito
               </button>
             </div>
@@ -529,7 +550,7 @@ $tipoMsg = $_GET['tipo'] ?? 'exito';
                     <th style="width: 110px;">Cant. Mínima</th>
                     <th>Producto B (Cross-Selling)</th>
                     <th style="width: 150px;">Beneficio</th>
-                    <th style="width: 95px; text-align: right;">Quitar</th>
+                    <th style="width: 145px; text-align: right;">Acciones</th>
                   </tr>
                 </thead>
                 <tbody id="tablaCarritoReglasBody">
@@ -555,7 +576,7 @@ $tipoMsg = $_GET['tipo'] ?? 'exito';
 
   <div id="toast" class="toast"></div>
 
-  <script src="promociones.js"></script>
+  <script src="promociones.js?v=7"></script>
 </body>
 </html>
 
