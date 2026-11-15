@@ -1,37 +1,48 @@
 <?php
-/**
- * Script de prueba de conexión a PostgreSQL
- * House & Ice • Sistema Administrativo
- */
+// Incluir el archivo de conexión
+require_once 'config/conexion.php';
 
-require_once __DIR__ . '/config/conexion.php';
-
-$pgVersion = 'No conectado';
-$todasTablas = [];
-$tablasPorEsquema = [];
+$pgVersion = 'Desconocida';
 $totalTablas = 0;
+$tablasPorEsquema = [];
 
-if ($pdo) {
+// Si la conexión fue exitosa, extraemos los datos reales
+if (isset($pdo) && $dbConnected) {
     try {
-        $pgVersion = $pdo->query("SELECT version()")->fetchColumn();
+        // 1. Obtener la versión del servidor PostgreSQL
+        $stmtVersion = $pdo->query("SELECT version()");
+        if ($stmtVersion) {
+            $pgVersion = $stmtVersion->fetchColumn();
+        }
 
-        // Consultar todas las tablas agrupadas por los 7 esquemas del ERP
-        $stmt = $pdo->query("
+        // 2. Obtener todas las tablas organizadas por esquema
+        // Excluimos schemas internos de PostgreSQL (pg_catalog, information_schema)
+        $sqlTablas = "
             SELECT table_schema, table_name 
             FROM information_schema.tables 
-            WHERE table_schema IN ('compras', 'identidad', 'inventario', 'promociones', 'seguridad', 'tesoreria', 'ventas', 'public')
-              AND table_type = 'BASE TABLE'
-            ORDER BY table_schema ASC, table_name ASC
-        ");
-        $todasTablas = $stmt->fetchAll();
-
-        foreach ($todasTablas as $row) {
-            $tablasPorEsquema[$row['table_schema']][] = $row['table_name'];
+            WHERE table_type = 'BASE TABLE' 
+              AND table_schema NOT IN ('pg_catalog', 'information_schema')
+            ORDER BY table_schema, table_name;
+        ";
+        
+        $stmtTablas = $pdo->query($sqlTablas);
+        if ($stmtTablas) {
+            $resultados = $stmtTablas->fetchAll(PDO::FETCH_ASSOC);
+            
+            foreach ($resultados as $fila) {
+                $esquema = $fila['table_schema'];
+                $tabla = $fila['table_name'];
+                
+                if (!isset($tablasPorEsquema[$esquema])) {
+                    $tablasPorEsquema[$esquema] = [];
+                }
+                
+                $tablasPorEsquema[$esquema][] = $tabla;
+                $totalTablas++;
+            }
         }
-        $totalTablas = count($todasTablas);
-    } catch (Throwable $e) {
-        $dbConnected = false;
-        $dbError = $e->getMessage();
+    } catch(Exception $e) {
+        $dbError = "Error al consultar los esquemas: " . $e->getMessage();
     }
 }
 ?>
@@ -174,7 +185,7 @@ if ($pdo) {
 
         <div class="detail-row">
             <span class="detail-label">Servidor / Host:</span>
-            <span class="detail-val"><?= htmlspecialchars($host ?? 'localhost') ?>:<?= htmlspecialchars($port ?? '5433') ?></span>
+            <span class="detail-val"><?= htmlspecialchars($host ?? 'localhost') ?>:<?= htmlspecialchars($port ?? '5432') ?></span>
         </div>
         <div class="detail-row">
             <span class="detail-label">Base de Datos:</span>
@@ -190,12 +201,14 @@ if ($pdo) {
                 <?= ($dbConnected && $pdo) ? 'En línea (Base de Datos Operativa)' : 'PostgreSQL Desconectado / Usando Demo' ?>
             </span>
         </div>
+        
         <?php if (!empty($dbError)): ?>
         <div class="detail-row" style="background: #fff8f8; padding: 10px; border-radius: 6px;">
             <span class="detail-label" style="color: #c53030;">Aviso de Conexión:</span>
             <span class="detail-val" style="color: #c53030; font-size: 0.8rem; max-width: 500px;"><?= htmlspecialchars($dbError) ?></span>
         </div>
         <?php endif; ?>
+        
         <div class="detail-row">
             <span class="detail-label">Total de Tablas Detectadas:</span>
             <span class="detail-val" style="color: #2e7d52;"><?= $totalTablas ?> tablas activas</span>
@@ -208,7 +221,6 @@ if ($pdo) {
         <div style="margin-top: 24px;">
             <a href="Login%20y%20Menu/menu.php" class="btn-link">Ir al Menú Principal →</a>
             <a href="Login%20y%20Menu/login.php" class="btn-link" style="background: #4a3b32;">Ir al Login →</a>
-            <a href="Panel%20de%20configuracion/catalogo/productos.php" class="btn-link" style="background: #251c16;">Panel Productos →</a>
         </div>
 
         <?php if ($totalTablas > 0): ?>
