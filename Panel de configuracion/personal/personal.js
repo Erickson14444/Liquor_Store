@@ -150,15 +150,40 @@ let pestanaActiva = new URLSearchParams(window.location.search).get('tab') === '
     function rellenarDatosPersonaEncontrada(p) {
       const feedback = document.getElementById('feedbackTercero');
       document.getElementById('emp_persona_id').value = p.persona_id;
+      if (p.empleado_id) {
+        document.getElementById('emp_empleado_id').value = p.empleado_id;
+        document.getElementById('formAccionEmp').value = 'editar_empleado';
+      }
+      if (p.codigo_empleado) document.getElementById('emp_codigo_empleado').value = p.codigo_empleado;
+      if (p.cargo) document.getElementById('emp_cargo').value = p.cargo;
       if (p.tipo_documento) document.getElementById('emp_tipo_documento').value = p.tipo_documento;
       if (p.documento_identidad) document.getElementById('emp_documento_identidad').value = p.documento_identidad;
       if (p.nombre_razon_social) document.getElementById('emp_nombre_razon_social').value = p.nombre_razon_social;
       if (p.telefono_principal) document.getElementById('emp_telefono_principal').value = p.telefono_principal;
       if (p.email) document.getElementById('emp_email').value = p.email;
+      if (p.fecha_ingreso) document.getElementById('emp_fecha_ingreso').value = p.fecha_ingreso;
+      if (p.estado_laboral) document.getElementById('emp_estado_laboral').value = p.estado_laboral;
 
       feedback.style.display = 'block';
-      feedback.textContent = 'Persona existente';
-      mostrarToast('Persona existente');
+      feedback.textContent = 'Registro existente localizado';
+      mostrarToast('Datos cargados automáticamente');
+    }
+
+    let debounceCodigoEmp = null;
+    function verificarEmpleadoPorCodigo(codVal) {
+      clearTimeout(debounceCodigoEmp);
+      const cod = (codVal || '').trim();
+      if (cod.length < 3) return;
+      debounceCodigoEmp = setTimeout(() => {
+        fetch('procesar_personal.php?codigo=' + encodeURIComponent(cod))
+          .then(r => r.json())
+          .then(res => {
+            if (res.encontrado && res.persona) {
+              rellenarDatosPersonaEncontrada(res.persona);
+            }
+          })
+          .catch(() => {});
+      }, 300);
     }
 
     function verificarTerceroLive(doc) {
@@ -482,4 +507,15 @@ let pestanaActiva = new URLSearchParams(window.location.search).get('tab') === '
     (() => {
   const _urlMsg = new URLSearchParams(window.location.search).get('msg');
   if (_urlMsg && typeof mostrarToast === 'function') mostrarToast(_urlMsg);
+
+  const elNomEmp = document.getElementById('emp_nombre_razon_social');
+  if (elNomEmp) {
+    elNomEmp.addEventListener('input', function () {
+      if (this.value.length > 0) {
+        const pos = this.selectionStart;
+        this.value = this.value.charAt(0).toUpperCase() + this.value.slice(1);
+        if (typeof pos === 'number') this.setSelectionRange(pos, pos);
+      }
+    });
+  }
 })();

@@ -522,5 +522,16 @@ function mostrarToast(msg) {
 (() => {
   const _urlMsg = new URLSearchParams(window.location.search).get('msg');
   if (_urlMsg && typeof mostrarToast === 'function') mostrarToast(_urlMsg);
+
+  const elNombreCamp = document.getElementById('nombre_promocion');
+  if (elNombreCamp) {
+    elNombreCamp.addEventListener('input', function () {
+      if (this.value.length > 0) {
+        const pos = this.selectionStart;
+        this.value = this.value.charAt(0).toUpperCase() + this.value.slice(1);
+        if (typeof pos === 'number') this.setSelectionRange(pos, pos);
+      }
+    });
+  }
 })();
 

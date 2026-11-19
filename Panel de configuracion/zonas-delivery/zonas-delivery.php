@@ -80,7 +80,6 @@ if ($pdo) {
           <table class="data-table">
             <thead>
               <tr>
-                <th>ID</th>
                 <th>NOMBRE DEL SECTOR / ZONA</th>
                 <th style="text-align: right;">TARIFA DE ENVÍO</th>
                 <th style="text-align: center;">TIEMPO PROMEDIO</th>
@@ -109,11 +108,11 @@ if ($pdo) {
           <div class="form-row">
             <div class="form-group">
               <label class="form-label" for="tarifa_envio">TARIFA DE ENVÍO (RD$) *</label>
-              <input type="number" step="0.01" id="tarifa_envio" class="form-control" placeholder="Ej. 150.00" required />
+              <input type="number" step="0.01" min="0" id="tarifa_envio" class="form-control" placeholder="Ej. 150.00" required onkeydown="if(['e','E','+','-'].includes(event.key)) { event.preventDefault(); return false; }" oninput="this.value = this.value.replace(/[^0-9.]/g, '');" />
             </div>
             <div class="form-group">
               <label class="form-label" for="tiempo_promedio_min">TIEMPO PROMEDIO (MINUTOS) *</label>
-              <input type="number" id="tiempo_promedio_min" class="form-control" placeholder="Ej. 30" required />
+              <input type="number" min="1" step="1" id="tiempo_promedio_min" class="form-control" placeholder="Ej. 30" required onkeydown="if(['e','E','+','-','.',','].includes(event.key)) { event.preventDefault(); return false; }" oninput="this.value = this.value.replace(/[^0-9]/g, '');" />
             </div>
           </div>
         </div>

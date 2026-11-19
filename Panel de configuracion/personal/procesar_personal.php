@@ -1,20 +1,44 @@
 <?php
 
-// Búsqueda GET en vivo de Terceros en identidad.personas (Supertipo / Subtipo)
-if (($_SERVER['REQUEST_METHOD'] ?? '') === 'GET' && (isset($_GET['documento']) || isset($_GET['nombre']))) {
+// Búsqueda GET en vivo de Terceros en identidad.personas (por documento, nombre o código)
+if (($_SERVER['REQUEST_METHOD'] ?? '') === 'GET' && (isset($_GET['documento']) || isset($_GET['nombre']) || isset($_GET['codigo']))) {
     require_once __DIR__ . '/../../config/conexion.php';
     header('Content-Type: application/json; charset=utf-8');
     $documento = trim($_GET['documento'] ?? '');
     $nombre    = trim($_GET['nombre'] ?? '');
+    $codigo    = trim($_GET['codigo'] ?? '');
 
-    if ((empty($documento) && empty($nombre)) || !$pdo) {
+    if ((empty($documento) && empty($nombre) && empty($codigo)) || !$pdo) {
         echo json_encode(['encontrado' => false]);
         exit;
     }
 
     try {
         $persona = null;
-        if (!empty($documento)) {
+        if (!empty($codigo)) {
+            $stmt = $pdo->prepare("
+                SELECT p.persona_id, p.tipo_documento, p.documento_identidad,
+                       p.documento_identidad AS numero_documento,
+                       p.nombre_razon_social, p.nombre_razon_social AS primer_nombre,
+                       p.nombre_comercial, p.nombre_comercial AS segundo_nombre,
+                       p.fecha_nacimiento, p.email, p.telefono_principal,
+                       p.telefono_principal AS telefono, p.tipo_persona, p.estado,
+                       e.empleado_id, e.codigo_empleado, e.cargo, e.fecha_ingreso, e.estado_laboral,
+                       (SELECT c.codigo_cliente FROM identidad.clientes c WHERE c.persona_id = p.persona_id LIMIT 1) AS codigo_cliente,
+                       (SELECT pr.codigo_proveedor FROM identidad.proveedores pr WHERE pr.persona_id = p.persona_id LIMIT 1) AS codigo_proveedor
+                FROM identidad.personas p
+                LEFT JOIN identidad.empleados e ON e.persona_id = p.persona_id
+                LEFT JOIN identidad.clientes c ON c.persona_id = p.persona_id
+                LEFT JOIN identidad.proveedores pr ON pr.persona_id = p.persona_id
+                WHERE UPPER(TRIM(e.codigo_empleado)) = UPPER(TRIM(?))
+                   OR UPPER(TRIM(c.codigo_cliente)) = UPPER(TRIM(?))
+                   OR UPPER(TRIM(pr.codigo_proveedor)) = UPPER(TRIM(?))
+                   OR REPLACE(UPPER(TRIM(pr.codigo_proveedor)), 'PROV-', 'PRO-') = REPLACE(UPPER(TRIM(?)), 'PROV-', 'PRO-')
+                LIMIT 1
+            ");
+            $stmt->execute([$codigo, $codigo, $codigo, $codigo]);
+            $persona = $stmt->fetch(PDO::FETCH_ASSOC);
+        } elseif (!empty($documento)) {
             $docLimpio = str_replace(['-', ' ', '.'], '', $documento);
             $stmt = $pdo->prepare("
                 SELECT p.persona_id, p.tipo_documento, p.documento_identidad,
@@ -23,10 +47,11 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'GET' && (isset($_GET['documento']) |
                        p.nombre_comercial, p.nombre_comercial AS segundo_nombre,
                        p.fecha_nacimiento, p.email, p.telefono_principal,
                        p.telefono_principal AS telefono, p.tipo_persona, p.estado,
+                       e.empleado_id, e.codigo_empleado, e.cargo, e.fecha_ingreso, e.estado_laboral,
                        (SELECT c.codigo_cliente FROM identidad.clientes c WHERE c.persona_id = p.persona_id LIMIT 1) AS codigo_cliente,
-                       (SELECT e.codigo_empleado FROM identidad.empleados e WHERE e.persona_id = p.persona_id LIMIT 1) AS codigo_empleado,
                        (SELECT pr.codigo_proveedor FROM identidad.proveedores pr WHERE pr.persona_id = p.persona_id LIMIT 1) AS codigo_proveedor
                 FROM identidad.personas p
+                LEFT JOIN identidad.empleados e ON e.persona_id = p.persona_id
                 WHERE replace(replace(p.documento_identidad, '-', ''), ' ', '') = ?
                    OR UPPER(p.documento_identidad) = UPPER(?)
                 LIMIT 1
@@ -41,10 +66,11 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'GET' && (isset($_GET['documento']) |
                        p.nombre_comercial, p.nombre_comercial AS segundo_nombre,
                        p.fecha_nacimiento, p.email, p.telefono_principal,
                        p.telefono_principal AS telefono, p.tipo_persona, p.estado,
+                       e.empleado_id, e.codigo_empleado, e.cargo, e.fecha_ingreso, e.estado_laboral,
                        (SELECT c.codigo_cliente FROM identidad.clientes c WHERE c.persona_id = p.persona_id LIMIT 1) AS codigo_cliente,
-                       (SELECT e.codigo_empleado FROM identidad.empleados e WHERE e.persona_id = p.persona_id LIMIT 1) AS codigo_empleado,
                        (SELECT pr.codigo_proveedor FROM identidad.proveedores pr WHERE pr.persona_id = p.persona_id LIMIT 1) AS codigo_proveedor
                 FROM identidad.personas p
+                LEFT JOIN identidad.empleados e ON e.persona_id = p.persona_id
                 WHERE UPPER(TRIM(p.nombre_razon_social)) = UPPER(TRIM(?))
                    OR UPPER(p.nombre_razon_social) LIKE UPPER(?)
                 ORDER BY CASE WHEN UPPER(TRIM(p.nombre_razon_social)) = UPPER(TRIM(?)) THEN 0 ELSE 1 END

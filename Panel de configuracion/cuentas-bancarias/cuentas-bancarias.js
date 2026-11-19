@@ -9,7 +9,7 @@ let cuentas = _datosCuentas ? JSON.parse(_datosCuentas.dataset.cuentas || '[]') 
       const filtradas = cuentas.filter(c => c.nombre_banco.toLowerCase().includes(q) || c.numero_cuenta.includes(q));
 
       if (filtradas.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="6" style="text-align: center; padding: 28px; color: var(--text-muted);">No hay cuentas bancarias registradas en PostgreSQL. Haz clic en <strong>+ Nueva Cuenta</strong> para crear una.</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="6" style="text-align: center; padding: 28px; color: var(--text-muted);">No hay cuentas bancarias registradas. Haz clic en <strong>+ Nueva Cuenta Bancaria</strong> para crear una.</td></tr>';
         const fc = document.getElementById('footerCount');
         if (fc) fc.textContent = 'Mostrando 0 cuentas';
         return;
@@ -18,15 +18,15 @@ let cuentas = _datosCuentas ? JSON.parse(_datosCuentas.dataset.cuentas || '[]') 
       filtradas.forEach(c => {
         const tr = document.createElement('tr');
         const isActiva = c.activa === true || c.activa === 't' || c.activa === 1;
-        const saldoFmt = c.moneda === 'USD' ? '$' + Number(c.saldo_actual).toLocaleString('en-US', {minimumFractionDigits: 2}) : 'RD$ ' + Number(c.saldo_actual).toLocaleString('es-DO', {minimumFractionDigits: 2});
+        const monedaLabel = c.moneda_simbolo
+          ? `${escapeHtml(c.moneda)} (${escapeHtml(c.moneda_simbolo)})`
+          : escapeHtml(c.moneda || 'DOP');
 
         tr.innerHTML = `
-          <td><span class="code-inline">#${c.id}</span></td>
           <td><strong>${escapeHtml(c.nombre_banco)}</strong></td>
           <td><span class="code-inline">${escapeHtml(c.numero_cuenta)}</span></td>
-          <td><span class="badge badge-neutral">${c.tipo_cuenta}</span></td>
-          <td><strong>${c.moneda}</strong></td>
-          <td style="text-align: right; font-family: var(--font-mono); font-weight: bold; color: var(--accent-gold);">${saldoFmt}</td>
+          <td><span class="badge badge-neutral">${escapeHtml(c.tipo_cuenta)}</span></td>
+          <td><strong>${monedaLabel}</strong></td>
           <td class="text-center">
             <label class="toggle-wrap">
               <input type="checkbox" ${isActiva ? 'checked' : ''} onchange="toggleEstado(${c.id}, this.checked)" />
@@ -105,7 +105,15 @@ let cuentas = _datosCuentas ? JSON.parse(_datosCuentas.dataset.cuentas || '[]') 
           document.getElementById('nombre_banco').value = c.nombre_banco;
           document.getElementById('numero_cuenta').value = c.numero_cuenta;
           document.getElementById('tipo_cuenta').value = c.tipo_cuenta;
-          document.getElementById('moneda').value = c.moneda;
+          const selMon = document.getElementById('moneda_id');
+          if (selMon) {
+            if (c.moneda_id) {
+              selMon.value = String(c.moneda_id);
+            } else {
+              const opt = Array.from(selMon.options).find(o => o.dataset.iso === c.moneda);
+              if (opt) selMon.value = opt.value;
+            }
+          }
         }
       } else {
         document.getElementById('modalTitulo').textContent = 'Nueva Cuenta Bancaria';
@@ -125,6 +133,12 @@ let cuentas = _datosCuentas ? JSON.parse(_datosCuentas.dataset.cuentas || '[]') 
       const numeroCuentaInput = document.getElementById('numero_cuenta');
       const numeroCuenta = numeroCuentaInput.value.replace(/\D/g, '').trim();
       const errEl = document.getElementById('errorNumeroCuenta');
+
+      if (!nombreBanco || /^\d+$/.test(nombreBanco)) {
+        showToast('Error: Ingresa un nombre de banco válido (no solo números).');
+        document.getElementById('nombre_banco').focus();
+        return;
+      }
 
       if (!/^\d{8,20}$/.test(numeroCuenta) || /^0+$/.test(numeroCuenta)) {
         if (errEl) {
@@ -149,13 +163,16 @@ let cuentas = _datosCuentas ? JSON.parse(_datosCuentas.dataset.cuentas || '[]') 
         return;
       }
 
+      const selMon = document.getElementById('moneda_id');
+      const monedaIdVal = selMon ? selMon.value : '1';
+
       const fd = new FormData();
       fd.append('action', 'guardar');
       if (editandoId) fd.append('id', editandoId);
       fd.append('nombre_banco', nombreBanco);
       fd.append('numero_cuenta', numeroCuenta);
       fd.append('tipo_cuenta', document.getElementById('tipo_cuenta').value);
-      fd.append('moneda', document.getElementById('moneda').value);
+      fd.append('moneda_id', monedaIdVal);
 
       try {
         const res = await fetch('procesar_cuentas_bancarias.php', { method: 'POST', body: fd });
@@ -167,7 +184,10 @@ let cuentas = _datosCuentas ? JSON.parse(_datosCuentas.dataset.cuentas || '[]') 
               cuentas[idx].nombre_banco = data.nombre_banco;
               cuentas[idx].numero_cuenta = data.numero_cuenta;
               cuentas[idx].tipo_cuenta = data.tipo_cuenta;
+              cuentas[idx].moneda_id = data.moneda_id;
               cuentas[idx].moneda = data.moneda;
+              cuentas[idx].moneda_nombre = data.moneda_nombre;
+              cuentas[idx].moneda_simbolo = data.moneda_simbolo;
             }
           } else {
             cuentas.push(data);
@@ -194,4 +214,16 @@ let cuentas = _datosCuentas ? JSON.parse(_datosCuentas.dataset.cuentas || '[]') 
       return String(str).replace(/[&<>"']/g, m => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[m]);
     }
 
-    document.addEventListener('DOMContentLoaded', () => renderizarTabla());
+    document.addEventListener('DOMContentLoaded', () => {
+      renderizarTabla();
+      const elBanco = document.getElementById('nombre_banco');
+      if (elBanco) {
+        elBanco.addEventListener('input', function () {
+          if (this.value.length > 0) {
+            const pos = this.selectionStart;
+            this.value = this.value.charAt(0).toUpperCase() + this.value.slice(1);
+            if (typeof pos === 'number') this.setSelectionRange(pos, pos);
+          }
+        });
+      }
+    });

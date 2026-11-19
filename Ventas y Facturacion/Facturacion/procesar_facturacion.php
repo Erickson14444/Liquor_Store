@@ -64,7 +64,15 @@ try {
                        pcb.descripcion_presentacion,
                        pm.sku
                    ) AS producto_nombre,
-                   pm.porcentaje_itbis,
+                   COALESCE((
+                       SELECT imp.tasa_o_monto
+                       FROM inventario.producto_impuestos pi
+                       JOIN tesoreria.impuestos imp ON pi.impuesto_id = imp.id
+                       WHERE pi.producto_maestro_id = pm.id
+                         AND imp.siglas IN ('ITBIS_18', 'ITBIS_16', 'EXENTO')
+                       ORDER BY imp.id ASC
+                       LIMIT 1
+                   ), 18.00) AS porcentaje_itbis,
                    pm.costo_promedio,
                    COALESCE(pcb.descripcion_presentacion, 'Unidad Individual') AS descripcion_presentacion,
                    COALESCE(pcb.factor_multiplicador, 1) AS factor_conversion
@@ -358,9 +366,27 @@ try {
             }
 
             $stmtProdInfo = $pdo->prepare("
-                SELECT id, sku, nombre, costo_promedio, precio_base_unidad, porcentaje_itbis
-                FROM inventario.productos_maestro
-                WHERE id = ?
+                SELECT pm.id, pm.sku, pm.nombre, pm.costo_promedio, pm.precio_base_unidad,
+                       COALESCE((
+                           SELECT imp.tasa_o_monto
+                           FROM inventario.producto_impuestos pi
+                           JOIN tesoreria.impuestos imp ON pi.impuesto_id = imp.id
+                           WHERE pi.producto_maestro_id = pm.id
+                             AND imp.siglas IN ('ITBIS_18', 'ITBIS_16', 'EXENTO')
+                           ORDER BY imp.id ASC
+                           LIMIT 1
+                       ), 18.00) AS porcentaje_itbis,
+                       COALESCE((
+                           SELECT imp.id
+                           FROM inventario.producto_impuestos pi
+                           JOIN tesoreria.impuestos imp ON pi.impuesto_id = imp.id
+                           WHERE pi.producto_maestro_id = pm.id
+                             AND imp.siglas IN ('ITBIS_18', 'ITBIS_16', 'EXENTO')
+                           ORDER BY imp.id ASC
+                           LIMIT 1
+                       ), 1) AS impuesto_id
+                FROM inventario.productos_maestro pm
+                WHERE pm.id = ?
                 LIMIT 1
             ");
             $stmtProdInfo->execute([$pmId]);
@@ -373,6 +399,7 @@ try {
             $factorConv  = max(1, (int)($item['factor_conversion'] ?? 1));
             $precioUnit  = max(0, (float)($item['precio_unitario'] ?? $prodDb['precio_base_unidad']));
             $porcItbis   = max(0, (float)($prodDb['porcentaje_itbis'] ?? 18.00));
+            $impuestoId  = max(1, (int)($prodDb['impuesto_id'] ?? 1));
             $costoHist   = max(0, (float)($prodDb['costo_promedio'] ?? 0.00));
             $promoId     = !empty($item['promocion_id']) ? (int)$item['promocion_id'] : null;
             $descuentoLn = max(0, (float)($item['monto_descuento'] ?? 0.00));
@@ -389,6 +416,7 @@ try {
                     'promocion_aplicada'    => $promoId,
                     'monto_descuento'       => $descuentoLn,
                     'porcentaje_itbis'      => $porcItbis,
+                    'impuesto_id'           => $impuestoId,
                 ];
             } else {
                 // Si el mismo producto maestro se agregó dos veces, acumular unidades y presentaciones
@@ -419,12 +447,16 @@ try {
             $itbisLinea  = round($baseImpon - $netoLinea, 2);
             $totalLinea  = round($netoLinea + $itbisLinea, 2);
 
-            $linea['monto_subtotal']  = $netoLinea;
+            // En BD: monto_total = (monto_subtotal - monto_descuento) + monto_impuestos
+            $subtotalAntesDesc = round($netoLinea + $descLinea, 2);
+
+            $linea['base_imponible']  = $netoLinea;
+            $linea['monto_subtotal']  = $subtotalAntesDesc;
             $linea['monto_descuento'] = $descLinea;
             $linea['monto_itbis']     = $itbisLinea;
             $linea['monto_total']     = $totalLinea;
 
-            $facturaSubtotal  += $netoLinea;
+            $facturaSubtotal  += $subtotalAntesDesc;
             $facturaDescuento += $descLinea;
             $facturaItbis     += $itbisLinea;
             $facturaTotal     += $totalLinea;
@@ -502,7 +534,7 @@ try {
             INSERT INTO ventas.facturas (
                 numero_factura, sesion_caja_id, cliente_id, vendedor_id,
                 secuencia_dgii_id, tipo_ncf, ncf, condicion_pago,
-                monto_subtotal, monto_descuento, monto_itbis, monto_total,
+                monto_subtotal, monto_descuento, monto_impuestos, monto_total,
                 estado, cotizacion_origen, rnc_cedula_cliente, razon_social_cliente,
                 origen_venta
             ) VALUES (
@@ -535,19 +567,25 @@ try {
         ]);
         $facturaId = (int)$stmtInsFac->fetchColumn();
 
-        // 9. Insertar líneas en ventas.factura_detalle y rebajar stock si existe en inventario_stock
+        // 9. Insertar líneas en ventas.factura_detalle (monto_total es columna generada) e impuestos en ventas.factura_detalle_impuestos
         $stmtInsDet = $pdo->prepare("
             INSERT INTO ventas.factura_detalle (
                 factura_id, producto_maestro_id, cantidad_unidades, precio_unitario_his,
                 codigo_barra_id, factor_conversion, cantidad_presentacion, costo_unitario_hist,
-                promocion_aplicada, monto_descuento, porcentaje_itbis, monto_itbis,
-                monto_subtotal, monto_total
+                promocion_aplicada, monto_descuento, monto_impuestos, monto_subtotal
             ) VALUES (
                 ?, ?, ?, ?,
                 ?, ?, ?, ?,
-                ?, ?, ?, ?,
-                ?, ?
+                ?, ?, ?, ?
             )
+        ");
+
+        $stmtInsDetImp = $pdo->prepare("
+            INSERT INTO ventas.factura_detalle_impuestos (
+                factura_id, producto_maestro_id, impuesto_id, base_imponible,
+                tipo_calculo_aplicado, tasa_aplicada, monto_impuesto
+            ) VALUES (?, ?, ?, ?, 'PORCENTAJE', ?, ?)
+            ON CONFLICT DO NOTHING
         ");
 
         foreach ($partidasAgrupadas as $linea) {
@@ -562,10 +600,17 @@ try {
                 $linea['costo_unitario_hist'],
                 $linea['promocion_aplicada'],
                 $linea['monto_descuento'],
-                $linea['porcentaje_itbis'],
                 $linea['monto_itbis'],
                 $linea['monto_subtotal'],
-                $linea['monto_total'],
+            ]);
+
+            $stmtInsDetImp->execute([
+                $facturaId,
+                $linea['producto_maestro_id'],
+                $linea['impuesto_id'] ?? 1,
+                $linea['base_imponible'] ?? 0.00,
+                $linea['porcentaje_itbis'],
+                $linea['monto_itbis'],
             ]);
 
             // Rebajar de inventario_stock o lotes si hay existencias registradas
@@ -641,17 +686,28 @@ try {
             $montoPagado   = $montoRecibidoInput >= $facturaTotal ? round($montoRecibidoInput, 2) : $facturaTotal;
             $montoDevuelta = max(0.00, round($montoPagado - $facturaTotal, 2));
 
-            $stmtInsPago = $pdo->prepare("
-                INSERT INTO ventas.factura_pagos (
-                    factura_id, metodo_pago_id, monto_pagado, monto_devuelta, referencia_transaccion
-                ) VALUES (?, ?, ?, ?, ?)
+            $stmtInsDetPago = $pdo->prepare("
+                INSERT INTO tesoreria.detalles_pago (
+                    metodo_pago_id, moneda_id, tasa_cambio, monto_pagado, monto_devuelta, sesion_caja_id
+                ) VALUES (?, 1, 1.0000, ?, ?, ?)
+                RETURNING id
             ");
-            $stmtInsPago->execute([
-                $facturaId,
+            $stmtInsDetPago->execute([
                 $metodoId,
                 $montoPagado,
                 $montoDevuelta,
-                $referenciaPago !== '' ? $referenciaPago : null
+                $sesionCajaId
+            ]);
+            $detallePagoId = (int)$stmtInsDetPago->fetchColumn();
+
+            $stmtInsPago = $pdo->prepare("
+                INSERT INTO ventas.factura_pagos (
+                    factura_id, detalle_pago_id
+                ) VALUES (?, ?)
+            ");
+            $stmtInsPago->execute([
+                $facturaId,
+                $detallePagoId
             ]);
         } else {
             // Venta a CRÉDITO -> Generar Cuenta por Cobrar (30 días)

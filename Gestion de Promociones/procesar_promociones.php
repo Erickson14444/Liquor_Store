@@ -72,8 +72,9 @@ try {
             // 2. CABECERA: Insertar campaña principal en promociones_campanas y capturar ID con lastInsertId()
             $stmtCamp = $pdo->prepare("
                 INSERT INTO promociones.promociones_campanas
-                (nombre_promocion, tipo_promocion, fecha_inicio, fecha_fin, hora_inicio, hora_fin, dias_semana, monto_minimo_factura, estado)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                (nombre_promocion, tipo_promocion, fecha_inicio, fecha_fin, hora_inicio, hora_fin, monto_minimo_factura, estado)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                RETURNING id
             ");
             $stmtCamp->execute([
                 $nombre,
@@ -82,12 +83,11 @@ try {
                 $fechaFin,
                 $horaInicio,
                 $horaFin,
-                $diasSemana,
                 $montoMinimo,
                 $estado
             ]);
 
-            $promocionId = intval($pdo->lastInsertId());
+            $promocionId = intval($stmtCamp->fetchColumn() ?: $pdo->lastInsertId());
         } else {
             if (empty($id)) {
                 throw new Exception("Identificador de campaña no proporcionado para la edición.");
@@ -101,7 +101,6 @@ try {
                     fecha_fin = ?,
                     hora_inicio = ?,
                     hora_fin = ?,
-                    dias_semana = ?,
                     monto_minimo_factura = ?,
                     estado = ?
                 WHERE id = ?
@@ -113,7 +112,6 @@ try {
                 $fechaFin,
                 $horaInicio,
                 $horaFin,
-                $diasSemana,
                 $montoMinimo,
                 $estado,
                 $id
@@ -121,15 +119,32 @@ try {
 
             $promocionId = $id;
 
-            // Limpiar reglas previas de la campaña para insertar el nuevo conjunto del carrito
+            // Limpiar reglas y días previos de la campaña para insertar el nuevo conjunto
             $stmtDelDet = $pdo->prepare("DELETE FROM promociones.promociones_detalles WHERE promocion_id = ?");
             $stmtDelDet->execute([$promocionId]);
+        }
+
+        // 2.5 DÍAS DE LA SEMANA: Sincronizar en promociones.promociones_dias (1=Lunes .. 7=Domingo)
+        $pdo->prepare("DELETE FROM promociones.promociones_dias WHERE promocion_id = ?")->execute([$promocionId]);
+        $mapaPresetADias = [
+            'TODOS'   => [1, 2, 3, 4, 5, 6, 7],
+            'JUE-DOM' => [4, 5, 6, 7],
+            'VIE-DOM' => [5, 6, 7],
+            'VIE-SAB' => [5, 6],
+            'LUN-JUE' => [1, 2, 3, 4],
+            'LUN-VIE' => [1, 2, 3, 4, 5],
+        ];
+        $diasUpper = strtoupper(trim((string)$diasSemana));
+        $listaDiasNum = $mapaPresetADias[$diasUpper] ?? [1, 2, 3, 4, 5, 6, 7];
+        $stmtInsDia = $pdo->prepare("INSERT INTO promociones.promociones_dias (promocion_id, dia_semana) VALUES (?, ?) ON CONFLICT DO NOTHING");
+        foreach ($listaDiasNum as $diaNum) {
+            $stmtInsDia->execute([$promocionId, $diaNum]);
         }
 
         // 3. DETALLES: Recorrer el array de reglas con foreach e insertarlas en promociones_detalles
         $stmtDet = $pdo->prepare("
             INSERT INTO promociones.promociones_detalles
-            (promocion_id, condicion_producto_id, condicion_categoria_id, marca_id, cantidad_requerida, beneficio_producto_id, beneficio_porcentaje, beneficio_monto_fijo)
+            (promocion_id, condicion_producto_id, condicion_categoria_id, condicion_marca_id, cantidad_requerida, beneficio_producto_id, beneficio_porcentaje, beneficio_monto_fijo)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?)
         ");
 
@@ -141,8 +156,9 @@ try {
             $condCategoriaId = (!empty($regla['condicion_categoria_id']) && intval($regla['condicion_categoria_id']) > 0)
                                ? intval($regla['condicion_categoria_id'])
                                : null;
-            $marcaId         = (!empty($regla['marca_id']) && intval($regla['marca_id']) > 0)
-                               ? intval($regla['marca_id'])
+            $rawMarcaId      = $regla['condicion_marca_id'] ?? ($regla['marca_id'] ?? null);
+            $marcaId         = (!empty($rawMarcaId) && intval($rawMarcaId) > 0)
+                               ? intval($rawMarcaId)
                                : null;
             $cantRequerida   = max(1, intval($regla['cantidad_requerida'] ?? 1));
             $beneProductoId  = (!empty($regla['beneficio_producto_id']) && intval($regla['beneficio_producto_id']) > 0)

@@ -80,7 +80,15 @@ if ($pdo) {
                    COALESCE(m.nombre, 'Genérica') AS marca_nombre,
                    pm.costo_promedio,
                    pm.precio_base_unidad,
-                   pm.porcentaje_itbis,
+                   COALESCE((
+                       SELECT imp.tasa_o_monto
+                       FROM inventario.producto_impuestos pi
+                       JOIN tesoreria.impuestos imp ON pi.impuesto_id = imp.id
+                       WHERE pi.producto_maestro_id = pm.id
+                         AND imp.siglas IN ('ITBIS_18', 'ITBIS_16', 'EXENTO')
+                       ORDER BY imp.id ASC
+                       LIMIT 1
+                   ), 18.00) AS porcentaje_itbis,
                    pcb.id AS codigo_barra_id,
                    COALESCE(pcb.codigo_barra, pm.sku) AS codigo_barra,
                    COALESCE(pcb.descripcion_presentacion, 'Unidad Individual') AS descripcion_presentacion,
@@ -116,7 +124,7 @@ if ($pdo) {
                    pc.tipo_promocion AS tipo_regla,
                    pd.condicion_producto_id,
                    pd.condicion_categoria_id,
-                   pd.marca_id,
+                   pd.condicion_marca_id AS marca_id,
                    pd.cantidad_requerida,
                    pd.beneficio_porcentaje,
                    pd.beneficio_monto_fijo
@@ -140,7 +148,8 @@ if ($pdo) {
                    TO_CHAR(cot.fecha_emision, 'DD/MM/YYYY') AS fecha_emision_fmt,
                    TO_CHAR(cot.fecha_vencimiento, 'DD/MM/YYYY') AS fecha_vencimiento_fmt,
                    cot.monto_subtotal,
-                   cot.monto_itbis,
+                   cot.monto_impuestos AS monto_itbis,
+                   cot.monto_impuestos,
                    cot.monto_total,
                    cot.observaciones
             FROM ventas.cotizaciones cot
@@ -218,7 +227,8 @@ if ($pdo) {
                    f.origen_venta,
                    f.monto_subtotal,
                    f.monto_descuento,
-                   f.monto_itbis,
+                   f.monto_impuestos AS monto_itbis,
+                   f.monto_impuestos,
                    f.monto_total,
                    f.estado,
                    TO_CHAR(f.fecha_emision, 'DD/MM/YYYY HH12:MI AM') AS fecha_fmt,

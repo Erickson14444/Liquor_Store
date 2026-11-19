@@ -84,7 +84,6 @@ if ($pdo) {
         <table class="data-table">
           <thead>
             <tr>
-              <th>Código</th>
               <th>Nombre del Almacén</th>
               <th>Ubicación Física</th>
               <th class="text-center" style="width: 150px;">Estado</th>
@@ -94,20 +93,19 @@ if ($pdo) {
           <tbody id="tablaBody">
             <?php if (empty($almacenesDb)): ?>
               <tr>
-                <td colspan="5" style="text-align: center; padding: 28px; color: var(--text-muted);">
-                  No hay almacenes registrados en PostgreSQL. Haz clic en <strong>+ Nuevo Almacén</strong> para crear uno.
+                <td colspan="4" style="text-align: center; padding: 28px; color: var(--text-muted);">
+                  No hay almacenes registrados. Haz clic en <strong>+ Nuevo Almacén</strong> para crear uno.
                 </td>
               </tr>
             <?php endif; ?>
             <?php foreach ($almacenesDb as $a): 
               $esActivo = ($a['activo'] === true || $a['activo'] === 't' || $a['activo'] == 1 || $a['activo'] === '1');
             ?>
-              <tr class="fila-almacen" data-texto="<?= strtolower(htmlspecialchars($a['codigo'] . ' ' . $a['nombre'] . ' ' . $a['ubicacion'])) ?>">
-                <td><strong style="color: #a66e2e; font-family: monospace;"><?= htmlspecialchars($a['codigo']) ?></strong></td>
+              <tr class="fila-almacen" data-texto="<?= strtolower(htmlspecialchars($a['nombre'] . ' ' . $a['ubicacion'])) ?>">
                 <td><div style="font-weight: 600; color: #211813;"><?= htmlspecialchars($a['nombre']) ?></div></td>
                 <td><?= htmlspecialchars($a['ubicacion'] ?: 'Área general') ?></td>
                 <td class="text-center">
-                  <label class="toggle-wrap" title="Cambiar estado en PostgreSQL">
+                  <label class="toggle-wrap" title="Cambiar estado">
                     <input type="checkbox" <?= $esActivo ? 'checked' : '' ?> onchange="toggleEstadoAlmacen(<?= $a['id'] ?>, this.checked, this)" />
                     <span class="toggle-slider"></span>
                     <span class="toggle-text"><?= $esActivo ? 'Activo' : 'Inactivo' ?></span>

@@ -5,7 +5,6 @@
  * Valida credenciales contra seguridad.usuarios, identidad.personas, identidad.empleados y seguridad.roles
  */
 
-session_start();
 require_once __DIR__ . '/../config/conexion.php';
 
 if (($_SERVER['REQUEST_METHOD'] ?? '') !== 'POST') {
@@ -64,7 +63,6 @@ try {
     }
 
     if (!password_verify($password, $user['password_hash'])) {
-        // Incrementar intentos fallidos
         try {
             $pdo->prepare("UPDATE seguridad.usuarios SET intentos_fallidos = COALESCE(intentos_fallidos, 0) + 1 WHERE usuario_id = ?")
                 ->execute([$user['usuario_id']]);
@@ -74,12 +72,14 @@ try {
         exit;
     }
 
-    // Autenticación correcta según el empleado asociado
+    @session_regenerate_id(true);
+
     $nombreCompleto = trim($user['nombre_razon_social'] ?? '') ?: $user['username'];
     $rolMostrar     = !empty($user['rol_nombre'])
                       ? $user['rol_nombre']
                       : (!empty($user['cargo']) ? $user['cargo'] : 'Empleado');
     $iniciales      = calcularInicialesEmpleado($nombreCompleto);
+    $tabToken       = bin2hex(random_bytes(16));
 
     $_SESSION['usuario'] = [
         'id'              => $user['usuario_id'],
@@ -93,16 +93,16 @@ try {
         'email'           => $user['email'] ?? '',
         'rol'             => $rolMostrar,
         'avatar_initials' => $iniciales,
-        'caja_id'         => $cajaId
+        'caja_id'         => $cajaId,
+        'tab_token'       => $tabToken
     ];
 
-    // Registrar último acceso y reiniciar intentos fallidos
     try {
         $pdo->prepare("UPDATE seguridad.usuarios SET ultimo_acceso = CURRENT_TIMESTAMP, intentos_fallidos = 0 WHERE usuario_id = ?")
             ->execute([$user['usuario_id']]);
     } catch (Throwable $e) {}
 
-    header("Location: menu.php");
+    header("Location: menu.php?auth_init=1");
     exit;
 
 } catch (Throwable $e) {

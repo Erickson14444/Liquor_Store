@@ -31,7 +31,7 @@ let metodosData = _datosMetodos ? JSON.parse(_datosMetodos.dataset.metodos || '[
       if (filtrados.length === 0) {
         tablaMetodos.innerHTML = `
           <tr>
-            <td colspan="6" style="text-align: center; padding: 24px; color: var(--text-muted);">
+            <td colspan="5" style="text-align: center; padding: 24px; color: var(--text-muted);">
               No se encontraron métodos de pago que coincidan con la búsqueda.
             </td>
           </tr>
@@ -49,7 +49,6 @@ let metodosData = _datosMetodos ? JSON.parse(_datosMetodos.dataset.metodos || '[
           : `<span class="cat-badge regular">Cobro Directo</span>`;
 
         tr.innerHTML = `
-          <td><span class="code-inline">#${m.id}</span></td>
           <td><span class="cell-code" style="font-weight: 700; color: var(--accent-gold);">${escapeHtml(m.codigo)}</span></td>
           <td><strong>${escapeHtml(m.descripcion)}</strong></td>
           <td class="text-center">${vaucherBadge}</td>
@@ -236,3 +235,34 @@ let metodosData = _datosMetodos ? JSON.parse(_datosMetodos.dataset.metodos || '[
 
     // INICIALIZACIÓN
     renderTabla();
+
+    if (metodoDescripcionInput) {
+      metodoDescripcionInput.addEventListener("input", function () {
+        if (this.value.length > 0) {
+          const pos = this.selectionStart;
+          this.value = this.value.charAt(0).toUpperCase() + this.value.slice(1);
+          if (typeof pos === "number") this.setSelectionRange(pos, pos);
+        }
+      });
+    }
+
+    if (metodoCodigoInput) {
+      metodoCodigoInput.addEventListener("input", function () {
+        const cod = this.value.trim().toUpperCase();
+        const fb = document.getElementById("codigoFeedbackMetodo");
+        const encontrado = metodosData.find(m => String(m.codigo || "").toUpperCase() === cod);
+        if (encontrado) {
+          editandoId = encontrado.id;
+          if (metodoIdInput) metodoIdInput.value = encontrado.id;
+          metodoDescripcionInput.value = encontrado.descripcion || "";
+          metodoVaucherInput.checked = Boolean(encontrado.requiere_referencia);
+          modalTitle.textContent = `Editar Método: ${encontrado.descripcion}`;
+          if (fb) {
+            fb.textContent = `✓ Código existente localizado (${encontrado.descripcion}). Datos cargados.`;
+            fb.style.display = "block";
+          }
+        } else {
+          if (fb) fb.style.display = "none";
+        }
+      });
+    }

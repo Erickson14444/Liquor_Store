@@ -425,9 +425,7 @@ $tipoMsg = $_GET['tipo'] ?? 'exito';
             <?= ($tabActiva === 'roles') ? 'Total: ' . count($roles) . ' roles de seguridad' : 'Total: ' . count($permisos) . ' permisos registrados' ?>
           </span>
           <span id="footerSchema" style="color: var(--text-muted); font-size: 0.82rem;">
-            <?= ($tabActiva === 'roles') 
-                ? 'Tabla: <strong>seguridad.roles</strong> &bull; Permisos asociados en <code>seguridad.roles_permisos</code>' 
-                : 'Tabla: <strong>seguridad.permisos</strong> &bull; Llave única: <code>clave_sistema (VARCHAR)</code>' ?>
+            House &amp; Ice • Seguridad y Control
           </span>
         </div>
       </div>
@@ -552,7 +550,7 @@ $tipoMsg = $_GET['tipo'] ?? 'exito';
               oninput="this.value = this.value.toUpperCase().replace(/[^A-Z0-9_]/g, '_'); autoDeducirCampos();"
             />
             <small style="color: var(--text-muted); font-size: 0.75rem; margin-top: 4px; display: block;">
-              Identificador único del permiso en la tabla <code>seguridad.permisos.clave_sistema</code>.
+              Identificador único del permiso dentro del sistema.
             </small>
           </div>
 

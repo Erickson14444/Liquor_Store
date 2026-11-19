@@ -1,12 +1,25 @@
 <?php
-session_start();
-require_once __DIR__ . '/../config/conexion.php';
-
-// Si ya inició sesión con un empleado real, redirigir al menú principal
-if (!empty($_SESSION['usuario']['usuario_id']) && !isset($_GET['cambiar'])) {
-    header("Location: menu.php");
-    exit;
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
 }
+
+// Al entrar al login, limpiar cualquier sesión o cookie previa para exigir usuario y contraseña siempre
+$_SESSION = [];
+if (ini_get("session.use_cookies")) {
+    $params = session_get_cookie_params();
+    @setcookie(session_name(), '', time() - 42000,
+        $params["path"], $params["domain"],
+        $params["secure"], $params["httponly"]
+    );
+}
+if (!empty($_COOKIE)) {
+    foreach ($_COOKIE as $k => $v) {
+        @setcookie($k, '', time() - 42000, '/');
+    }
+}
+@session_destroy();
+
+require_once __DIR__ . '/../config/conexion.php';
 
 $errorMsg = $_GET['error'] ?? null;
 ?>
@@ -17,6 +30,9 @@ $errorMsg = $_GET['error'] ?? null;
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Acceso al Sistema • House &amp; Ice</title>
   <link rel="stylesheet" href="styles.css">
+  <script>
+    try { sessionStorage.removeItem('hi_tab_token'); } catch (e) {}
+  </script>
 </head>
 <body class="login-body">
 
@@ -37,7 +53,7 @@ $errorMsg = $_GET['error'] ?? null;
     <?php endif; ?>
 
     <!-- Formulario apuntando a procesar_login.php -->
-    <form method="POST" action="procesar_login.php">
+    <form method="POST" action="procesar_login.php" autocomplete="off">
       <div class="form-group-compact">
         <label class="form-label-compact" for="usernameInput">Usuario / Correo / Código Empleado</label>
         <div class="input-wrap-compact">
@@ -53,10 +69,10 @@ $errorMsg = $_GET['error'] ?? null;
             id="usernameInput" 
             class="form-control-compact" 
             placeholder="Ej. admin, admin1 o EMP-001" 
-            value="<?= htmlspecialchars($_POST['username'] ?? '') ?>" 
+            value="" 
             required
             autofocus
-            autocomplete="username"
+            autocomplete="off"
           >
         </div>
       </div>
@@ -77,7 +93,7 @@ $errorMsg = $_GET['error'] ?? null;
             class="form-control-compact" 
             placeholder="••••••••••••" 
             required
-            autocomplete="current-password"
+            autocomplete="new-password"
           >
           <button type="button" class="password-toggle-compact" onclick="togglePasswordVisibility()" title="Mostrar u ocultar contraseña">
             <svg id="eyeSvg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -88,15 +104,7 @@ $errorMsg = $_GET['error'] ?? null;
         </div>
       </div>
 
-      <div class="form-row-compact">
-        <label class="checkbox-compact">
-          <input type="checkbox" name="remember" id="rememberMe" checked>
-          <span>Recordar</span>
-        </label>
-        <a href="#" class="forgot-compact" onclick="alert('Contacta al Administrador de Sistemas para restablecer tu contraseña.'); return false;">¿Olvidaste tu clave?</a>
-      </div>
-
-      <button type="submit" class="btn-submit-compact" id="submitBtn">
+      <button type="submit" class="btn-submit-compact" id="submitBtn" style="margin-top: 8px;">
         <span>Iniciar Sesión</span>
         <span>→</span>
       </button>

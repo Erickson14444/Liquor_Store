@@ -107,7 +107,7 @@ if ($pdo) {
             <input
               type="text"
               id="inputBuscar"
-              placeholder="Buscar categoría por nombre o ID..."
+              placeholder="Buscar categoría por nombre..."
               oninput="filtrarDatos()"
             />
           </div>
@@ -117,7 +117,6 @@ if ($pdo) {
           <table class="data-table">
             <thead>
               <tr>
-                <th style="width: 100px;">ID</th>
                 <th id="thNombre">NOMBRE DE LA CATEGORÍA</th>
                 <th style="width: 170px;" class="text-center">ESTADO (ACTIVO)</th>
                 <th style="width: 110px; text-align: right;">ACCIONES</th>
@@ -132,7 +131,7 @@ if ($pdo) {
         <div class="table-card-footer">
           <span id="footerCount">Cargando registros...</span>
           <span id="footerSchema" style="color: var(--text-muted); font-size: 0.82rem;">
-            Tabla: <strong>inventario.categoria_producto</strong> &bull; Estado: <code>activo (BOOLEAN)</code>
+            House &amp; Ice • Sistema Administrativo
           </span>
         </div>
       </div>
@@ -146,12 +145,8 @@ if ($pdo) {
         <h2 class="modal-title" id="modalTitle">Nueva Categoría</h2>
       </div>
       <form id="formClasificacion" onsubmit="guardarRegistro(event)">
+        <input type="hidden" id="itemId" />
         <div class="modal-body">
-          <div class="form-group">
-            <label class="form-label" for="itemId">ID REGISTRO</label>
-            <input type="text" id="itemId" class="form-control" readonly style="background-color: var(--bg-main);" />
-          </div>
-
           <div class="form-group">
             <label class="form-label" for="itemNombre" id="labelNombre">NOMBRE DE LA CATEGORÍA *</label>
             <input

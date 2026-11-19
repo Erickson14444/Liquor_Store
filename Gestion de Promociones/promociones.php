@@ -14,21 +14,51 @@ $categorias  = [];
 
 if ($pdo) {
     try {
-        // 1. Obtener campañas principales
+        // 1. Obtener campañas principales y sus días en promociones.promociones_dias
         $stmtCamp = $pdo->query("
-            SELECT pc.*
+            SELECT pc.*,
+                   COALESCE((
+                       SELECT STRING_AGG(pdi.dia_semana::text, ',' ORDER BY pdi.dia_semana ASC)
+                       FROM promociones.promociones_dias pdi
+                       WHERE pdi.promocion_id = pc.id
+                   ), '') AS dias_nums
             FROM promociones.promociones_campanas pc
             ORDER BY pc.fecha_inicio DESC, pc.id DESC
         ");
         $campanasRaw = $stmtCamp->fetchAll(PDO::FETCH_ASSOC) ?: [];
 
-        // 2. Obtener todos los detalles de reglas (incluyendo id BIGSERIAL y marca_id)
+        $mapaDiasPreset = [
+            '1,2,3,4,5,6,7' => 'TODOS',
+            '4,5,6,7'       => 'JUE-DOM',
+            '5,6,7'         => 'VIE-DOM',
+            '5,6'           => 'VIE-SAB',
+            '1,2,3,4'       => 'LUN-JUE',
+            '1,2,3,4,5'     => 'LUN-VIE',
+        ];
+        $nombresCortosDia = [1 => 'LUN', 2 => 'MAR', 3 => 'MIE', 4 => 'JUE', 5 => 'VIE', 6 => 'SAB', 7 => 'DOM'];
+        foreach ($campanasRaw as &$cRow) {
+            $dNums = trim($cRow['dias_nums'] ?? '');
+            if ($dNums === '' || isset($mapaDiasPreset[$dNums])) {
+                $cRow['dias_semana'] = $mapaDiasPreset[$dNums] ?? 'TODOS';
+            } else {
+                $partes = array_filter(array_map('intval', explode(',', $dNums)));
+                $labels = [];
+                foreach ($partes as $dn) {
+                    if (isset($nombresCortosDia[$dn])) $labels[] = $nombresCortosDia[$dn];
+                }
+                $cRow['dias_semana'] = !empty($labels) ? implode(',', $labels) : 'TODOS';
+            }
+        }
+        unset($cRow);
+
+        // 2. Obtener todos los detalles de reglas (incluyendo id BIGSERIAL y condicion_marca_id)
         $stmtDet = $pdo->query("
             SELECT pd.id,
                    pd.promocion_id,
                    pd.condicion_producto_id,
                    pd.condicion_categoria_id,
-                   pd.marca_id,
+                   pd.condicion_marca_id AS marca_id,
+                   pd.condicion_marca_id,
                    pd.cantidad_requerida,
                    pd.beneficio_producto_id,
                    pd.beneficio_porcentaje,
@@ -50,7 +80,7 @@ if ($pdo) {
             FROM promociones.promociones_detalles pd
             LEFT JOIN inventario.productos_maestro pm_cond ON pd.condicion_producto_id = pm_cond.id
             LEFT JOIN inventario.productos_maestro pm_bene ON pd.beneficio_producto_id = pm_bene.id
-            LEFT JOIN inventario.marca m ON pd.marca_id = m.id
+            LEFT JOIN inventario.marca m ON pd.condicion_marca_id = m.id
             LEFT JOIN inventario.categoria_producto cp ON pd.condicion_categoria_id = cp.id
             ORDER BY pd.id ASC
         ");

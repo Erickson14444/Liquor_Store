@@ -12,7 +12,7 @@ function abrirModal() {
 
     function editarAlmacen(a) {
       document.getElementById('formAccion').value = 'editar';
-      document.getElementById('modalTitulo').textContent = 'Editar Almacén (' + a.codigo + ')';
+      document.getElementById('modalTitulo').textContent = 'Editar Almacén (' + a.nombre + ')';
       document.getElementById('almacen_id').value = a.id;
       document.getElementById('nombre').value = a.nombre;
       document.getElementById('ubicacion').value = a.ubicacion || '';
@@ -124,3 +124,18 @@ function abrirModal() {
         f.style.display = (f.getAttribute('data-texto') || '').includes(q) ? '' : 'none';
       });
     }
+
+    document.addEventListener('DOMContentLoaded', () => {
+      ['nombre', 'ubicacion'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) {
+          el.addEventListener('input', function () {
+            if (this.value.length > 0) {
+              const pos = this.selectionStart;
+              this.value = this.value.charAt(0).toUpperCase() + this.value.slice(1);
+              if (typeof pos === 'number') this.setSelectionRange(pos, pos);
+            }
+          });
+        }
+      });
+    });

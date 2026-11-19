@@ -30,13 +30,13 @@ let cajasData = _datosCajas ? JSON.parse(_datosCajas.dataset.cajas || '[]') : []
       if (filtrados.length === 0) {
         tablaCajas.innerHTML = `
           <tr>
-            <td colspan="5" style="text-align: center; padding: 24px; color: var(--text-muted);">
-              No se encontraron cajas POS que coincidan con la búsqueda.
+            <td colspan="4" style="text-align: center; padding: 24px; color: var(--text-muted);">
+              No se encontraron cajas registradoras que coincidan con la búsqueda.
             </td>
           </tr>
         `;
         badgeCount.textContent = "0 registradas";
-        footerCount.textContent = "Mostrando 0 cajas";
+        footerCount.textContent = "Mostrando 0 cajas registradoras";
         return;
       }
 
@@ -52,7 +52,6 @@ let cajasData = _datosCajas ? JSON.parse(_datosCajas.dataset.cajas || '[]') : []
         `;
 
         tr.innerHTML = `
-          <td><span class="code-inline">#${c.id}</span></td>
           <td><strong>${escapeHtml(c.nombre_equipo)}</strong></td>
           <td><span style="font-size: 0.83rem; color: #4e4034;">${escapeHtml(c.ubicacion || "Sin ubicación")}</span></td>
           <td class="text-center">${estadoHtml}</td>
@@ -67,7 +66,7 @@ let cajasData = _datosCajas ? JSON.parse(_datosCajas.dataset.cajas || '[]') : []
       });
 
       badgeCount.textContent = `${filtrados.length} registradas`;
-      footerCount.textContent = `Mostrando ${filtrados.length} de ${cajasData.length} cajas POS`;
+      footerCount.textContent = `Mostrando ${filtrados.length} de ${cajasData.length} cajas registradoras`;
     }
 
     // FILTRAR EN TIEMPO REAL
@@ -102,11 +101,10 @@ let cajasData = _datosCajas ? JSON.parse(_datosCajas.dataset.cajas || '[]') : []
     // ABRIR MODAL NUEVO
     function abrirNuevaCaja() {
       editandoId = null;
-      modalTitle.textContent = "Nueva Caja POS";
+      modalTitle.textContent = "Nueva Caja Registradora";
       formCaja.reset();
 
-      const nextId = cajasData.length > 0 ? Math.max(...cajasData.map(c => c.id)) + 1 : 1;
-      cajaIdInput.value = `#${nextId}`;
+      if (cajaIdInput) cajaIdInput.value = "";
 
       modalCaja.classList.add("open");
       cajaNombreInput.focus();
@@ -118,8 +116,8 @@ let cajasData = _datosCajas ? JSON.parse(_datosCajas.dataset.cajas || '[]') : []
       if (!caja) return;
 
       editandoId = id;
-      modalTitle.textContent = `Editar Caja: ${caja.nombre_equipo}`;
-      cajaIdInput.value = `#${caja.id}`;
+      modalTitle.textContent = `Editar Caja Registradora: ${caja.nombre_equipo}`;
+      if (cajaIdInput) cajaIdInput.value = `${caja.id}`;
       cajaNombreInput.value = caja.nombre_equipo;
       cajaUbicacionInput.value = caja.ubicacion || "";
 
@@ -224,3 +222,14 @@ let cajasData = _datosCajas ? JSON.parse(_datosCajas.dataset.cajas || '[]') : []
 
     // INICIALIZACIÓN
     renderTabla();
+    [cajaNombreInput, cajaUbicacionInput].forEach(el => {
+      if (el) {
+        el.addEventListener("input", function () {
+          if (this.value.length > 0) {
+            const pos = this.selectionStart;
+            this.value = this.value.charAt(0).toUpperCase() + this.value.slice(1);
+            if (typeof pos === "number") this.setSelectionRange(pos, pos);
+          }
+        });
+      }
+    });

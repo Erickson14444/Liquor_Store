@@ -9,9 +9,25 @@ require_once __DIR__ . '/../../config/conexion.php';
 
 
 $cuentasDb = [];
+$monedasDb = [];
 if ($pdo) {
     try {
-        $cuentasDb = $pdo->query("SELECT id, ('CTA-' || LPAD(id::text, 3, '0')) AS codigo, nombre_banco, numero_cuenta, tipo_cuenta, moneda, saldo_actual, activa FROM tesoreria.cuentas_bancarias ORDER BY id ASC")->fetchAll(PDO::FETCH_ASSOC) ?: [];
+        $cuentasDb = $pdo->query("
+            SELECT cb.id,
+                   ('CTA-' || LPAD(cb.id::text, 3, '0')) AS codigo,
+                   cb.nombre_banco,
+                   cb.numero_cuenta,
+                   cb.tipo_cuenta,
+                   cb.moneda_id,
+                   COALESCE(m.codigo_iso, 'DOP') AS moneda,
+                   COALESCE(m.nombre, 'Peso Dominicano') AS moneda_nombre,
+                   COALESCE(m.simbolo, 'RD$') AS moneda_simbolo,
+                   cb.activa
+            FROM tesoreria.cuentas_bancarias cb
+            LEFT JOIN tesoreria.monedas m ON cb.moneda_id = m.id
+            ORDER BY cb.id ASC
+        ")->fetchAll(PDO::FETCH_ASSOC) ?: [];
+        $monedasDb = $pdo->query("SELECT id, codigo_iso, nombre, simbolo FROM tesoreria.monedas WHERE activa = TRUE ORDER BY id ASC")->fetchAll(PDO::FETCH_ASSOC) ?: [];
     } catch (Throwable $e) {}
 }
 ?>
@@ -63,7 +79,7 @@ if ($pdo) {
       <div class="page-header">
         <div>
           <h1 class="page-title">Cuentas Bancarias</h1>
-          <p class="page-subtitle">Gestión de cuentas corrientes y de ahorro en DOP/USD (Tabla: tesoreria.cuentas_bancarias)</p>
+          <p class="page-subtitle">Gestión de cuentas corrientes y de ahorro en DOP y USD</p>
         </div>
         <button type="button" class="btn btn-gold" onclick="abrirModal()">+ Nueva Cuenta Bancaria</button>
       </div>
@@ -84,12 +100,10 @@ if ($pdo) {
           <table class="data-table">
             <thead>
               <tr>
-                <th>ID</th>
                 <th>BANCO</th>
                 <th>NÚMERO DE CUENTA</th>
                 <th>TIPO</th>
                 <th>MONEDA</th>
-                <th style="text-align: right;">SALDO DISPONIBLE</th>
                 <th class="text-center">ESTADO</th>
                 <th class="text-right">ACCIONES</th>
               </tr>
@@ -100,7 +114,7 @@ if ($pdo) {
 
         <div class="table-card-footer">
           <span id="footerInfo">Mostrando cuentas</span>
-          <span style="color: var(--text-muted); font-size: 0.82rem;">* Los saldos se alteran automáticamente mediante depósitos y egresos</span>
+          <span style="color: var(--text-muted); font-size: 0.82rem;">* Directorio de cuentas para transferencias y cheques (movimientos en Tesorería)</span>
         </div>
       </div>
     </main>
@@ -144,10 +158,19 @@ if ($pdo) {
               </select>
             </div>
             <div class="form-group">
-              <label class="form-label" for="moneda">MONEDA</label>
-              <select id="moneda" class="form-control">
-                <option value="DOP">DOP (Pesos Dominicanos)</option>
-                <option value="USD">USD (Dólares Americanos)</option>
+              <label class="form-label" for="moneda_id">MONEDA *</label>
+              <select id="moneda_id" class="form-control" required>
+                <?php if (!empty($monedasDb)): ?>
+                  <?php foreach ($monedasDb as $mon): ?>
+                    <option value="<?= intval($mon['id']) ?>" data-iso="<?= htmlspecialchars($mon['codigo_iso']) ?>">
+                      <?= htmlspecialchars($mon['codigo_iso'] . ' (' . $mon['simbolo'] . ') - ' . $mon['nombre']) ?>
+                    </option>
+                  <?php endforeach; ?>
+                <?php else: ?>
+                  <option value="1" data-iso="DOP">DOP (RD$) - Peso Dominicano</option>
+                  <option value="2" data-iso="USD">USD (US$) - Dólar Estadounidense</option>
+                  <option value="3" data-iso="EUR">EUR (€) - Euro</option>
+                <?php endif; ?>
               </select>
             </div>
           </div>
@@ -163,6 +186,6 @@ if ($pdo) {
   <div id="toast" class="toast">Guardado correctamente</div>
 
     <div id="datosCuentas" data-cuentas="<?= htmlspecialchars(json_encode($cuentasDb, JSON_UNESCAPED_UNICODE), ENT_QUOTES, 'UTF-8') ?>" style="display:none;"></div>
-  <script src="cuentas-bancarias.js?v=3"></script>
+  <script src="cuentas-bancarias.js?v=5"></script>
 </body>
 </html>

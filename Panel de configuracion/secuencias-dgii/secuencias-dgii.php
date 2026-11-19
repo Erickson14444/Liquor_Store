@@ -80,7 +80,6 @@ if ($pdo) {
           <table class="data-table">
             <thead>
               <tr>
-                <th>ID</th>
                 <th>TIPO COMPROBANTE</th>
                 <th>DESDE</th>
                 <th>HASTA (LÍMITE)</th>
@@ -112,29 +111,22 @@ if ($pdo) {
               <option value="B02">B02 - Factura de Consumo Final</option>
               <option value="B03">B03 - Nota de Débito</option>
               <option value="B04">B04 - Nota de Crédito</option>
-              <option value="B11">B11 - Comprobante de Compras (Proveedores Informales)</option>
-              <option value="B12">B12 - Registro Único de Ingresos</option>
-              <option value="B13">B13 - Comprobante para Gastos Menores (Caja Chica)</option>
-              <option value="B14">B14 - Comprobante para Regímenes Especiales</option>
-              <option value="B15">B15 - Comprobante Gubernamental</option>
-              <option value="B16">B16 - Comprobante para Exportaciones</option>
-              <option value="B17">B17 - Comprobante para Pagos al Exterior</option>
             </select>
           </div>
           <div class="form-row">
             <div class="form-group">
               <label class="form-label" for="secuencia_desde">SECUENCIA DESDE *</label>
-              <input type="number" id="secuencia_desde" class="form-control" placeholder="Ej. 1" required />
+              <input type="number" min="1" step="1" id="secuencia_desde" class="form-control" placeholder="Ej. 1" required onkeydown="if(['e','E','+','-','.',','].includes(event.key)) { event.preventDefault(); return false; }" oninput="this.value = this.value.replace(/[^0-9]/g, '');" />
             </div>
             <div class="form-group">
               <label class="form-label" for="secuencia_hasta">SECUENCIA HASTA *</label>
-              <input type="number" id="secuencia_hasta" class="form-control" placeholder="Ej. 10000" required />
+              <input type="number" min="1" step="1" id="secuencia_hasta" class="form-control" placeholder="Ej. 10000" required onkeydown="if(['e','E','+','-','.',','].includes(event.key)) { event.preventDefault(); return false; }" oninput="this.value = this.value.replace(/[^0-9]/g, '');" />
             </div>
           </div>
           <div class="form-row">
             <div class="form-group">
               <label class="form-label" for="secuencia_actual">SECUENCIA ACTUAL *</label>
-              <input type="number" id="secuencia_actual" class="form-control" placeholder="Ej. 1420" required />
+              <input type="number" min="1" step="1" id="secuencia_actual" class="form-control" placeholder="Ej. 1420" required onkeydown="if(['e','E','+','-','.',','].includes(event.key)) { event.preventDefault(); return false; }" oninput="this.value = this.value.replace(/[^0-9]/g, '');" />
             </div>
             <div class="form-group">
               <label class="form-label" for="fecha_vencimiento">FECHA VENCIMIENTO DGII *</label>

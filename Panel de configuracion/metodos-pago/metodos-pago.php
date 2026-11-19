@@ -89,7 +89,6 @@ if ($pdo) {
           <table class="data-table">
             <thead>
               <tr>
-                <th style="width: 70px;">ID</th>
                 <th style="width: 170px;">CÓDIGO</th>
                 <th>DESCRIPCIÓN</th>
                 <th class="text-center" style="width: 190px;">REQUIERE REFERENCIA</th>
@@ -105,7 +104,7 @@ if ($pdo) {
 
         <div class="table-card-footer">
           <span id="footerCount">Mostrando 5 métodos</span>
-          <span class="cell-sub">Tabla: Metodo_Pagos &bull; Llave primaria: id (SERIAL)</span>
+          <span class="cell-sub">House &amp; Ice • Sistema Administrativo</span>
         </div>
       </div>
     </main>
@@ -119,16 +118,12 @@ if ($pdo) {
       </div>
 
       <form id="formMetodo" autocomplete="off" onsubmit="guardarMetodo(event)">
+        <input type="hidden" id="metodoId" />
         <div class="modal-body">
-          <div class="form-row-2" style="grid-template-columns: 100px 1fr;">
-            <div class="form-group">
-              <label class="form-label">ID</label>
-              <input type="text" class="form-control" id="metodoId" readonly />
-            </div>
-            <div class="form-group">
-              <label class="form-label">CÓDIGO *</label>
-              <input type="text" class="form-control" id="metodoCodigo" maxlength="20" placeholder="Ej. EFECTIVO, TARJETA, CHEQUE" required style="font-family: var(--font-mono); text-transform: uppercase;" />
-            </div>
+          <div class="form-group">
+            <label class="form-label">CÓDIGO *</label>
+            <input type="text" class="form-control" id="metodoCodigo" maxlength="20" placeholder="Ej. EFECTIVO, TARJETA, CHEQUE" required style="font-family: var(--font-mono); text-transform: uppercase;" />
+            <small id="codigoFeedbackMetodo" style="display: none; color: var(--accent-gold); font-weight: 600; font-size: 0.76rem; margin-top: 3px;"></small>
           </div>
 
           <div class="form-group">

@@ -30,7 +30,7 @@ let pestanaActiva = new URLSearchParams(window.location.search).get('tab') === '
         badgeCount.textContent = totalRolesInicial + ' roles';
         inputBuscar.placeholder = 'Buscar por rol o descripción...';
         footerInfo.textContent = 'Total: ' + totalRolesInicial + ' roles de seguridad';
-        footerSchema.innerHTML = 'Tabla: <strong>seguridad.roles</strong> &bull; Permisos asociados en <code>seguridad.roles_permisos</code>';
+        if (footerSchema) footerSchema.textContent = 'House & Ice • Seguridad y Control';
       } else {
         tabPermisos.classList.add('active');
         tabRoles.classList.remove('active');
@@ -42,7 +42,7 @@ let pestanaActiva = new URLSearchParams(window.location.search).get('tab') === '
         badgeCount.textContent = totalPermisosInicial + ' permisos';
         inputBuscar.placeholder = 'Buscar por clave, entidad o módulo...';
         footerInfo.textContent = 'Total: ' + totalPermisosInicial + ' permisos registrados';
-        footerSchema.innerHTML = 'Tabla: <strong>seguridad.permisos</strong> &bull; Llave única: <code>clave_sistema (VARCHAR)</code>';
+        if (footerSchema) footerSchema.textContent = 'House & Ice • Seguridad y Control';
       }
 
       filtrarTabla();
@@ -280,4 +280,18 @@ let pestanaActiva = new URLSearchParams(window.location.search).get('tab') === '
     (() => {
   const _urlMsg = new URLSearchParams(window.location.search).get('msg');
   if (_urlMsg && typeof mostrarToast === 'function') mostrarToast(_urlMsg);
+
+  // Capitalizar primera letra automáticamente en nombres y descripciones
+  ['rol_nombre', 'rol_descripcion', 'permiso_descripcion'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) {
+      el.addEventListener('input', function () {
+        if (this.value.length > 0) {
+          const pos = this.selectionStart;
+          this.value = this.value.charAt(0).toUpperCase() + this.value.slice(1);
+          if (typeof pos === 'number') this.setSelectionRange(pos, pos);
+        }
+      });
+    }
+  });
 })();

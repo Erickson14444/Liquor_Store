@@ -8,10 +8,22 @@
 require_once __DIR__ . '/../../config/conexion.php';
 
 $proveedores = [];
+$retencionesCatalogo = [];
 if ($pdo) {
     try {
         $stmt = $pdo->query("
-            SELECT prv.persona_id AS proveedor_id, prv.codigo_proveedor, prv.dias_credito_habitual, prv.retencion_isr_porc, prv.creado_en,
+            SELECT prv.persona_id AS proveedor_id, prv.codigo_proveedor, prv.dias_credito_habitual, prv.creado_en,
+                   COALESCE((
+                       SELECT JSON_AGG(prr.retencion_id ORDER BY prr.retencion_id)
+                       FROM identidad.proveedor_retenciones prr
+                       WHERE prr.proveedor_id = prv.persona_id
+                   ), '[]') AS retenciones_ids_json,
+                   COALESCE((
+                       SELECT STRING_AGG(r.nombre, ' | ' ORDER BY r.id)
+                       FROM identidad.proveedor_retenciones prr
+                       JOIN tesoreria.retenciones r ON prr.retencion_id = r.id
+                       WHERE prr.proveedor_id = prv.persona_id
+                   ), '') AS retenciones_nombres,
                    p.persona_id, p.documento_identidad, p.tipo_documento, p.nombre_razon_social, p.nombre_comercial,
                    p.tipo_persona, p.telefono_principal, p.email, p.estado
             FROM identidad.proveedores prv
@@ -19,6 +31,11 @@ if ($pdo) {
             ORDER BY prv.creado_en DESC
         ");
         $proveedores = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+        foreach ($proveedores as &$pRow) {
+            $pRow['retenciones_ids'] = json_decode($pRow['retenciones_ids_json'] ?? '[]', true) ?: [];
+        }
+        unset($pRow);
+        $retencionesCatalogo = $pdo->query("SELECT id, siglas, nombre, base_calculo, porcentaje FROM tesoreria.retenciones WHERE activo = TRUE ORDER BY id ASC")->fetchAll(PDO::FETCH_ASSOC) ?: [];
     } catch (Throwable $e) {
         $proveedores = [];
     }
@@ -115,7 +132,7 @@ $tipoMsg = $_GET['tipo'] ?? 'exito';
               <th>RNC / Documento</th>
               <th>Contacto</th>
               <th class="text-center">Crédito Habitual</th>
-              <th class="text-center">Retención ISR</th>
+              <th class="text-center">Retenciones Fiscales</th>
               <th class="text-right">Acciones</th>
             </tr>
           </thead>
@@ -152,7 +169,13 @@ $tipoMsg = $_GET['tipo'] ?? 'exito';
                     <?= intval($prv['dias_credito_habitual']) ?> días
                   </td>
                   <td class="text-center">
-                    <span class="code-inline"><?= number_format($prv['retencion_isr_porc'], 2) ?>%</span>
+                    <?php if (!empty($prv['retenciones_nombres'])): ?>
+                      <?php foreach (explode(' | ', $prv['retenciones_nombres']) as $rNom): ?>
+                        <span class="code-inline" style="display: inline-block; margin: 2px; font-size: 0.76rem;"><?= htmlspecialchars($rNom) ?></span>
+                      <?php endforeach; ?>
+                    <?php else: ?>
+                      <span style="color: var(--text-muted); font-size: 0.8rem;">Sin retenciones</span>
+                    <?php endif; ?>
                   </td>
                   <td class="text-right action-btns">
                     <button type="button" class="btn-sm btn-outline" onclick='editarProveedor(<?= json_encode($prv) ?>)'>Editar</button>
@@ -178,7 +201,7 @@ $tipoMsg = $_GET['tipo'] ?? 'exito';
       <div class="modal-header">
         <h2 class="modal-title" id="modalTitulo">Nuevo Proveedor</h2>
       </div>
-      <form id="formProveedor" action="procesar_proveedores.php" method="POST">
+      <form id="formProveedor" action="procesar_proveedores.php" method="POST" onsubmit="return validarFormularioProveedor(event)">
         <input type="hidden" name="accion" id="formAccion" value="crear" />
         <input type="hidden" name="proveedor_id" id="proveedor_id" value="" />
         <input type="hidden" name="persona_id" id="persona_id" value="" />
@@ -187,13 +210,13 @@ $tipoMsg = $_GET['tipo'] ?? 'exito';
           <div class="form-row-2">
             <div class="form-group">
               <label for="codigo_proveedor" class="form-label">Código Proveedor *</label>
-              <input type="text" id="codigo_proveedor" name="codigo_proveedor" class="form-control" required maxlength="20" placeholder="PROV-001" style="font-family: monospace; font-weight: bold; text-transform: uppercase;" />
+              <input type="text" id="codigo_proveedor" name="codigo_proveedor" class="form-control" required maxlength="20" placeholder="PROV-001" style="font-family: monospace; font-weight: bold; text-transform: uppercase;" oninput="this.value = this.value.toUpperCase().replace(/[^A-Z0-9-]/g, ''); autocompletarProveedorPorCodigo(this.value);" onblur="autocompletarProveedorPorCodigo(this.value)" />
             </div>
             <div class="form-group">
               <label for="tipo_documento" class="form-label">Tipo de Identificación *</label>
               <select id="tipo_documento" name="tipo_documento" class="form-control" onchange="aplicarMascaraDoc()">
-                <option value="RNC">RNC (Empresas / Distribuidores)</option>
-                <option value="CEDULA">Cédula Personal</option>
+                <option value="RNC">RNC (Empresas / Distribuidores - 9 dígitos)</option>
+                <option value="CEDULA">Cédula Personal (11 dígitos)</option>
                 <option value="PASAPORTE">Pasaporte / Extranjero</option>
               </select>
             </div>
@@ -202,7 +225,7 @@ $tipoMsg = $_GET['tipo'] ?? 'exito';
           <div class="form-row-2">
             <div class="form-group">
               <label for="documento_identidad" class="form-label">Número de RNC / Cédula *</label>
-              <input type="text" id="documento_identidad" name="documento_identidad" class="form-control" placeholder="0-00-00000-0" required oninput="mascaraDoc(this); if(this.value.replace(/\D/g,'').length>=9) autocompletarTercero();" onblur="autocompletarTercero()" />
+              <input type="text" id="documento_identidad" name="documento_identidad" class="form-control" placeholder="0-00-00000-0" required onkeydown="return validarTeclaDoc(event)" oninput="mascaraDoc(this); if(this.value.replace(/\D/g,'').length>=9) autocompletarTercero();" onblur="autocompletarTercero()" />
               <small id="terceroFeedback" style="display: none; color: var(--accent-gold); font-weight: 600; font-size: 0.76rem; margin-top: 3px;"></small>
             </div>
             <div class="form-group">
@@ -218,7 +241,7 @@ $tipoMsg = $_GET['tipo'] ?? 'exito';
             </div>
             <div class="form-group">
               <label for="telefono_principal" class="form-label">Teléfono de Pedidos</label>
-              <input type="text" id="telefono_principal" name="telefono_principal" class="form-control" placeholder="(809) 000-0000" oninput="mascaraTelefono(this)" />
+              <input type="text" id="telefono_principal" name="telefono_principal" class="form-control" placeholder="(809) 000-0000" maxlength="14" inputmode="numeric" onkeydown="return soloNumerosEnteros(event)" oninput="mascaraTelefono(this)" />
             </div>
           </div>
 
@@ -238,14 +261,42 @@ $tipoMsg = $_GET['tipo'] ?? 'exito';
 
           <div class="form-row-2">
             <div class="form-group">
-              <label for="dias_credito_habitual" class="form-label">Días de Crédito Habitual *</label>
-              <input type="number" id="dias_credito_habitual" name="dias_credito_habitual" class="form-control" min="0" max="180" value="30" required style="font-family: monospace; font-size: 1.05rem;" />
-              <small style="color: #999;">Días otorgados para el pago de facturas en Cuentas por Pagar.</small>
+              <label for="dias_credito_habitual" class="form-label">Días de Crédito Habitual (Entero) *</label>
+              <input
+                type="text"
+                inputmode="numeric"
+                id="dias_credito_habitual"
+                name="dias_credito_habitual"
+                class="form-control"
+                maxlength="3"
+                value="30"
+                required
+                style="font-family: monospace; font-size: 1.05rem; font-weight: 700;"
+                onkeydown="return soloNumerosEnteros(event)"
+                oninput="this.value = this.value.replace(/[^0-9]/g, ''); if(parseInt(this.value || '0', 10) > 180) this.value = '180';"
+              />
+              <small style="color: #999;">Solo números enteros (0 a 180 días para Cuentas por Pagar).</small>
             </div>
             <div class="form-group">
-              <label for="retencion_isr_porc" class="form-label">Porcentaje de Retención ISR (%) *</label>
-              <input type="number" step="0.01" id="retencion_isr_porc" name="retencion_isr_porc" class="form-control" min="0" max="100" value="0.00" required style="font-family: monospace; font-size: 1.05rem;" />
-              <small style="color: #999;">% de retención fiscal en el comprobante fiscal 606 DGII.</small>
+              <label class="form-label">Retenciones Fiscales Habituales (Selección Múltiple)</label>
+              <div id="contenedorRetenciones" style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; background: #faf6f0; padding: 10px; border: 1px solid var(--border-color, #e2d5c4); border-radius: 8px; max-height: 135px; overflow-y: auto;">
+                <?php foreach ($retencionesCatalogo as $ret): ?>
+                  <label style="display: flex; align-items: flex-start; gap: 7px; font-size: 0.81rem; cursor: pointer; padding: 4px 6px; border-radius: 6px; background: #fff; border: 1px solid #eadecd;">
+                    <input
+                      type="checkbox"
+                      name="retenciones[]"
+                      class="chk-retencion-prov"
+                      value="<?= intval($ret['id']) ?>"
+                      style="margin-top: 2px; accent-color: #a66e2e;"
+                    />
+                    <span>
+                      <strong style="color: #211813; display: block;"><?= htmlspecialchars($ret['nombre']) ?></strong>
+                      <small style="color: #8a7b70; font-family: monospace;"><?= htmlspecialchars($ret['siglas']) ?> • <?= number_format((float)$ret['porcentaje'], 2) ?>% (<?= htmlspecialchars($ret['base_calculo']) ?>)</small>
+                    </span>
+                  </label>
+                <?php endforeach; ?>
+              </div>
+              <small style="color: #999;">Puedes marcar una o varias retenciones fiscales DGII (606) aplicables al proveedor.</small>
             </div>
           </div>
         </div>
@@ -260,6 +311,6 @@ $tipoMsg = $_GET['tipo'] ?? 'exito';
 
   <div id="toast" class="toast"></div>
 
-    <script src="proveedores.js?v=3"></script>
+    <script src="proveedores.js?v=5"></script>
 </body>
 </html>

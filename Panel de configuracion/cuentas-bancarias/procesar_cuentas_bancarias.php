@@ -15,11 +15,18 @@ try {
         $id = !empty($_POST['id']) ? intval($_POST['id']) : null;
         $nombre_banco = trim($_POST['nombre_banco'] ?? '');
         $numero_cuenta = preg_replace('/\D/', '', trim($_POST['numero_cuenta'] ?? ''));
-        $tipo_cuenta = $_POST['tipo_cuenta'] ?? 'CORRIENTE';
-        $moneda = $_POST['moneda'] ?? 'DOP';
+        $tipo_cuenta = strtoupper(trim($_POST['tipo_cuenta'] ?? 'CORRIENTE'));
+        $monedaId = !empty($_POST['moneda_id']) ? intval($_POST['moneda_id']) : 0;
+        $moneda = strtoupper(trim($_POST['moneda'] ?? 'DOP'));
 
         if (empty($nombre_banco) || empty($numero_cuenta)) {
             throw new Exception("Banco y número de cuenta son obligatorios.");
+        }
+        if (preg_match('/^\d+$/', $nombre_banco)) {
+            throw new Exception("El nombre del banco no puede contener únicamente números.");
+        }
+        if (!in_array($tipo_cuenta, ['CORRIENTE', 'AHORRO'], true)) {
+            throw new Exception("El tipo de cuenta debe ser CORRIENTE o AHORRO.");
         }
 
         if (!preg_match('/^\d{8,20}$/', $numero_cuenta) || preg_match('/^0+$/', $numero_cuenta)) {
@@ -37,12 +44,26 @@ try {
             throw new Exception("Este número de cuenta bancaria ya se encuentra registrado.");
         }
 
-        if ($id) {
-            $stmt = $pdo->prepare("UPDATE tesoreria.cuentas_bancarias SET nombre_banco = ?, numero_cuenta = ?, tipo_cuenta = ?, moneda = ? WHERE id = ?");
-            $stmt->execute([$nombre_banco, $numero_cuenta, $tipo_cuenta, $moneda, $id]);
+        if ($monedaId > 0) {
+            $stmtMon = $pdo->prepare("SELECT id, codigo_iso, nombre, simbolo FROM tesoreria.monedas WHERE id = ? LIMIT 1");
+            $stmtMon->execute([$monedaId]);
+            $monRow = $stmtMon->fetch(PDO::FETCH_ASSOC);
         } else {
-            $stmt = $pdo->prepare("INSERT INTO tesoreria.cuentas_bancarias (nombre_banco, numero_cuenta, tipo_cuenta, moneda, saldo_actual, activa) VALUES (?, ?, ?, ?, 0.00, true) RETURNING id");
-            $stmt->execute([$nombre_banco, $numero_cuenta, $tipo_cuenta, $moneda]);
+            $stmtMon = $pdo->prepare("SELECT id, codigo_iso, nombre, simbolo FROM tesoreria.monedas WHERE UPPER(codigo_iso) = UPPER(?) LIMIT 1");
+            $stmtMon->execute([$moneda]);
+            $monRow = $stmtMon->fetch(PDO::FETCH_ASSOC);
+        }
+        $monedaId = !empty($monRow['id']) ? intval($monRow['id']) : 1;
+        $monedaIso = $monRow['codigo_iso'] ?? 'DOP';
+        $monedaNombre = $monRow['nombre'] ?? 'Peso Dominicano';
+        $monedaSimbolo = $monRow['simbolo'] ?? 'RD$';
+
+        if ($id) {
+            $stmt = $pdo->prepare("UPDATE tesoreria.cuentas_bancarias SET nombre_banco = ?, numero_cuenta = ?, tipo_cuenta = ?, moneda_id = ? WHERE id = ?");
+            $stmt->execute([$nombre_banco, $numero_cuenta, $tipo_cuenta, $monedaId, $id]);
+        } else {
+            $stmt = $pdo->prepare("INSERT INTO tesoreria.cuentas_bancarias (nombre_banco, numero_cuenta, tipo_cuenta, moneda_id, activa) VALUES (?, ?, ?, ?, true) RETURNING id");
+            $stmt->execute([$nombre_banco, $numero_cuenta, $tipo_cuenta, $monedaId]);
             $id = $stmt->fetchColumn();
         }
 
@@ -52,8 +73,10 @@ try {
             'nombre_banco' => $nombre_banco,
             'numero_cuenta' => $numero_cuenta,
             'tipo_cuenta' => $tipo_cuenta,
-            'moneda' => $moneda,
-            'saldo_actual' => 0.00,
+            'moneda_id' => $monedaId,
+            'moneda' => $monedaIso,
+            'moneda_nombre' => $monedaNombre,
+            'moneda_simbolo' => $monedaSimbolo,
             'activa' => true
         ]);
         exit;

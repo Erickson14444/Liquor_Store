@@ -26,11 +26,12 @@ if ($isSubdir) {
     $rootPfx = '../';
 }
 
-$menuLink   = $rootPfx . 'Login y Menu/menu.php';
-$logoutLink = $rootPfx . 'Login y Menu/logout.php';
-$cfgPfx     = $rootPfx . 'Panel de configuracion/';
-$promoPfx   = $rootPfx . 'Gestion de Promociones/';
-$ventasPfx  = $rootPfx . 'Ventas y Facturacion/';
+$menuLink     = $rootPfx . 'Login y Menu/menu.php';
+$logoutLink   = $rootPfx . 'Login y Menu/logout.php';
+$cfgPfx       = $rootPfx . 'Panel de configuracion/';
+$seguridadPfx = $rootPfx . 'Seguridad y Control/';
+$promoPfx     = $rootPfx . 'Gestion de Promociones/';
+$ventasPfx    = $rootPfx . 'Ventas y Facturacion/';
 
 // Lista de páginas pertenecientes al panel de configuración
 $configPages = [
@@ -38,12 +39,12 @@ $configPages = [
     'clientes.php', 'proveedores.php', 'personal.php',
     'cajas.php', 'secuencias-dgii.php', 'cuentas-bancarias.php', 'metodos-pago.php',
     'zonas-delivery.php',
-    'roles.php', 'usuarios.php'
+    'usuarios.php'
 ];
 
 // Detección de módulo activo para abrir el acordeón correspondiente
 $isIdentidadActive   = in_array($currentPage, ['clientes.php', 'proveedores.php', 'personal.php']);
-$isSeguridadActive   = false;
+$isSeguridadActive   = in_array($currentPage, ['roles.php']);
 $isInventarioActive  = false;
 $isVentasActive      = in_array($currentPage, ['delivery.php', 'facturacion.php']);
 $isPromocionesActive = in_array($currentPage, ['promociones.php']);
@@ -52,7 +53,7 @@ $isConfigOnlyActive  = in_array($currentPage, [
     'clasificaciones.php', 'productos.php', 'presentaciones.php', 'almacenes.php',
     'cajas.php', 'secuencias-dgii.php', 'cuentas-bancarias.php', 'metodos-pago.php',
     'zonas-delivery.php',
-    'roles.php', 'usuarios.php'
+    'usuarios.php'
 ]);
 $isConfigActive      = (!empty($configPages) && is_array($configPages)) ? in_array($currentPage, $configPages) : false;
 ?>
@@ -79,13 +80,14 @@ $isConfigActive      = (!empty($configPages) && is_array($configPages)) ? in_arr
       </ul>
     </li>
 
-    <!-- MÓDULO 2: Seguridad y Control (SOLO PROCESOS) ▸ -->
+    <!-- MÓDULO 2: Seguridad y Control ▸ -->
     <li class="sidebar-item <?= $isSeguridadActive ? '' : 'collapsed' ?>" id="menuSeguridad">
       <div class="sidebar-link <?= $isSeguridadActive ? 'active' : '' ?>" onclick="toggleSidebarMenu('menuSeguridad')">
         <span>🛡️ Seguridad y Control</span>
         <span class="sidebar-chevron">▸</span>
       </div>
       <ul class="sidebar-subnav">
+        <li><a href="<?= $seguridadPfx ?>roles/roles.php" class="sidebar-sublink <?= ($currentPage === 'roles.php') ? 'active' : '' ?>"><span>🔑</span> Roles y Permisos</a></li>
         <li><a href="#" class="sidebar-sublink" onclick="alert('Bitácora de Auditoría Forense en desarrollo'); return false;"><span>🔍</span> Auditoría Forense</a></li>
         <li><a href="#" class="sidebar-sublink" onclick="alert('Control de Accesos y Sesiones en desarrollo'); return false;"><span>🔐</span> Control de Accesos</a></li>
       </ul>
@@ -181,13 +183,12 @@ $isConfigActive      = (!empty($configPages) && is_array($configPages)) ? in_arr
         <li><a href="<?= $cfgPfx ?>clientes/clientes.php" class="sidebar-sublink <?= ($currentPage === 'clientes.php') ? 'active' : '' ?>"><span>👥</span> Clientes</a></li>
         <li><a href="<?= $cfgPfx ?>proveedores/proveedores.php" class="sidebar-sublink <?= ($currentPage === 'proveedores.php') ? 'active' : '' ?>"><span>🏭</span> Proveedores</a></li>
         <li><a href="<?= $cfgPfx ?>personal/personal.php" class="sidebar-sublink <?= ($currentPage === 'personal.php') ? 'active' : '' ?>"><span>👔</span> Personal y Repartidores</a></li>
-        <li><a href="<?= $cfgPfx ?>roles/roles.php" class="sidebar-sublink <?= ($currentPage === 'roles.php') ? 'active' : '' ?>"><span>🔑</span> Roles y Permisos</a></li>
         <li><a href="<?= $cfgPfx ?>usuarios/usuarios.php" class="sidebar-sublink <?= ($currentPage === 'usuarios.php') ? 'active' : '' ?>"><span>👤</span> Usuarios</a></li>
         <li><a href="<?= $cfgPfx ?>clasificaciones/clasificaciones.php" class="sidebar-sublink <?= ($currentPage === 'clasificaciones.php') ? 'active' : '' ?>"><span>🏷️</span> Marcas y Categorías</a></li>
         <li><a href="<?= $cfgPfx ?>productos/productos.php" class="sidebar-sublink <?= ($currentPage === 'productos.php') ? 'active' : '' ?>"><span>🍾</span> Maestro de Productos</a></li>
         <li><a href="<?= $cfgPfx ?>presentaciones/presentaciones.php" class="sidebar-sublink <?= ($currentPage === 'presentaciones.php') ? 'active' : '' ?>"><span>📦</span> Presentaciones</a></li>
         <li><a href="<?= $cfgPfx ?>almacenes/almacenes.php" class="sidebar-sublink <?= ($currentPage === 'almacenes.php') ? 'active' : '' ?>"><span>🏢</span> Almacenes Físicos</a></li>
-        <li><a href="<?= $cfgPfx ?>cajas/cajas.php" class="sidebar-sublink <?= ($currentPage === 'cajas.php') ? 'active' : '' ?>"><span>💻</span> Cajas POS</a></li>
+        <li><a href="<?= $cfgPfx ?>cajas/cajas.php" class="sidebar-sublink <?= ($currentPage === 'cajas.php') ? 'active' : '' ?>"><span>💻</span> Cajas Registradoras</a></li>
         <li><a href="<?= $cfgPfx ?>secuencias-dgii/secuencias-dgii.php" class="sidebar-sublink <?= ($currentPage === 'secuencias-dgii.php') ? 'active' : '' ?>"><span>📜</span> Secuencias Fiscales</a></li>
         <li><a href="<?= $cfgPfx ?>cuentas-bancarias/cuentas-bancarias.php" class="sidebar-sublink <?= ($currentPage === 'cuentas-bancarias.php') ? 'active' : '' ?>"><span>🏦</span> Cuentas Bancarias</a></li>
         <li><a href="<?= $cfgPfx ?>metodos-pago/metodos-pago.php" class="sidebar-sublink <?= ($currentPage === 'metodos-pago.php') ? 'active' : '' ?>"><span>💳</span> Métodos de Pago</a></li>
@@ -241,5 +242,114 @@ $isConfigActive      = (!empty($configPages) && is_array($configPages)) ? in_arr
       if (overlay) overlay.classList.toggle('active');
     }
   }
+
+  // =========================================================================
+  // VALIDACIÓN ESTRICTA GLOBAL: CAMPOS NUMÉRICOS (SOLO NÚMEROS) Y FORMATOS
+  // =========================================================================
+  (function () {
+    const navKeys = ['Backspace', 'Delete', 'Tab', 'Escape', 'Enter', 'ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Home', 'End'];
+
+    const integerIds = new Set([
+      'factor_multiplicador', 'secuencia_desde', 'secuencia_hasta', 'secuencia_actual',
+      'tiempo_promedio_min', 'dias_credito_habitual', 'regla_cantidad', 'rep_capacidad_pedidos',
+      'codigo_barra', 'numero_cuenta'
+    ]);
+
+    const phoneIds = new Set([
+      'telefono_principal', 'emp_telefono_principal', 'rep_telefono_principal', 'cliRapidoTelefono'
+    ]);
+
+    const docIds = new Set([
+      'documento_identidad', 'emp_documento_identidad', 'cliRapidoDocumento'
+    ]);
+
+    const codeDashIds = new Set([
+      'codigo_cliente', 'codigo_proveedor', 'emp_codigo_empleado', 'sku', 'rep_placa_vehiculo'
+    ]);
+
+    function obtenerTipoDocAsociado(el) {
+      if (el.id === 'emp_documento_identidad') {
+        return (document.getElementById('emp_tipo_documento')?.value || 'CEDULA').toUpperCase();
+      }
+      if (el.id === 'cliRapidoDocumento') {
+        return (document.getElementById('cliRapidoTipoDoc')?.value || 'CEDULA').toUpperCase();
+      }
+      return (document.getElementById('tipo_documento')?.value || 'CEDULA').toUpperCase();
+    }
+
+    document.addEventListener('keydown', function (e) {
+      const el = e.target;
+      if (!el || el.tagName !== 'INPUT') return;
+      if (navKeys.includes(e.key) || e.ctrlKey || e.metaKey || e.altKey) return;
+
+      const id = el.id || '';
+
+      // 1. Enteros estrictos, código de barra, número de cuenta, licencia y teléfonos: solo dígitos 0-9
+      if (integerIds.has(id) || phoneIds.has(id) || id === 'rep_numero_licencia' || el.classList.contains('pos-qty-input')) {
+        if (!/^[0-9]$/.test(e.key)) {
+          e.preventDefault();
+        }
+        return;
+      }
+
+      // 2. Documentos (Cédula / RNC = solo dígitos; Pasaporte = alfanumérico)
+      if (docIds.has(id)) {
+        const tipoDoc = obtenerTipoDocAsociado(el);
+        if (tipoDoc === 'CEDULA' || tipoDoc === 'RNC') {
+          if (!/^[0-9]$/.test(e.key)) {
+            e.preventDefault();
+          }
+        } else {
+          if (!/^[0-9a-zA-Z]$/.test(e.key)) {
+            e.preventDefault();
+          }
+        }
+        return;
+      }
+
+      // 3. Códigos estructurados (PRO-001, CLI-001, EMP-001, SKU, Placa): solo letras, números y guion
+      if (codeDashIds.has(id)) {
+        if (!/^[0-9a-zA-Z-]$/.test(e.key)) {
+          e.preventDefault();
+        }
+        return;
+      }
+
+      // 4. Inputs numéricos decimales (type="number"): solo dígitos 0-9 y un único punto decimal (bloquear e, E, +, -)
+      if (el.type === 'number') {
+        const step = el.getAttribute('step') || '';
+        const permiteDecimal = (step === 'any' || step.includes('.'));
+        if (permiteDecimal) {
+          if (!/^[0-9.]$/.test(e.key) || (e.key === '.' && String(el.value).includes('.'))) {
+            e.preventDefault();
+          }
+        } else {
+          if (!/^[0-9]$/.test(e.key)) {
+            e.preventDefault();
+          }
+        }
+      }
+    }, true);
+
+    document.addEventListener('input', function (e) {
+      const el = e.target;
+      if (!el || el.tagName !== 'INPUT') return;
+      const id = el.id || '';
+
+      // Sanitizar enteros estrictos al pegar
+      if (integerIds.has(id) || el.classList.contains('pos-qty-input')) {
+        const maxLen = (id === 'codigo_barra') ? 14 : ((id === 'numero_cuenta') ? 20 : 12);
+        const limpio = el.value.replace(/[^0-9]/g, '').slice(0, maxLen);
+        if (el.value !== limpio) el.value = limpio;
+        return;
+      }
+
+      // Sanitizar códigos con guion (PRO-001, CLI-001, EMP-001, SKU, Placa)
+      if (codeDashIds.has(id)) {
+        const limpio = el.value.toUpperCase().replace(/[^A-Z0-9-]/g, '');
+        if (el.value !== limpio) el.value = limpio;
+      }
+    }, true);
+  })();
 </script>
 

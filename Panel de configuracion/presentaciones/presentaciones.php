@@ -15,10 +15,11 @@ if ($pdo) {
             SELECT pcb.*, pm.sku, pm.precio_base_unidad
             FROM inventario.producto_codigos_barra pcb
             JOIN inventario.productos_maestro pm ON pcb.producto_maestro_id = pm.id
+            WHERE pm.id > 0
             ORDER BY pm.sku ASC, pcb.factor_multiplicador ASC
         ");
         $presentaciones = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
-        $productosMaestros = $pdo->query("SELECT id, sku, precio_base_unidad FROM inventario.productos_maestro ORDER BY sku ASC")->fetchAll(PDO::FETCH_ASSOC) ?: [];
+        $productosMaestros = $pdo->query("SELECT id, sku, precio_base_unidad FROM inventario.productos_maestro WHERE id > 0 ORDER BY sku ASC")->fetchAll(PDO::FETCH_ASSOC) ?: [];
     } catch (Throwable $e) {}
 }
 
@@ -167,7 +168,7 @@ $tipoMsg = $_GET['tipo'] ?? 'exito';
       <div class="modal-header">
         <h2 class="modal-title" id="modalTitulo">Nueva Presentación</h2>
       </div>
-      <form id="formPresentacion" action="procesar_presentaciones.php" method="POST">
+      <form id="formPresentacion" action="procesar_presentaciones.php" method="POST" onsubmit="return validarFormularioPresentacion(event)">
         <input type="hidden" name="accion" id="formAccion" value="crear" />
         <input type="hidden" name="presentacion_id" id="presentacion_id" value="" />
 
@@ -185,7 +186,22 @@ $tipoMsg = $_GET['tipo'] ?? 'exito';
             </div>
             <div class="form-group">
               <label for="codigo_barra" class="form-label">Código de Barra (EAN-13 / UPC) *</label>
-              <input type="text" id="codigo_barra" name="codigo_barra" class="form-control" required placeholder="7460100123456" maxlength="50" />
+              <input
+                type="text"
+                id="codigo_barra"
+                name="codigo_barra"
+                class="form-control"
+                required
+                placeholder="Ej. 7460100123456 (8 a 14 dígitos)"
+                inputmode="numeric"
+                minlength="8"
+                maxlength="14"
+                style="font-family: monospace; font-weight: 600;"
+                onkeydown="if(['Backspace','Delete','Tab','Escape','Enter','ArrowLeft','ArrowRight','Home','End'].includes(event.key) || event.ctrlKey || event.metaKey) return true; if(!/^[0-9]$/.test(event.key)) { event.preventDefault(); return false; }"
+                oninput="this.value = this.value.replace(/[^0-9]/g, '').slice(0, 14); validarInputCodigoBarra(this);"
+              />
+              <small id="errorCodigoBarra" style="display: none; color: var(--accent-danger); font-size: 0.76rem; font-weight: 600; margin-top: 3px;"></small>
+              <small style="color: var(--text-muted); font-size: 0.74rem;">Solo números (entre 8 y 14 dígitos EAN-8 / UPC / EAN-13).</small>
             </div>
           </div>
 
@@ -197,11 +213,32 @@ $tipoMsg = $_GET['tipo'] ?? 'exito';
           <div class="form-row-2">
             <div class="form-group">
               <label for="factor_multiplicador" class="form-label">Factor Multiplicador (Unidades que contiene) *</label>
-              <input type="number" min="1" id="factor_multiplicador" name="factor_multiplicador" class="form-control" required value="1" oninput="actualizarPrecioSugerido()" />
+              <input
+                type="number"
+                min="1"
+                step="1"
+                id="factor_multiplicador"
+                name="factor_multiplicador"
+                class="form-control"
+                required
+                value="1"
+                onkeydown="if(['e','E','+','-','.',','].includes(event.key)) { event.preventDefault(); return false; }"
+                oninput="this.value = this.value.replace(/[^0-9]/g, ''); actualizarPrecioSugerido();"
+              />
             </div>
             <div class="form-group">
               <label for="precio_venta_presentacion" class="form-label">Precio de Venta Presentación (DOP) *</label>
-              <input type="number" step="0.01" min="0" id="precio_venta_presentacion" name="precio_venta_presentacion" class="form-control" required value="0.00" />
+              <input
+                type="number"
+                step="0.01"
+                min="0"
+                id="precio_venta_presentacion"
+                name="precio_venta_presentacion"
+                class="form-control"
+                required
+                value="0.00"
+                onkeydown="if(['e','E','+','-'].includes(event.key)) { event.preventDefault(); return false; }"
+              />
             </div>
           </div>
         </div>

@@ -30,6 +30,15 @@ let categoriasData = _datosClasif ? JSON.parse(_datosClasif.dataset.categorias |
 
     document.addEventListener("DOMContentLoaded", () => {
       cambiarPestana("categorias");
+      if (itemNombre) {
+        itemNombre.addEventListener("input", function () {
+          if (this.value.length > 0) {
+            const pos = this.selectionStart;
+            this.value = this.value.charAt(0).toUpperCase() + this.value.slice(1);
+            if (typeof pos === "number") this.setSelectionRange(pos, pos);
+          }
+        });
+      }
     });
 
     function cambiarPestana(pestana) {
@@ -41,17 +50,17 @@ let categoriasData = _datosClasif ? JSON.parse(_datosClasif.dataset.categorias |
         tabMarcas.classList.remove("active");
         btnNuevo.textContent = "+ Nueva Categoría";
         cardTitle.textContent = "Listado de Categorías";
-        inputBuscar.placeholder = "Buscar categoría por nombre o ID...";
+        inputBuscar.placeholder = "Buscar categoría por nombre...";
         thNombre.textContent = "NOMBRE DE LA CATEGORÍA";
-        footerSchema.innerHTML = "Tabla: <strong>inventario.categoria_producto</strong> &bull; Llave: <code>id (BIGINT)</code> &bull; Estado: <code>estado (VARCHAR)</code>";
+        if (footerSchema) footerSchema.textContent = "House & Ice • Sistema Administrativo";
       } else {
         tabMarcas.classList.add("active");
         tabCategorias.classList.remove("active");
         btnNuevo.textContent = "+ Nueva Marca";
         cardTitle.textContent = "Listado de Marcas Comerciales";
-        inputBuscar.placeholder = "Buscar marca por nombre o ID...";
+        inputBuscar.placeholder = "Buscar marca por nombre...";
         thNombre.textContent = "NOMBRE DE LA MARCA";
-        footerSchema.innerHTML = "Tabla: <strong>inventario.marca</strong> &bull; Llave: <code>id (BIGINT)</code> &bull; Estado: <code>estado (VARCHAR)</code>";
+        if (footerSchema) footerSchema.textContent = "House & Ice • Sistema Administrativo";
       }
 
       actualizarBadgesPestanas();
@@ -79,8 +88,8 @@ let categoriasData = _datosClasif ? JSON.parse(_datosClasif.dataset.categorias |
       if (filtrados.length === 0) {
         tablaBody.innerHTML = `
           <tr>
-            <td colspan="4" style="text-align: center; padding: 28px; color: var(--text-muted);">
-              No se encontraron ${plural} registradas en PostgreSQL.
+            <td colspan="3" style="text-align: center; padding: 28px; color: var(--text-muted);">
+              No se encontraron ${plural} registradas.
             </td>
           </tr>
         `;
@@ -94,7 +103,7 @@ let categoriasData = _datosClasif ? JSON.parse(_datosClasif.dataset.categorias |
         const tr = document.createElement("tr");
 
         const estadoHtml = `
-          <label class="toggle-wrap" title="Cambiar estado en PostgreSQL (Soft Delete)">
+          <label class="toggle-wrap" title="Cambiar estado">
             <input type="checkbox" ${isActivo ? "checked" : ""} onchange="toggleEstado(${item.id}, this.checked)" />
             <span class="toggle-slider"></span>
             <span class="toggle-text">${isActivo ? "Activo" : "Inactivo"}</span>
@@ -102,7 +111,6 @@ let categoriasData = _datosClasif ? JSON.parse(_datosClasif.dataset.categorias |
         `;
 
         tr.innerHTML = `
-          <td><span class="code-inline">#${item.id}</span></td>
           <td><strong style="color: var(--text-dark);">${escapeHtml(item.nombre)}</strong></td>
           <td class="text-center">${estadoHtml}</td>
           <td style="text-align: right; white-space: nowrap;">

@@ -21,7 +21,7 @@ $facturasHoyCount      = 0;
 $ultimoNcf             = 'B0200000001';
 $ncfDisponibles        = 0;
 $bloquesNcfActivos     = 0;
-$cajaNombre            = "Caja POS 0{$cajaId}";
+$cajaNombre            = "Caja Registradora 0{$cajaId}";
 $cajaEstado            = 'ABIERTA';
 $fondoInicialCaja      = 2500.00;
 

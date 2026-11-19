@@ -118,21 +118,50 @@
     function rellenarPersonaCliente(p) {
       const feedback = document.getElementById('terceroFeedback');
       document.getElementById('persona_id').value = p.persona_id;
+      if (p.cliente_id) {
+        document.getElementById('cliente_id').value = p.cliente_id;
+        document.getElementById('formAccion').value = 'editar';
+      }
+      if (p.codigo_cliente) document.getElementById('codigo_cliente').value = p.codigo_cliente;
       if (p.tipo_documento) document.getElementById('tipo_documento').value = p.tipo_documento;
       if (p.documento_identidad) document.getElementById('documento_identidad').value = p.documento_identidad;
       document.getElementById('nombre_razon_social').value = p.nombre_razon_social || (p.primer_nombre ? (p.primer_nombre + ' ' + (p.primer_apellido || '')) : '');
       if (p.nombre_comercial) document.getElementById('nombre_comercial').value = p.nombre_comercial;
       if (p.telefono_principal || p.telefono) document.getElementById('telefono_principal').value = p.telefono_principal || p.telefono;
       if (p.email) document.getElementById('email').value = p.email;
+      if (p.categoria_cliente) document.getElementById('categoria_cliente').value = p.categoria_cliente;
+      if (p.permite_credito !== undefined && p.permite_credito !== null) {
+        const tieneCred = (p.permite_credito === true || p.permite_credito === 't' || p.permite_credito === 1);
+        document.getElementById('permite_credito').checked = tieneCred;
+        document.getElementById('limite_credito').value = parseFloat(p.limite_credito || 0).toFixed(2);
+        toggleCreditoInput();
+      }
       if (p.tipo_persona) {
         document.getElementById('tipo_persona').value = p.tipo_persona;
         ajustarTipoPersona();
       }
       if (feedback) {
         feedback.style.display = 'block';
-        feedback.textContent = 'Persona existente';
+        feedback.textContent = 'Registro existente localizado';
       }
-      mostrarToast('Persona existente');
+      mostrarToast('Datos cargados automáticamente');
+    }
+
+    let timerCodigoCli = null;
+    function autocompletarClientePorCodigo(codVal) {
+      clearTimeout(timerCodigoCli);
+      const cod = (codVal || '').trim();
+      if (cod.length < 3) return;
+      timerCodigoCli = setTimeout(() => {
+        fetch('procesar_clientes.php?codigo=' + encodeURIComponent(cod))
+          .then(r => r.json())
+          .then(res => {
+            if (res.encontrado && res.persona) {
+              rellenarPersonaCliente(res.persona);
+            }
+          })
+          .catch(() => {});
+      }, 300);
     }
 
     function autocompletarTercero() {
@@ -288,4 +317,17 @@
     (() => {
   const _urlMsg = new URLSearchParams(window.location.search).get('msg');
   if (_urlMsg && typeof mostrarToast === 'function') mostrarToast(_urlMsg);
+
+  ['nombre_razon_social', 'nombre_comercial'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) {
+      el.addEventListener('input', function () {
+        if (this.value.length > 0) {
+          const pos = this.selectionStart;
+          this.value = this.value.charAt(0).toUpperCase() + this.value.slice(1);
+          if (typeof pos === 'number') this.setSelectionRange(pos, pos);
+        }
+      });
+    }
+  });
 })();

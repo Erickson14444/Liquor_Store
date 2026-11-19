@@ -14,7 +14,7 @@ if ($pdo) {
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>House & Ice • Cajas POS</title>
+  <title>House &amp; Ice • Cajas Registradoras</title>
   <link rel="stylesheet" href="../styles.css?v=13" />
 </head>
 <body>
@@ -59,11 +59,11 @@ if ($pdo) {
     <main class="main-content">
       <div class="page-header">
         <div>
-          <h1 class="page-title">Cajas POS</h1>
-          <p class="page-subtitle">Registro y administración de terminales de cobro físicas y puntos de venta del local</p>
+          <h1 class="page-title">Cajas Registradoras</h1>
+          <p class="page-subtitle">Registro y administración de cajas registradoras físicas y terminales de cobro del local</p>
         </div>
         <button type="button" class="btn btn-gold" onclick="abrirNuevaCaja()">
-          + Nueva Caja
+          + Nueva Caja Registradora
         </button>
       </div>
 
@@ -71,7 +71,7 @@ if ($pdo) {
       <div class="table-card">
         <div class="table-card-top">
           <div class="table-card-info">
-            <h2 class="table-card-title">Listado de Cajas POS</h2>
+            <h2 class="table-card-title">Listado de Cajas Registradoras</h2>
             <span class="badge-count" id="badgeCount">4 registradas</span>
           </div>
           <div class="search-box">
@@ -89,8 +89,7 @@ if ($pdo) {
           <table class="data-table">
             <thead>
               <tr>
-                <th style="width: 80px;">ID</th>
-                <th style="width: 240px;">NOMBRE EQUIPO</th>
+                <th style="width: 280px;">NOMBRE EQUIPO</th>
                 <th>UBICACIÓN</th>
                 <th class="text-center" style="width: 160px;">ESTADO</th>
                 <th style="text-align: right; width: 90px;">ACCIONES</th>
@@ -103,31 +102,26 @@ if ($pdo) {
         </div>
 
         <div class="table-card-footer">
-          <span id="footerCount">Mostrando 4 cajas POS</span>
-          <span class="cell-sub">Tabla: Cajas_pos &bull; Llave primaria: id (SERIAL)</span>
+          <span id="footerCount">Mostrando cajas registradoras</span>
+          <span class="cell-sub">House &amp; Ice • Sistema Administrativo</span>
         </div>
       </div>
     </main>
   </div>
 
-  <!-- MODAL DE CREAR / EDITAR CAJA POS -->
+  <!-- MODAL DE CREAR / EDITAR CAJA REGISTRADORA -->
   <div class="modal-overlay" id="modalCaja">
     <div class="modal-box modal-lg">
       <div class="modal-header">
-        <h3 class="modal-title" id="modalTitle">Nueva Caja POS</h3>
+        <h3 class="modal-title" id="modalTitle">Nueva Caja Registradora</h3>
       </div>
 
       <form id="formCaja" autocomplete="off" onsubmit="guardarCaja(event)">
+        <input type="hidden" id="cajaId" />
         <div class="modal-body">
-          <div class="form-row-2" style="grid-template-columns: 100px 1fr;">
-            <div class="form-group">
-              <label class="form-label">ID</label>
-              <input type="text" class="form-control" id="cajaId" readonly />
-            </div>
-            <div class="form-group">
-              <label class="form-label">NOMBRE EQUIPO *</label>
-              <input type="text" class="form-control" id="cajaNombre" maxlength="50" placeholder="Ej. Caja Principal, Caja Drive-Thru" required />
-            </div>
+          <div class="form-group">
+            <label class="form-label">NOMBRE DE LA CAJA REGISTRADORA *</label>
+            <input type="text" class="form-control" id="cajaNombre" maxlength="50" placeholder="Ej. Caja Principal, Caja Drive-Thru" required />
           </div>
 
           <div class="form-group">

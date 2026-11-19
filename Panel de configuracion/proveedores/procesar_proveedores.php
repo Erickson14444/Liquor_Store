@@ -1,20 +1,50 @@
 <?php
 
-// Búsqueda GET en vivo de Terceros en identidad.personas (Supertipo / Subtipo)
-if (($_SERVER['REQUEST_METHOD'] ?? '') === 'GET' && (isset($_GET['documento']) || isset($_GET['nombre']))) {
+// Búsqueda GET en vivo de Terceros en identidad.personas (por documento, nombre o código)
+if (($_SERVER['REQUEST_METHOD'] ?? '') === 'GET' && (isset($_GET['documento']) || isset($_GET['nombre']) || isset($_GET['codigo']))) {
     require_once __DIR__ . '/../../config/conexion.php';
     header('Content-Type: application/json; charset=utf-8');
     $documento = trim($_GET['documento'] ?? '');
     $nombre    = trim($_GET['nombre'] ?? '');
+    $codigo    = trim($_GET['codigo'] ?? '');
 
-    if ((empty($documento) && empty($nombre)) || !$pdo) {
+    if ((empty($documento) && empty($nombre) && empty($codigo)) || !$pdo) {
         echo json_encode(['encontrado' => false]);
         exit;
     }
 
     try {
         $persona = null;
-        if (!empty($documento)) {
+        if (!empty($codigo)) {
+            $stmt = $pdo->prepare("
+                SELECT p.persona_id, p.tipo_documento, p.documento_identidad,
+                       p.documento_identidad AS numero_documento,
+                       p.nombre_razon_social, p.nombre_razon_social AS primer_nombre,
+                       p.nombre_comercial, p.nombre_comercial AS segundo_nombre,
+                       p.fecha_nacimiento, p.email, p.telefono_principal,
+                       p.telefono_principal AS telefono, p.tipo_persona, p.estado,
+                       pr.persona_id AS proveedor_id, pr.codigo_proveedor, pr.dias_credito_habitual,
+                       COALESCE((
+                           SELECT MAX(r.porcentaje)
+                           FROM identidad.proveedor_retenciones prr
+                           JOIN tesoreria.retenciones r ON prr.retencion_id = r.id
+                           WHERE prr.proveedor_id = pr.persona_id
+                       ), 0.00) AS retencion_isr_porc,
+                       (SELECT c.codigo_cliente FROM identidad.clientes c WHERE c.persona_id = p.persona_id LIMIT 1) AS codigo_cliente,
+                       (SELECT e.codigo_empleado FROM identidad.empleados e WHERE e.persona_id = p.persona_id LIMIT 1) AS codigo_empleado
+                FROM identidad.personas p
+                LEFT JOIN identidad.proveedores pr ON pr.persona_id = p.persona_id
+                LEFT JOIN identidad.clientes c ON c.persona_id = p.persona_id
+                LEFT JOIN identidad.empleados e ON e.persona_id = p.persona_id
+                WHERE UPPER(TRIM(pr.codigo_proveedor)) = UPPER(TRIM(?))
+                   OR REPLACE(UPPER(TRIM(pr.codigo_proveedor)), 'PROV-', 'PRO-') = REPLACE(UPPER(TRIM(?)), 'PROV-', 'PRO-')
+                   OR UPPER(TRIM(c.codigo_cliente)) = UPPER(TRIM(?))
+                   OR UPPER(TRIM(e.codigo_empleado)) = UPPER(TRIM(?))
+                LIMIT 1
+            ");
+            $stmt->execute([$codigo, $codigo, $codigo, $codigo]);
+            $persona = $stmt->fetch(PDO::FETCH_ASSOC);
+        } elseif (!empty($documento)) {
             $docLimpio = str_replace(['-', ' ', '.'], '', $documento);
             $stmt = $pdo->prepare("
                 SELECT p.persona_id, p.tipo_documento, p.documento_identidad,
@@ -23,10 +53,17 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'GET' && (isset($_GET['documento']) |
                        p.nombre_comercial, p.nombre_comercial AS segundo_nombre,
                        p.fecha_nacimiento, p.email, p.telefono_principal,
                        p.telefono_principal AS telefono, p.tipo_persona, p.estado,
+                       pr.persona_id AS proveedor_id, pr.codigo_proveedor, pr.dias_credito_habitual,
+                       COALESCE((
+                           SELECT MAX(r.porcentaje)
+                           FROM identidad.proveedor_retenciones prr
+                           JOIN tesoreria.retenciones r ON prr.retencion_id = r.id
+                           WHERE prr.proveedor_id = pr.persona_id
+                       ), 0.00) AS retencion_isr_porc,
                        (SELECT c.codigo_cliente FROM identidad.clientes c WHERE c.persona_id = p.persona_id LIMIT 1) AS codigo_cliente,
-                       (SELECT e.codigo_empleado FROM identidad.empleados e WHERE e.persona_id = p.persona_id LIMIT 1) AS codigo_empleado,
-                       (SELECT pr.codigo_proveedor FROM identidad.proveedores pr WHERE pr.persona_id = p.persona_id LIMIT 1) AS codigo_proveedor
+                       (SELECT e.codigo_empleado FROM identidad.empleados e WHERE e.persona_id = p.persona_id LIMIT 1) AS codigo_empleado
                 FROM identidad.personas p
+                LEFT JOIN identidad.proveedores pr ON pr.persona_id = p.persona_id
                 WHERE replace(replace(p.documento_identidad, '-', ''), ' ', '') = ?
                    OR UPPER(p.documento_identidad) = UPPER(?)
                 LIMIT 1
@@ -41,10 +78,17 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'GET' && (isset($_GET['documento']) |
                        p.nombre_comercial, p.nombre_comercial AS segundo_nombre,
                        p.fecha_nacimiento, p.email, p.telefono_principal,
                        p.telefono_principal AS telefono, p.tipo_persona, p.estado,
+                       pr.persona_id AS proveedor_id, pr.codigo_proveedor, pr.dias_credito_habitual,
+                       COALESCE((
+                           SELECT MAX(r.porcentaje)
+                           FROM identidad.proveedor_retenciones prr
+                           JOIN tesoreria.retenciones r ON prr.retencion_id = r.id
+                           WHERE prr.proveedor_id = pr.persona_id
+                       ), 0.00) AS retencion_isr_porc,
                        (SELECT c.codigo_cliente FROM identidad.clientes c WHERE c.persona_id = p.persona_id LIMIT 1) AS codigo_cliente,
-                       (SELECT e.codigo_empleado FROM identidad.empleados e WHERE e.persona_id = p.persona_id LIMIT 1) AS codigo_empleado,
-                       (SELECT pr.codigo_proveedor FROM identidad.proveedores pr WHERE pr.persona_id = p.persona_id LIMIT 1) AS codigo_proveedor
+                       (SELECT e.codigo_empleado FROM identidad.empleados e WHERE e.persona_id = p.persona_id LIMIT 1) AS codigo_empleado
                 FROM identidad.personas p
+                LEFT JOIN identidad.proveedores pr ON pr.persona_id = p.persona_id
                 WHERE UPPER(TRIM(p.nombre_razon_social)) = UPPER(TRIM(?))
                    OR UPPER(p.nombre_razon_social) LIKE UPPER(?)
                 ORDER BY CASE WHEN UPPER(TRIM(p.nombre_razon_social)) = UPPER(TRIM(?)) THEN 0 ELSE 1 END
@@ -55,6 +99,14 @@ if (($_SERVER['REQUEST_METHOD'] ?? '') === 'GET' && (isset($_GET['documento']) |
         }
 
         if ($persona) {
+            $stmtRetIds = $pdo->prepare("
+                SELECT retencion_id FROM identidad.proveedor_retenciones
+                WHERE proveedor_id = ?
+                ORDER BY retencion_id ASC
+            ");
+            $stmtRetIds->execute([$persona['proveedor_id'] ?: $persona['persona_id']]);
+            $persona['retenciones_ids'] = array_map('intval', $stmtRetIds->fetchAll(PDO::FETCH_COLUMN) ?: []);
+
             $rolesPrevios = [];
             if (!empty($persona['codigo_cliente']))   $rolesPrevios[] = 'Cliente (' . $persona['codigo_cliente'] . ')';
             if (!empty($persona['codigo_empleado']))  $rolesPrevios[] = 'Empleado (' . $persona['codigo_empleado'] . ')';
@@ -121,7 +173,17 @@ try {
         $email           = trim($_POST['email'] ?? $_POST['email_contacto'] ?? '');
         $tipoPersona     = strtoupper(trim($_POST['tipo_persona'] ?? (($tipoDoc === 'RNC') ? 'JURIDICA' : 'FISICA')));
         
-        $diasCredito     = intval($_POST['dias_credito_habitual'] ?? 30);
+        $diasCreditoRaw  = trim((string)($_POST['dias_credito_habitual'] ?? '30'));
+        if ($diasCreditoRaw === '' || !preg_match('/^\d+$/', $diasCreditoRaw)) {
+            throw new Exception("Los días de crédito habitual deben ser un número entero válido (sin letras ni decimales).");
+        }
+        $diasCredito     = intval($diasCreditoRaw);
+        if ($diasCredito < 0 || $diasCredito > 180) {
+            throw new Exception("Los días de crédito habitual deben estar entre 0 y 180 días.");
+        }
+        $retencionesArr  = isset($_POST['retenciones']) && is_array($_POST['retenciones'])
+                           ? array_values(array_unique(array_filter(array_map('intval', $_POST['retenciones']), fn($v) => $v > 0)))
+                           : [];
         $retencionIsr    = floatval($_POST['retencion_isr_porc'] ?? 0.00);
 
         // Validaciones obligatorias
@@ -136,10 +198,19 @@ try {
 
         // Validación de documento (RNC 9 dígitos, Cédula 11)
         $docLimpio = preg_replace('/[^0-9A-Za-z]/', '', $numDoc);
-        if ($tipoDoc === 'RNC' && (strlen($docLimpio) !== 9 && strlen($docLimpio) !== 11)) {
-            throw new Exception("El RNC debe contener 9 dígitos numéricos (o 11 si es persona física con RNC).");
-        } elseif ($tipoDoc === 'CEDULA' && strlen($docLimpio) !== 11) {
+        if ($tipoDoc === 'RNC' && (!preg_match('/^\d{9}$/', $docLimpio) && !preg_match('/^\d{11}$/', $docLimpio))) {
+            throw new Exception("El RNC debe contener 9 dígitos numéricos válidos (o 11 si es persona física con RNC).");
+        } elseif ($tipoDoc === 'CEDULA' && !preg_match('/^\d{11}$/', $docLimpio)) {
             throw new Exception("La cédula dominicana debe contener exactamente 11 dígitos numéricos.");
+        }
+
+        // Validación de teléfono (si se proporciona, debe tener 10 dígitos numéricos)
+        if (!empty($telefono)) {
+            $telDigitos = preg_replace('/\D/', '', $telefono);
+            if (strlen($telDigitos) !== 10) {
+                throw new Exception("El teléfono debe contener exactamente 10 dígitos numéricos con formato (809) 000-0000.");
+            }
+            $telefono = '(' . substr($telDigitos, 0, 3) . ') ' . substr($telDigitos, 3, 3) . '-' . substr($telDigitos, 6, 4);
         }
 
         // Validación de días de crédito y retención
@@ -228,7 +299,8 @@ try {
             $personaId = $stmtInsPer->fetchColumn();
         }
 
-        // 3. Crear o Actualizar identidad.proveedores
+        // 3. Crear o Actualizar identidad.proveedores y sus retenciones en identidad.proveedor_retenciones
+        $targetProvId = $proveedorId ?: $personaId;
         if ($accion === 'crear') {
             // Verificar si este tercero ya es proveedor
             $stmtChkProv = $pdo->prepare("SELECT 1 FROM identidad.proveedores WHERE persona_id = ?");
@@ -239,28 +311,59 @@ try {
 
             $stmtInsProv = $pdo->prepare("
                 INSERT INTO identidad.proveedores
-                (persona_id, codigo_proveedor, dias_credito_habitual, retencion_isr_porc)
-                VALUES (?, ?, ?, ?)
+                (persona_id, codigo_proveedor, dias_credito_habitual)
+                VALUES (?, ?, ?)
             ");
-            $stmtInsProv->execute([$personaId, $codigoProveedor, $diasCredito, $retencionIsr]);
-
-            $pdo->commit();
-            responder('success', "Proveedor '{$razonSocial}' ({$codigoProveedor}) registrado exitosamente.");
+            $stmtInsProv->execute([$personaId, $codigoProveedor, $diasCredito]);
+            $targetProvId = $personaId;
         } else {
-            if (empty($proveedorId)) {
+            if (empty($targetProvId)) {
                 throw new Exception("ID de proveedor no especificado para actualizar.");
             }
 
             $stmtUpdProv = $pdo->prepare("
                 UPDATE identidad.proveedores
                 SET codigo_proveedor = ?,
-                    dias_credito_habitual = ?,
-                    retencion_isr_porc = ?
+                    dias_credito_habitual = ?
                 WHERE persona_id = ?
             ");
-            $stmtUpdProv->execute([$codigoProveedor, $diasCredito, $retencionIsr, $proveedorId ?: $personaId]);
+            $stmtUpdProv->execute([$codigoProveedor, $diasCredito, $targetProvId]);
+        }
 
-            $pdo->commit();
+        // Sincronizar retenciones múltiples en identidad.proveedor_retenciones + tesoreria.retenciones
+        $pdo->prepare("DELETE FROM identidad.proveedor_retenciones WHERE proveedor_id = ?")->execute([$targetProvId]);
+        if (!empty($retencionesArr)) {
+            $stmtInsPrvRet = $pdo->prepare("
+                INSERT INTO identidad.proveedor_retenciones (proveedor_id, retencion_id)
+                VALUES (?, ?)
+                ON CONFLICT DO NOTHING
+            ");
+            foreach ($retencionesArr as $rId) {
+                $stmtInsPrvRet->execute([$targetProvId, $rId]);
+            }
+        } elseif ($retencionIsr > 0) {
+            $stmtFindRet = $pdo->prepare("
+                SELECT id FROM tesoreria.retenciones
+                WHERE ABS(porcentaje - ?) < 0.01
+                ORDER BY CASE WHEN base_calculo = 'SUBTOTAL' THEN 0 ELSE 1 END, id ASC
+                LIMIT 1
+            ");
+            $stmtFindRet->execute([$retencionIsr]);
+            $retId = $stmtFindRet->fetchColumn();
+            if ($retId) {
+                $stmtInsPrvRet = $pdo->prepare("
+                    INSERT INTO identidad.proveedor_retenciones (proveedor_id, retencion_id)
+                    VALUES (?, ?)
+                    ON CONFLICT DO NOTHING
+                ");
+                $stmtInsPrvRet->execute([$targetProvId, $retId]);
+            }
+        }
+
+        $pdo->commit();
+        if ($accion === 'crear') {
+            responder('success', "Proveedor '{$razonSocial}' ({$codigoProveedor}) registrado exitosamente.");
+        } else {
             responder('success', "Proveedor '{$razonSocial}' ({$codigoProveedor}) actualizado exitosamente.");
         }
     }

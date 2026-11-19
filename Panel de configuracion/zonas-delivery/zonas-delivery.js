@@ -7,7 +7,7 @@ let zonas = _datosZonas ? JSON.parse(_datosZonas.dataset.zonas || '[]') : [];
       tbody.innerHTML = '';
 
       if (zonas.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="6" style="text-align: center; padding: 28px; color: var(--text-muted);">No hay zonas de delivery registradas en PostgreSQL. Haz clic en <strong>+ Nueva Zona</strong> para registrar una.</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="5" style="text-align: center; padding: 28px; color: var(--text-muted);">No hay zonas de delivery registradas. Haz clic en <strong>+ Nueva Zona de Envío</strong> para registrar una.</td></tr>';
         const fc = document.getElementById('footerCount');
         if (fc) fc.textContent = 'Mostrando 0 zonas';
         return;
@@ -16,7 +16,6 @@ let zonas = _datosZonas ? JSON.parse(_datosZonas.dataset.zonas || '[]') : [];
         const isActiva = z.activa === true || z.activa === 't' || z.activa === 1;
         const tr = document.createElement('tr');
         tr.innerHTML = `
-          <td><span class="code-inline">#${z.id}</span></td>
           <td><strong>${escapeHtml(z.nombre)}</strong></td>
           <td style="text-align: right; font-family: var(--font-mono); font-weight: bold; color: var(--accent-gold);">RD$ ${Number(z.tarifa_envio).toFixed(2)}</td>
           <td style="text-align: center; font-family: var(--font-mono);">${z.tiempo_promedio_min} min</td>
@@ -112,4 +111,16 @@ let zonas = _datosZonas ? JSON.parse(_datosZonas.dataset.zonas || '[]') : [];
       return String(str).replace(/[&<>"']/g, m => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[m]);
     }
 
-    document.addEventListener('DOMContentLoaded', () => renderizarTabla());
+    document.addEventListener('DOMContentLoaded', () => {
+      renderizarTabla();
+      const elZona = document.getElementById('nombre_zona');
+      if (elZona) {
+        elZona.addEventListener('input', function () {
+          if (this.value.length > 0) {
+            const pos = this.selectionStart;
+            this.value = this.value.charAt(0).toUpperCase() + this.value.slice(1);
+            if (typeof pos === 'number') this.setSelectionRange(pos, pos);
+          }
+        });
+      }
+    });

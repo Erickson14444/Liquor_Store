@@ -1,6 +1,92 @@
 // ==========================================
-    // MÁSCARAS DE ENTRADA
+    // VALIDACIONES ESTRICTAS DE TECLADO Y MÁSCARAS DE ENTRADA
     // ==========================================
+    function soloNumerosEnteros(e) {
+      const k = e.key;
+      if (['Backspace', 'Delete', 'Tab', 'Escape', 'Enter', 'ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(k) || e.ctrlKey || e.metaKey) {
+        return true;
+      }
+      if (!/^[0-9]$/.test(k)) {
+        e.preventDefault();
+        return false;
+      }
+      return true;
+    }
+
+    function validarTeclaDoc(e) {
+      const tipo = document.getElementById('tipo_documento').value;
+      const k = e.key;
+      if (['Backspace', 'Delete', 'Tab', 'Escape', 'Enter', 'ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(k) || e.ctrlKey || e.metaKey) {
+        return true;
+      }
+      if (tipo === 'RNC' || tipo === 'CEDULA') {
+        if (!/^[0-9]$/.test(k)) {
+          e.preventDefault();
+          return false;
+        }
+      } else {
+        if (!/^[0-9A-Za-z]$/.test(k)) {
+          e.preventDefault();
+          return false;
+        }
+      }
+      return true;
+    }
+
+    function marcarRetencionesProveedor(ids = []) {
+      const setIds = new Set((Array.isArray(ids) ? ids : []).map(x => Number(x)));
+      document.querySelectorAll('.chk-retencion-prov').forEach(chk => {
+        chk.checked = setIds.has(Number(chk.value));
+      });
+    }
+
+    function validarFormularioProveedor(e) {
+      const cod = (document.getElementById('codigo_proveedor').value || '').trim().toUpperCase();
+      const tipoDoc = document.getElementById('tipo_documento').value;
+      const docVal = (document.getElementById('documento_identidad').value || '').trim();
+      const docDigits = docVal.replace(/\D/g, '');
+      const telVal = (document.getElementById('telefono_principal').value || '').trim();
+      const telDigits = telVal.replace(/\D/g, '');
+      const diasVal = (document.getElementById('dias_credito_habitual').value || '').trim();
+
+      if (!/^[A-Z0-9_-]{3,20}$/.test(cod)) {
+        e.preventDefault();
+        mostrarToast('Error: El código de proveedor debe tener formato válido (ej. PROV-001).');
+        document.getElementById('codigo_proveedor').focus();
+        return false;
+      }
+
+      if (tipoDoc === 'RNC' && docDigits.length !== 9 && docDigits.length !== 11) {
+        e.preventDefault();
+        mostrarToast('Error: El RNC debe contener exactamente 9 dígitos numéricos (formato 0-00-00000-0).');
+        document.getElementById('documento_identidad').focus();
+        return false;
+      }
+
+      if (tipoDoc === 'CEDULA' && docDigits.length !== 11) {
+        e.preventDefault();
+        mostrarToast('Error: La Cédula debe contener exactamente 11 dígitos numéricos (formato 000-0000000-0).');
+        document.getElementById('documento_identidad').focus();
+        return false;
+      }
+
+      if (telVal !== '' && telDigits.length !== 10) {
+        e.preventDefault();
+        mostrarToast('Error: El teléfono debe tener 10 dígitos con formato (809) 000-0000.');
+        document.getElementById('telefono_principal').focus();
+        return false;
+      }
+
+      if (!/^\d+$/.test(diasVal) || parseInt(diasVal, 10) < 0 || parseInt(diasVal, 10) > 180) {
+        e.preventDefault();
+        mostrarToast('Error: Los días de crédito habitual deben ser un número entero entre 0 y 180.');
+        document.getElementById('dias_credito_habitual').focus();
+        return false;
+      }
+
+      return true;
+    }
+
     function mascaraDoc(input) {
       const tipo = document.getElementById('tipo_documento').value;
       const ev = window.event;
@@ -82,6 +168,11 @@
     function rellenarPersonaProveedor(p) {
       const feedback = document.getElementById('terceroFeedback');
       document.getElementById('persona_id').value = p.persona_id;
+      if (p.proveedor_id) {
+        document.getElementById('proveedor_id').value = p.proveedor_id;
+        document.getElementById('formAccion').value = 'editar';
+      }
+      if (p.codigo_proveedor) document.getElementById('codigo_proveedor').value = p.codigo_proveedor;
       if (p.tipo_documento) document.getElementById('tipo_documento').value = p.tipo_documento;
       if (p.documento_identidad) document.getElementById('documento_identidad').value = p.documento_identidad;
       document.getElementById('nombre_razon_social').value = p.nombre_razon_social || p.primer_nombre;
@@ -89,11 +180,34 @@
       if (p.telefono_principal || p.telefono) document.getElementById('telefono_principal').value = p.telefono_principal || p.telefono;
       if (p.email) document.getElementById('email').value = p.email;
       if (p.tipo_persona) document.getElementById('tipo_persona').value = p.tipo_persona;
+      if (p.dias_credito_habitual !== undefined && p.dias_credito_habitual !== null) {
+        document.getElementById('dias_credito_habitual').value = p.dias_credito_habitual;
+      }
+      if (Array.isArray(p.retenciones_ids)) {
+        marcarRetencionesProveedor(p.retenciones_ids);
+      }
       if (feedback) {
         feedback.style.display = 'block';
-        feedback.textContent = 'Persona existente';
+        feedback.textContent = 'Registro existente localizado';
       }
-      mostrarToast('Persona existente');
+      mostrarToast('Datos cargados automáticamente');
+    }
+
+    let timerCodigoProv = null;
+    function autocompletarProveedorPorCodigo(codVal) {
+      clearTimeout(timerCodigoProv);
+      const cod = (codVal || '').trim();
+      if (cod.length < 3) return;
+      timerCodigoProv = setTimeout(() => {
+        fetch('procesar_proveedores.php?codigo=' + encodeURIComponent(cod))
+          .then(r => r.json())
+          .then(res => {
+            if (res.encontrado && res.persona) {
+              rellenarPersonaProveedor(res.persona);
+            }
+          })
+          .catch(() => {});
+      }, 300);
     }
 
     function autocompletarTercero() {
@@ -151,7 +265,7 @@
       document.getElementById('telefono_principal').value = '';
       document.getElementById('email').value = '';
       document.getElementById('dias_credito_habitual').value = '30';
-      document.getElementById('retencion_isr_porc').value = '0.00';
+      marcarRetencionesProveedor([]);
       document.getElementById('terceroFeedback').style.display = 'none';
 
       aplicarMascaraDoc();
@@ -171,8 +285,8 @@
       document.getElementById('nombre_comercial').value = prv.nombre_comercial || '';
       document.getElementById('telefono_principal').value = prv.telefono_principal || '';
       document.getElementById('email').value = prv.email || '';
-      document.getElementById('dias_credito_habitual').value = prv.dias_credito_habitual || 30;
-      document.getElementById('retencion_isr_porc').value = parseFloat(prv.retencion_isr_porc || 0).toFixed(2);
+      document.getElementById('dias_credito_habitual').value = (prv.dias_credito_habitual !== undefined && prv.dias_credito_habitual !== null) ? prv.dias_credito_habitual : 30;
+      marcarRetencionesProveedor(Array.isArray(prv.retenciones_ids) ? prv.retenciones_ids : []);
       document.getElementById('terceroFeedback').style.display = 'none';
 
       document.getElementById('modalProveedor').classList.add('open');
@@ -242,4 +356,17 @@
     (() => {
   const _urlMsg = new URLSearchParams(window.location.search).get('msg');
   if (_urlMsg && typeof mostrarToast === 'function') mostrarToast(_urlMsg);
+
+  ['nombre_razon_social', 'nombre_comercial'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) {
+      el.addEventListener('input', function () {
+        if (this.value.length > 0) {
+          const pos = this.selectionStart;
+          this.value = this.value.charAt(0).toUpperCase() + this.value.slice(1);
+          if (typeof pos === 'number') this.setSelectionRange(pos, pos);
+        }
+      });
+    }
+  });
 })();

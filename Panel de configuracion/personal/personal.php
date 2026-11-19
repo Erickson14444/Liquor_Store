@@ -334,7 +334,7 @@ $tipoMsg = $_GET['tipo'] ?? 'exito';
           <div class="form-row-2">
             <div class="form-group">
               <label for="emp_codigo_empleado" class="form-label">Código de Empleado *</label>
-              <input type="text" id="emp_codigo_empleado" name="codigo_empleado" class="form-control" required placeholder="Ej. EMP-001" style="text-transform: uppercase;" />
+              <input type="text" id="emp_codigo_empleado" name="codigo_empleado" class="form-control" required placeholder="Ej. EMP-001" style="text-transform: uppercase;" oninput="this.value = this.value.toUpperCase().replace(/[^A-Z0-9-]/g, ''); verificarEmpleadoPorCodigo(this.value);" onblur="verificarEmpleadoPorCodigo(this.value)" />
               <small style="color: #8e8071; font-size: 0.78rem;">Identificador único interno de nómina</small>
             </div>
             <div class="form-group">
@@ -362,7 +362,7 @@ $tipoMsg = $_GET['tipo'] ?? 'exito';
             </div>
             <div class="form-group">
               <label for="emp_documento_identidad" class="form-label">Número de Documento *</label>
-              <input type="text" id="emp_documento_identidad" name="documento_identidad" class="form-control" required placeholder="000-0000000-0" oninput="formatearDocumento(this); verificarTerceroLive(this.value);" />
+              <input type="text" id="emp_documento_identidad" name="documento_identidad" class="form-control" required placeholder="000-0000000-0" onkeydown="if(document.getElementById('emp_tipo_documento').value === 'CEDULA' && !['Backspace','Delete','Tab','Escape','Enter','ArrowLeft','ArrowRight','Home','End'].includes(event.key) && !event.ctrlKey && !event.metaKey && !/^[0-9]$/.test(event.key)) { event.preventDefault(); return false; }" oninput="formatearDocumento(this); verificarTerceroLive(this.value);" />
               <small id="feedbackTercero" style="display: none; color: var(--accent-gold); font-size: 0.76rem; margin-top: 3px; font-weight: 600;"></small>
             </div>
           </div>
@@ -375,7 +375,7 @@ $tipoMsg = $_GET['tipo'] ?? 'exito';
           <div class="form-row-2">
             <div class="form-group">
               <label for="emp_telefono_principal" class="form-label">Teléfono Móvil</label>
-              <input type="text" id="emp_telefono_principal" name="telefono_principal" class="form-control" placeholder="(809) 000-0000" oninput="formatearTelefono(this)" />
+              <input type="text" id="emp_telefono_principal" name="telefono_principal" class="form-control" placeholder="(809) 000-0000" maxlength="14" inputmode="numeric" onkeydown="if(!['Backspace','Delete','Tab','Escape','Enter','ArrowLeft','ArrowRight','Home','End'].includes(event.key) && !event.ctrlKey && !event.metaKey && !/^[0-9]$/.test(event.key)) { event.preventDefault(); return false; }" oninput="formatearTelefono(this)" />
             </div>
             <div class="form-group">
               <label for="emp_email" class="form-label">Correo Electrónico</label>
@@ -444,12 +444,12 @@ $tipoMsg = $_GET['tipo'] ?? 'exito';
           <div class="form-row-2">
             <div class="form-group">
               <label for="rep_numero_licencia" class="form-label">Licencia de Conducir *</label>
-              <input type="text" id="rep_numero_licencia" name="numero_licencia" class="form-control" required maxlength="13" placeholder="000-0000000-0" oninput="formatearLicencia(this)" />
+              <input type="text" id="rep_numero_licencia" name="numero_licencia" class="form-control" required maxlength="13" inputmode="numeric" placeholder="000-0000000-0" onkeydown="if(!['Backspace','Delete','Tab','Escape','Enter','ArrowLeft','ArrowRight','Home','End'].includes(event.key) && !event.ctrlKey && !event.metaKey && !/^[0-9]$/.test(event.key)) { event.preventDefault(); return false; }" oninput="formatearLicencia(this)" />
               <small style="color: #8e8071; font-size: 0.76rem;">Formato oficial INTRANT / Cédula</small>
             </div>
             <div class="form-group">
               <label for="rep_telefono_principal" class="form-label">Teléfono Móvil *</label>
-              <input type="text" id="rep_telefono_principal" name="telefono_principal" class="form-control" required maxlength="14" placeholder="(809) 000-0000" oninput="formatearTelefono(this)" />
+              <input type="text" id="rep_telefono_principal" name="telefono_principal" class="form-control" required maxlength="14" inputmode="numeric" placeholder="(809) 000-0000" onkeydown="if(!['Backspace','Delete','Tab','Escape','Enter','ArrowLeft','ArrowRight','Home','End'].includes(event.key) && !event.ctrlKey && !event.metaKey && !/^[0-9]$/.test(event.key)) { event.preventDefault(); return false; }" oninput="formatearTelefono(this)" />
               <small style="color: #8e8071; font-size: 0.76rem;">Número de contacto en ruta</small>
             </div>
           </div>
@@ -472,7 +472,7 @@ $tipoMsg = $_GET['tipo'] ?? 'exito';
           <div class="form-row-2">
             <div class="form-group">
               <label for="rep_capacidad_pedidos" class="form-label">Capacidad de Pedidos Simultáneos *</label>
-              <input type="number" id="rep_capacidad_pedidos" name="capacidad_pedidos" class="form-control" required min="1" max="25" value="1" />
+              <input type="number" id="rep_capacidad_pedidos" name="capacidad_pedidos" class="form-control" required min="1" max="25" value="1" onkeydown="if(['e','E','+','-','.',','].includes(event.key)) { event.preventDefault(); return false; }" oninput="this.value = this.value.replace(/[^0-9]/g, '');" />
             </div>
             <div class="form-group">
               <label for="rep_estado_logistico" class="form-label">Estado Logístico en Tiempo Real *</label>

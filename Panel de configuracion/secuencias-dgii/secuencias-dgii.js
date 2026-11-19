@@ -7,7 +7,7 @@ let secuencias = _datosSecuencias ? JSON.parse(_datosSecuencias.dataset.secuenci
       tbody.innerHTML = '';
 
       if (secuencias.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="9" style="text-align: center; padding: 28px; color: var(--text-muted);">No hay secuencias fiscales DGII registradas en PostgreSQL. Haz clic en <strong>+ Nuevo Bloque</strong> para registrar uno.</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="8" style="text-align: center; padding: 28px; color: var(--text-muted);">No hay secuencias fiscales DGII registradas. Haz clic en <strong>+ Nuevo Bloque NCF</strong> para registrar uno.</td></tr>';
         const fc = document.getElementById('footerCount');
         if (fc) fc.textContent = 'Mostrando 0 secuencias fiscales';
         return;
@@ -16,7 +16,6 @@ let secuencias = _datosSecuencias ? JSON.parse(_datosSecuencias.dataset.secuenci
         const disponibles = Math.max(0, s.secuencia_hasta - s.secuencia_actual);
         const tr = document.createElement('tr');
         tr.innerHTML = `
-          <td><span class="code-inline">#${s.id}</span></td>
           <td><strong style="font-size: 1.05rem; color: var(--accent-gold);">${s.tipo_comprobante}</strong></td>
           <td class="cell-code">${s.secuencia_desde}</td>
           <td class="cell-code">${s.secuencia_hasta}</td>

@@ -194,7 +194,7 @@ $tipoMsg = $_GET['tipo'] ?? 'exito';
           <div class="form-row-2">
             <div class="form-group">
               <label for="codigo_cliente" class="form-label">Código Cliente *</label>
-              <input type="text" id="codigo_cliente" name="codigo_cliente" class="form-control" required maxlength="20" placeholder="CLI-001" style="font-family: monospace; font-weight: bold; text-transform: uppercase;" />
+              <input type="text" id="codigo_cliente" name="codigo_cliente" class="form-control" required maxlength="20" placeholder="CLI-001" style="font-family: monospace; font-weight: bold; text-transform: uppercase;" oninput="this.value = this.value.toUpperCase().replace(/[^A-Z0-9-]/g, ''); autocompletarClientePorCodigo(this.value);" onblur="autocompletarClientePorCodigo(this.value)" />
             </div>
             <div class="form-group">
               <label for="tipo_persona" class="form-label">Tipo de Persona *</label>
@@ -216,7 +216,7 @@ $tipoMsg = $_GET['tipo'] ?? 'exito';
             </div>
             <div class="form-group">
               <label for="documento_identidad" class="form-label">Número de Documento *</label>
-              <input type="text" id="documento_identidad" name="documento_identidad" class="form-control" placeholder="000-0000000-0" required oninput="mascaraDoc(this); if(this.value.replace(/\D/g,'').length>=9) autocompletarTercero();" onblur="autocompletarTercero()" />
+              <input type="text" id="documento_identidad" name="documento_identidad" class="form-control" placeholder="000-0000000-0" required onkeydown="if(document.getElementById('tipo_documento').value !== 'PASAPORTE' && !['Backspace','Delete','Tab','Escape','Enter','ArrowLeft','ArrowRight','Home','End'].includes(event.key) && !event.ctrlKey && !event.metaKey && !/^[0-9]$/.test(event.key)) { event.preventDefault(); return false; }" oninput="mascaraDoc(this); if(this.value.replace(/\D/g,'').length>=9) autocompletarTercero();" onblur="autocompletarTercero()" />
               <small id="terceroFeedback" style="display: none; color: var(--accent-gold); font-weight: 600; font-size: 0.76rem; margin-top: 3px;"></small>
             </div>
           </div>
@@ -235,7 +235,7 @@ $tipoMsg = $_GET['tipo'] ?? 'exito';
           <div class="form-row-2">
             <div class="form-group">
               <label for="telefono_principal" class="form-label">Teléfono Principal</label>
-              <input type="text" id="telefono_principal" name="telefono_principal" class="form-control" placeholder="(809) 000-0000" oninput="mascaraTelefono(this)" />
+              <input type="text" id="telefono_principal" name="telefono_principal" class="form-control" placeholder="(809) 000-0000" maxlength="14" inputmode="numeric" onkeydown="if(!['Backspace','Delete','Tab','Escape','Enter','ArrowLeft','ArrowRight','Home','End'].includes(event.key) && !event.ctrlKey && !event.metaKey && !/^[0-9]$/.test(event.key)) { event.preventDefault(); return false; }" oninput="mascaraTelefono(this)" />
             </div>
             <div class="form-group">
               <label for="email" class="form-label">Correo Electrónico</label>
@@ -262,7 +262,7 @@ $tipoMsg = $_GET['tipo'] ?? 'exito';
 
           <div class="form-group" id="grupoLimiteCredito" style="display: none;">
             <label for="limite_credito" class="form-label">Límite de Crédito Autorizado (DOP) *</label>
-            <input type="number" step="0.01" min="0" id="limite_credito" name="limite_credito" class="form-control" value="0.00" style="font-family: monospace; font-size: 1.05rem;" />
+            <input type="number" step="0.01" min="0" id="limite_credito" name="limite_credito" class="form-control" value="0.00" style="font-family: monospace; font-size: 1.05rem;" onkeydown="if(['e','E','+','-'].includes(event.key)) { event.preventDefault(); return false; }" oninput="this.value = this.value.replace(/[^0-9.]/g, '');" />
             <small style="color: #999;">Monto máximo de saldo pendiente en cuentas por cobrar.</small>
           </div>
         </div>
