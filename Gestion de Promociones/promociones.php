@@ -27,26 +27,25 @@ if ($pdo) {
         ");
         $campanasRaw = $stmtCamp->fetchAll(PDO::FETCH_ASSOC) ?: [];
 
-        $mapaDiasPreset = [
-            '1,2,3,4,5,6,7' => 'TODOS',
-            '4,5,6,7'       => 'JUE-DOM',
-            '5,6,7'         => 'VIE-DOM',
-            '5,6'           => 'VIE-SAB',
-            '1,2,3,4'       => 'LUN-JUE',
-            '1,2,3,4,5'     => 'LUN-VIE',
-        ];
-        $nombresCortosDia = [1 => 'LUN', 2 => 'MAR', 3 => 'MIE', 4 => 'JUE', 5 => 'VIE', 6 => 'SAB', 7 => 'DOM'];
+        $nombresCortosDia = [1 => 'Lun', 2 => 'Mar', 3 => 'Mié', 4 => 'Jue', 5 => 'Vie', 6 => 'Sáb', 7 => 'Dom'];
         foreach ($campanasRaw as &$cRow) {
             $dNums = trim($cRow['dias_nums'] ?? '');
-            if ($dNums === '' || isset($mapaDiasPreset[$dNums])) {
-                $cRow['dias_semana'] = $mapaDiasPreset[$dNums] ?? 'TODOS';
+            $partes = array_values(array_unique(array_filter(array_map('intval', explode(',', $dNums)), function ($n) {
+                return $n >= 1 && $n <= 7;
+            })));
+            sort($partes);
+            if (empty($partes)) {
+                $partes = [1, 2, 3, 4, 5, 6, 7];
+            }
+            $cRow['dias_array'] = $partes;
+            if (count($partes) === 7) {
+                $cRow['dias_semana'] = 'Lun a Dom (Todos)';
             } else {
-                $partes = array_filter(array_map('intval', explode(',', $dNums)));
                 $labels = [];
                 foreach ($partes as $dn) {
                     if (isset($nombresCortosDia[$dn])) $labels[] = $nombresCortosDia[$dn];
                 }
-                $cRow['dias_semana'] = !empty($labels) ? implode(',', $labels) : 'TODOS';
+                $cRow['dias_semana'] = implode(', ', $labels);
             }
         }
         unset($cRow);
@@ -277,18 +276,26 @@ $tipoMsg = $_GET['tipo'] ?? 'exito';
                       <?php else: ?>
                         <div class="rule-chip-list">
                           <?php foreach ($reglasCamp as $rc):
+                            $esCuponTicket = ($pr['tipo_promocion'] === 'CUPON_TICKET');
                             $alcancePartes = [];
-                            if (!empty($rc['condicion_producto_id']) && intval($rc['condicion_producto_id']) > 0) {
-                                $nombreProdChip = !empty($rc['producto_nombre']) ? $rc['producto_nombre'] : ($rc['producto_sku'] ?: ('Prod #' . $rc['condicion_producto_id']));
-                                $alcancePartes[] = '🍾 ' . $nombreProdChip;
+                            if ($esCuponTicket) {
+                                $minFac = floatval($pr['monto_minimo_factura'] ?? 0);
+                                $alcanceTexto = $minFac > 0
+                                    ? ('🎟️ Cupón por Factura ≥ RD$ ' . number_format($minFac, 2))
+                                    : '🎟️ Cupón de Descuento en Factura';
+                            } else {
+                                if (!empty($rc['condicion_producto_id']) && intval($rc['condicion_producto_id']) > 0) {
+                                    $nombreProdChip = !empty($rc['producto_nombre']) ? $rc['producto_nombre'] : ($rc['producto_sku'] ?: ('Prod #' . $rc['condicion_producto_id']));
+                                    $alcancePartes[] = '🍾 ' . $nombreProdChip;
+                                }
+                                if (!empty($rc['marca_id']) && intval($rc['marca_id']) > 0) {
+                                    $alcancePartes[] = '🏷️ Marca: ' . ($rc['marca_nombre'] ?: ('#' . $rc['marca_id']));
+                                }
+                                if (!empty($rc['condicion_categoria_id']) && intval($rc['condicion_categoria_id']) > 0) {
+                                    $alcancePartes[] = '📁 Cat: ' . ($rc['categoria_nombre'] ?: ('#' . $rc['condicion_categoria_id']));
+                                }
+                                $alcanceTexto = !empty($alcancePartes) ? implode(' + ', $alcancePartes) : '🌐 Catálogo General';
                             }
-                            if (!empty($rc['marca_id']) && intval($rc['marca_id']) > 0) {
-                                $alcancePartes[] = '🏷️ Marca: ' . ($rc['marca_nombre'] ?: ('#' . $rc['marca_id']));
-                            }
-                            if (!empty($rc['condicion_categoria_id']) && intval($rc['condicion_categoria_id']) > 0) {
-                                $alcancePartes[] = '📁 Cat: ' . ($rc['categoria_nombre'] ?: ('#' . $rc['condicion_categoria_id']));
-                            }
-                            $alcanceTexto = !empty($alcancePartes) ? implode(' + ', $alcancePartes) : '🌐 Catálogo General';
 
                             $porcVal = !empty($rc['beneficio_porcentaje']) ? floatval($rc['beneficio_porcentaje']) : 0;
                             if ($porcVal > 0 && $porcVal < 1) {
@@ -300,14 +307,16 @@ $tipoMsg = $_GET['tipo'] ?? 'exito';
                           ?>
                             <div class="rule-chip">
                               <strong><?= htmlspecialchars($alcanceTexto) ?></strong>
-                              <span>(Cant &ge; <?= intval($rc['cantidad_requerida']) ?>)</span>
-                              <?php if (!empty($rc['beneficio_producto_id']) && intval($rc['beneficio_producto_id']) > 0): ?>
+                              <?php if (!$esCuponTicket): ?>
+                                <span>(Cant &ge; <?= intval($rc['cantidad_requerida']) ?>)</span>
+                              <?php endif; ?>
+                              <?php if (!$esCuponTicket && !empty($rc['beneficio_producto_id']) && intval($rc['beneficio_producto_id']) > 0): ?>
                                 <span>&rarr; Combo: <strong><?= htmlspecialchars($rc['beneficio_producto_nombre'] ?: ($rc['beneficio_producto_sku'] ?: ('Prod #' . $rc['beneficio_producto_id']))) ?></strong></span>
                               <?php endif; ?>
                               <?php if ($porcVal > 0): ?>
-                                <span class="rule-chip-benefit">-<?= $porcTexto ?>% OFF</span>
+                                <span class="rule-chip-benefit">Beneficio: -<?= $porcTexto ?>%</span>
                               <?php elseif (!empty($rc['beneficio_monto_fijo'])): ?>
-                                <span class="rule-chip-benefit">-RD$ <?= number_format(floatval($rc['beneficio_monto_fijo']), 2) ?></span>
+                                <span class="rule-chip-benefit">Beneficio: -RD$ <?= number_format(floatval($rc['beneficio_monto_fijo']), 2) ?></span>
                               <?php endif; ?>
                             </div>
                           <?php endforeach; ?>
@@ -411,26 +420,59 @@ $tipoMsg = $_GET['tipo'] ?? 'exito';
               </div>
             </div>
 
-            <!-- Sub-bloque Cabecera para HAPPY_HOUR (Horas y Días) -->
-            <div class="form-row-3" id="bloqueHorarioCabecera" style="display: none; margin-top: 4px; padding-top: 10px; border-top: 1px dashed #e5d8c3;">
-              <div class="form-group">
-                <label for="hora_inicio" class="form-label">⏰ Hora de Inicio (Happy Hour) *</label>
-                <input type="time" id="hora_inicio" class="form-control" />
+            <!-- Sub-bloque Cabecera para HAPPY_HOUR (Horas y Checkboxes de Días en promociones.promociones_dias) -->
+            <div id="bloqueHorarioCabecera" style="display: none; margin-top: 4px; padding-top: 10px; border-top: 1px dashed #e5d8c3;">
+              <div class="form-row-2">
+                <div class="form-group">
+                  <label for="hora_inicio" class="form-label">⏰ Hora de Inicio (Happy Hour) *</label>
+                  <input type="time" id="hora_inicio" class="form-control" />
+                </div>
+                <div class="form-group">
+                  <label for="hora_fin" class="form-label">⏰ Hora de Fin (Happy Hour) *</label>
+                  <input type="time" id="hora_fin" class="form-control" />
+                </div>
               </div>
-              <div class="form-group">
-                <label for="hora_fin" class="form-label">⏰ Hora de Fin (Happy Hour) *</label>
-                <input type="time" id="hora_fin" class="form-control" />
-              </div>
-              <div class="form-group">
-                <label for="dias_semana" class="form-label">📅 Días de la Semana</label>
-                <select id="dias_semana" class="form-control">
-                  <option value="TODOS">Todos los días</option>
-                  <option value="JUE-DOM">Jueves a Domingo</option>
-                  <option value="VIE-DOM">Viernes a Domingo</option>
-                  <option value="VIE-SAB">Viernes y Sábado</option>
-                  <option value="LUN-JUE">Lunes a Jueves</option>
-                  <option value="LUN-VIE">Lunes a Viernes</option>
-                </select>
+
+              <div class="form-group" style="margin-top: 6px; margin-bottom: 0;">
+                <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; flex-wrap: wrap; gap: 6px;">
+                  <label class="form-label" style="margin: 0; font-weight: 700; color: #5a3818;">
+                    📅 Días de la Semana Aplicables *
+                  </label>
+                  <div style="display: flex; gap: 8px;">
+                    <button type="button" class="btn-sm btn-outline" onclick="seleccionarTodosDiasPromo(true)" style="padding: 2px 8px; font-size: 0.74rem;">
+                      Marcar todos
+                    </button>
+                    <button type="button" class="btn-sm btn-outline" onclick="seleccionarTodosDiasPromo(false)" style="padding: 2px 8px; font-size: 0.74rem;">
+                      Limpiar
+                    </button>
+                  </div>
+                </div>
+
+                <div id="contenedorDiasSemana" style="display: grid; grid-template-columns: repeat(7, minmax(95px, 1fr)); gap: 8px; background: #faf6ee; border: 1px solid #e2d1b3; border-radius: 8px; padding: 10px;">
+                  <?php
+                    $catalogoDiasSemana = [
+                        1 => 'Lunes',
+                        2 => 'Martes',
+                        3 => 'Miércoles',
+                        4 => 'Jueves',
+                        5 => 'Viernes',
+                        6 => 'Sábado',
+                        7 => 'Domingo',
+                    ];
+                    foreach ($catalogoDiasSemana as $numDia => $nombreDia):
+                  ?>
+                    <label style="display: flex; align-items: center; gap: 6px; background: #ffffff; border: 1px solid #e5d8c3; border-radius: 6px; padding: 7px 9px; cursor: pointer; font-size: 0.82rem; font-weight: 600; color: #2b1e16; user-select: none;">
+                      <input
+                        type="checkbox"
+                        class="chk-dia-promo"
+                        value="<?= $numDia ?>"
+                        checked
+                        style="width: 15px; height: 15px; accent-color: #a66e2e; cursor: pointer;"
+                      />
+                      <span><?= htmlspecialchars($nombreDia) ?></span>
+                    </label>
+                  <?php endforeach; ?>
+                </div>
               </div>
             </div>
 
@@ -499,7 +541,7 @@ $tipoMsg = $_GET['tipo'] ?? 'exito';
               </div>
             </div>
 
-            <div class="form-row-3" style="margin-top: 6px;">
+            <div class="form-row-3" id="filaBeneficioRegla" style="margin-top: 6px;">
               <!-- Cantidad Mínima Requerida -->
               <div class="form-group" id="grupoCantidad">
                 <label for="regla_cantidad" class="form-label" id="labelCantidad">Cantidad Mínima Requerida *</label>
@@ -521,7 +563,7 @@ $tipoMsg = $_GET['tipo'] ?? 'exito';
 
               <!-- % Descuento -->
               <div class="form-group" id="grupoBeneficioPorcentaje">
-                <label for="regla_beneficio_porcentaje" class="form-label">% Descuento (1% - 100%)</label>
+                <label for="regla_beneficio_porcentaje" class="form-label" id="labelBeneficioPorcentaje">% Descuento (1% - 100%)</label>
                 <input
                   type="number"
                   step="any"
@@ -606,7 +648,7 @@ $tipoMsg = $_GET['tipo'] ?? 'exito';
 
   <div id="toast" class="toast"></div>
 
-  <script src="promociones.js?v=7"></script>
+  <script src="promociones.js?v=9"></script>
 </body>
 </html>
 

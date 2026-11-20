@@ -487,6 +487,39 @@ async function guardarHorario(e) {
     return;
   }
 
+  // Validación: Comprobar si ya existe horario asignado para este repartidor en alguno de los días seleccionados
+  const esEdicion = Boolean(horOrigRepartidorId.value);
+  const diasConflictivos = [];
+
+  diasSeleccionados.forEach(dia => {
+    const yaExiste = horariosData.find(h => {
+      if (String(h.repartidor_id) !== String(repartidorId) || Number(h.dia_semana) !== Number(dia)) {
+        return false;
+      }
+      if (
+        esEdicion &&
+        String(h.repartidor_id) === String(horOrigRepartidorId.value) &&
+        Number(h.dia_semana) === Number(horOrigDiaSemana.value) &&
+        String(h.hora_inicio).substring(0, 5) === String(horOrigHoraInicio.value).substring(0, 5)
+      ) {
+        return false;
+      }
+      return true;
+    });
+
+    if (yaExiste) {
+      const nombreDia = DIAS_SEMANA[dia] || `Día ${dia}`;
+      const ini = String(yaExiste.hora_inicio).substring(0, 5);
+      const fin = String(yaExiste.hora_fin).substring(0, 5);
+      diasConflictivos.push(`${nombreDia} (${ini} - ${fin})`);
+    }
+  });
+
+  if (diasConflictivos.length > 0) {
+    showToast(`El repartidor ya tiene un horario existente para: ${diasConflictivos.join(', ')}. No se permiten horarios repetidos.`, true);
+    return;
+  }
+
   const fd = new FormData();
   fd.append("action", "guardar_horario");
   fd.append("repartidor_id", repartidorId);

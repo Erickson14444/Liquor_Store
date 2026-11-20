@@ -14,24 +14,37 @@ function actualizarControlesDinamicos() {
   const hintTipo = document.getElementById('hintTipoPromocion');
 
   const filaAlcance = document.getElementById('filaAlcanceRegla');
+  const filaBeneficio = document.getElementById('filaBeneficioRegla');
   const grupoProductoA = document.getElementById('grupoProductoA');
   const grupoMarca = document.getElementById('grupoMarca');
   const grupoCategoria = document.getElementById('grupoCategoria');
+  const grupoCantidad = document.getElementById('grupoCantidad');
   const grupoProductoB = document.getElementById('grupoProductoB');
   const labelProductoA = document.getElementById('labelProductoA');
   const labelCantidad = document.getElementById('labelCantidad');
+  const labelBeneficioPorc = document.getElementById('labelBeneficioPorcentaje');
+  const labelBeneficioMonto = document.getElementById('labelBeneficioMonto');
 
   // Reset visibilidades base
   bloqueHorario.style.display = 'none';
   bloqueMontoMin.style.display = 'none';
+  if (filaAlcance) {
+    filaAlcance.style.display = '';
+    filaAlcance.className = 'form-row-3';
+  }
+  if (filaBeneficio) {
+    filaBeneficio.className = 'form-row-3';
+  }
   grupoProductoA.style.display = '';
   grupoMarca.style.display = '';
   grupoCategoria.style.display = '';
+  if (grupoCantidad) grupoCantidad.style.display = '';
   grupoProductoB.style.display = 'none';
-  if (filaAlcance) filaAlcance.className = 'form-row-3';
 
   labelProductoA.textContent = 'Producto Específico (Opcional)';
   labelCantidad.textContent = 'Cantidad Mínima Requerida *';
+  if (labelBeneficioPorc) labelBeneficioPorc.textContent = '% Descuento (1% - 100%)';
+  if (labelBeneficioMonto) labelBeneficioMonto.textContent = 'o Rebaja / Monto Fijo (RD$)';
 
   if (tipo === 'VOLUMEN') {
     grupoMarca.style.display = 'none';
@@ -64,10 +77,21 @@ function actualizarControlesDinamicos() {
     document.getElementById('regla_cantidad').value = '1';
   } else if (tipo === 'CUPON_TICKET') {
     bloqueMontoMin.style.display = '';
-    hintTipo.textContent = 'Genera cupón en el ticket al alcanzar el monto mínimo de factura';
-    labelProductoA.textContent = 'Producto Requerido (Opcional)';
+    hintTipo.textContent = 'Genera cupón en el ticket con beneficio por Porcentaje (%) o Monto Fijo (RD$)';
+    // En CUPON_TICKET no se pide Producto, Marca, Categoría ni Cantidad: solo Beneficio Porcentaje o Beneficio Monto
+    if (filaAlcance) filaAlcance.style.display = 'none';
+    if (grupoCantidad) grupoCantidad.style.display = 'none';
+    if (filaBeneficio) filaBeneficio.className = 'form-row-2';
+    document.getElementById('regla_producto_a').value = '0';
+    document.getElementById('regla_marca_id').value = '';
+    document.getElementById('regla_categoria_id').value = '';
+    document.getElementById('regla_producto_b').value = '';
     document.getElementById('regla_cantidad').value = '1';
+    if (labelBeneficioPorc) labelBeneficioPorc.textContent = '🎟️ Beneficio Porcentaje del Cupón (1% - 100%) *';
+    if (labelBeneficioMonto) labelBeneficioMonto.textContent = '💵 o Beneficio Monto Fijo del Cupón (RD$) *';
   }
+
+  renderizarCarritoReglas();
 }
 
 function limpiarControlesRegla() {
@@ -125,19 +149,21 @@ function agregarReglaAlCarrito(silencioso = false) {
   const selCat = document.getElementById('regla_categoria_id');
   const selProdB = document.getElementById('regla_producto_b');
 
-  const prodAId = parseInt(selProdA.value || '0', 10);
+  const esCupon = (tipo === 'CUPON_TICKET');
+
+  const prodAId = esCupon ? 0 : parseInt(selProdA.value || '0', 10);
   const prodATexto = prodAId > 0 ? (selProdA.options[selProdA.selectedIndex]?.dataset?.texto || selProdA.options[selProdA.selectedIndex]?.text || '') : '';
 
-  const marcaId = (tipo !== 'VOLUMEN' && tipo !== 'CROSS_SELLING' && selMarca.value) ? parseInt(selMarca.value, 10) : null;
+  const marcaId = (!esCupon && tipo !== 'VOLUMEN' && tipo !== 'CROSS_SELLING' && selMarca.value) ? parseInt(selMarca.value, 10) : null;
   const marcaTexto = marcaId ? (selMarca.options[selMarca.selectedIndex]?.dataset?.texto || selMarca.options[selMarca.selectedIndex]?.text || '') : '';
 
-  const categoriaId = selCat.value ? parseInt(selCat.value, 10) : null;
+  const categoriaId = (!esCupon && selCat.value) ? parseInt(selCat.value, 10) : null;
   const categoriaTexto = categoriaId ? (selCat.options[selCat.selectedIndex]?.dataset?.texto || selCat.options[selCat.selectedIndex]?.text || '') : '';
 
   const prodBId = (tipo === 'CROSS_SELLING' && selProdB.value) ? parseInt(selProdB.value, 10) : null;
   const prodBTexto = prodBId ? (selProdB.options[selProdB.selectedIndex]?.dataset?.texto || selProdB.options[selProdB.selectedIndex]?.text || '') : '';
 
-  const cantidad = parseInt(document.getElementById('regla_cantidad').value || '1', 10);
+  const cantidad = esCupon ? 1 : parseInt(document.getElementById('regla_cantidad').value || '1', 10);
   const porcStr = document.getElementById('regla_beneficio_porcentaje').value.trim();
   const montoStr = document.getElementById('regla_beneficio_monto_fijo').value.trim();
 
@@ -245,20 +271,36 @@ function renderizarCarritoReglas() {
     return;
   }
 
-  tbody.innerHTML = carritoReglas.map((r, idx) => {
-    const partes = [];
-    if (r.condicion_producto_id && r.condicion_producto_id > 0) {
-      partes.push(`🍾 <strong>${escapeHtml(r.producto_a_texto || ('Producto #' + r.condicion_producto_id))}</strong>`);
-    }
-    if (r.marca_id && r.marca_id > 0) {
-      partes.push(`🏷️ Marca: <strong>${escapeHtml(r.marca_texto || ('#' + r.marca_id))}</strong>`);
-    }
-    if (r.condicion_categoria_id && r.condicion_categoria_id > 0) {
-      partes.push(`📁 Categoría: <strong>${escapeHtml(r.categoria_texto || ('#' + r.condicion_categoria_id))}</strong>`);
-    }
-    const alcanceHtml = partes.length > 0 ? partes.join(' <span style="color:#a66e2e;">+</span> ') : '🌐 <em>Catálogo General (Todos los productos)</em>';
+  const tipoActual = document.getElementById('tipo_promocion')?.value || '';
+  const esCuponActual = (tipoActual === 'CUPON_TICKET');
+  const montoMinActual = parseFloat(document.getElementById('monto_minimo_factura')?.value || '0');
 
-    const prodBHtml = (r.beneficio_producto_id && r.beneficio_producto_id > 0)
+  tbody.innerHTML = carritoReglas.map((r, idx) => {
+    let alcanceHtml = '';
+    if (esCuponActual) {
+      const txtMin = (!isNaN(montoMinActual) && montoMinActual > 0)
+        ? ` (Mín. Factura: RD$ ${montoMinActual.toFixed(2)})`
+        : '';
+      alcanceHtml = `🎟️ <strong>Cupón de Descuento en Factura${escapeHtml(txtMin)}</strong>`;
+    } else {
+      const partes = [];
+      if (r.condicion_producto_id && r.condicion_producto_id > 0) {
+        partes.push(`🍾 <strong>${escapeHtml(r.producto_a_texto || ('Producto #' + r.condicion_producto_id))}</strong>`);
+      }
+      if (r.marca_id && r.marca_id > 0) {
+        partes.push(`🏷️ Marca: <strong>${escapeHtml(r.marca_texto || ('#' + r.marca_id))}</strong>`);
+      }
+      if (r.condicion_categoria_id && r.condicion_categoria_id > 0) {
+        partes.push(`📁 Categoría: <strong>${escapeHtml(r.categoria_texto || ('#' + r.condicion_categoria_id))}</strong>`);
+      }
+      alcanceHtml = partes.length > 0 ? partes.join(' <span style="color:#a66e2e;">+</span> ') : '🌐 <em>Catálogo General (Todos los productos)</em>';
+    }
+
+    const cantHtml = esCuponActual
+      ? '<span style="color: #8a7b70; font-weight: 600;">Por Factura</span>'
+      : `<strong>&ge; ${parseInt(r.cantidad_requerida, 10)} uds.</strong>`;
+
+    const prodBHtml = (!esCuponActual && r.beneficio_producto_id && r.beneficio_producto_id > 0)
       ? `🎁 <strong>${escapeHtml(r.producto_b_texto || ('Producto #' + r.beneficio_producto_id))}</strong>`
       : '<span style="color: #999;">—</span>';
 
@@ -276,7 +318,7 @@ function renderizarCarritoReglas() {
       <tr ${estiloFila}>
         <td><strong>${idx + 1}</strong></td>
         <td>${alcanceHtml}</td>
-        <td><strong>&ge; ${parseInt(r.cantidad_requerida, 10)} uds.</strong></td>
+        <td>${cantHtml}</td>
         <td>${prodBHtml}</td>
         <td>${beneficioHtml}</td>
         <td style="text-align: right; white-space: nowrap;">
@@ -299,6 +341,25 @@ function escapeHtml(str) {
     .replace(/'/g, '&#039;');
 }
 
+function seleccionarTodosDiasPromo(marcar = true) {
+  document.querySelectorAll('.chk-dia-promo').forEach(chk => {
+    chk.checked = Boolean(marcar);
+  });
+}
+
+function marcarDiasPromocion(diasArray = [1, 2, 3, 4, 5, 6, 7]) {
+  const setDias = new Set((Array.isArray(diasArray) ? diasArray : []).map(n => parseInt(n, 10)));
+  document.querySelectorAll('.chk-dia-promo').forEach(chk => {
+    chk.checked = setDias.has(parseInt(chk.value, 10));
+  });
+}
+
+function obtenerDiasSeleccionados() {
+  return Array.from(document.querySelectorAll('.chk-dia-promo:checked'))
+    .map(chk => parseInt(chk.value, 10))
+    .filter(n => n >= 1 && n <= 7);
+}
+
 function abrirModal() {
   document.getElementById('formAccion').value = 'crear';
   document.getElementById('modalTitulo').textContent = 'Nueva Campaña Promocional y Carrito de Reglas';
@@ -310,7 +371,7 @@ function abrirModal() {
   document.getElementById('estado_campana').value = 'ACTIVA';
   document.getElementById('hora_inicio').value = '';
   document.getElementById('hora_fin').value = '';
-  document.getElementById('dias_semana').value = 'TODOS';
+  marcarDiasPromocion([1, 2, 3, 4, 5, 6, 7]);
   document.getElementById('monto_minimo_factura').value = '0.00';
 
   carritoReglas = [];
@@ -332,7 +393,14 @@ function editarPromo(pr) {
   document.getElementById('estado_campana').value = pr.estado || 'ACTIVA';
   document.getElementById('hora_inicio').value = pr.hora_inicio ? pr.hora_inicio.substring(0, 5) : '';
   document.getElementById('hora_fin').value = pr.hora_fin ? pr.hora_fin.substring(0, 5) : '';
-  document.getElementById('dias_semana').value = pr.dias_semana || 'TODOS';
+  let diasCampana = [1, 2, 3, 4, 5, 6, 7];
+  if (Array.isArray(pr.dias_array) && pr.dias_array.length > 0) {
+    diasCampana = pr.dias_array;
+  } else if (pr.dias_nums) {
+    const parsed = String(pr.dias_nums).split(',').map(x => parseInt(x.trim(), 10)).filter(n => n >= 1 && n <= 7);
+    if (parsed.length > 0) diasCampana = parsed;
+  }
+  marcarDiasPromocion(diasCampana);
   document.getElementById('monto_minimo_factura').value = parseFloat(pr.monto_minimo_factura || 0).toFixed(2);
 
   actualizarControlesDinamicos();
@@ -373,7 +441,8 @@ function guardarCampanaConReglas(e) {
   const estado = document.getElementById('estado_campana').value;
   const horaInicio = document.getElementById('hora_inicio').value || null;
   const horaFin = document.getElementById('hora_fin').value || null;
-  const diasSemana = document.getElementById('dias_semana').value || 'TODOS';
+  const diasSeleccionados = obtenerDiasSeleccionados();
+  const diasSemana = (tipo === 'HAPPY_HOUR') ? diasSeleccionados : [1, 2, 3, 4, 5, 6, 7];
   const montoMinimo = parseFloat(document.getElementById('monto_minimo_factura').value || '0');
 
   if (!nombre) {
@@ -381,9 +450,15 @@ function guardarCampanaConReglas(e) {
     return;
   }
 
-  if (tipo === 'HAPPY_HOUR' && (!horaInicio || !horaFin)) {
-    alert('Para una campaña de tipo HAPPY_HOUR debes especificar la Hora de Inicio y la Hora de Fin.');
-    return;
+  if (tipo === 'HAPPY_HOUR') {
+    if (!horaInicio || !horaFin) {
+      alert('Para una campaña de tipo HAPPY_HOUR debes especificar la Hora de Inicio y la Hora de Fin.');
+      return;
+    }
+    if (diasSeleccionados.length === 0) {
+      alert('Para una campaña de tipo HAPPY_HOUR debes marcar al menos un día de la semana.');
+      return;
+    }
   }
 
   // Si el usuario está editando una regla en el Paso 2 o escribió un descuento en el Paso 2, aplicarlo automáticamente antes de enviar

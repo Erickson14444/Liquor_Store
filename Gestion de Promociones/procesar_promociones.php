@@ -48,7 +48,7 @@ try {
         $fechaFin    = !empty($datos['fecha_fin']) ? $datos['fecha_fin'] : date('Y-m-d', strtotime('+30 days'));
         $horaInicio  = !empty($datos['hora_inicio']) ? $datos['hora_inicio'] : null;
         $horaFin     = !empty($datos['hora_fin']) ? $datos['hora_fin'] : null;
-        $diasSemana  = !empty($datos['dias_semana']) ? (is_array($datos['dias_semana']) ? implode(',', $datos['dias_semana']) : trim($datos['dias_semana'])) : 'TODOS';
+        $diasRaw     = $datos['dias_semana'] ?? [1, 2, 3, 4, 5, 6, 7];
         $montoMinimo = isset($datos['monto_minimo_factura']) ? max(0, floatval($datos['monto_minimo_factura'])) : 0.00;
         $estado      = trim($datos['estado'] ?? 'ACTIVA');
         $reglas      = isset($datos['reglas']) && is_array($datos['reglas']) ? $datos['reglas'] : [];
@@ -126,16 +126,43 @@ try {
 
         // 2.5 DÍAS DE LA SEMANA: Sincronizar en promociones.promociones_dias (1=Lunes .. 7=Domingo)
         $pdo->prepare("DELETE FROM promociones.promociones_dias WHERE promocion_id = ?")->execute([$promocionId]);
-        $mapaPresetADias = [
-            'TODOS'   => [1, 2, 3, 4, 5, 6, 7],
-            'JUE-DOM' => [4, 5, 6, 7],
-            'VIE-DOM' => [5, 6, 7],
-            'VIE-SAB' => [5, 6],
-            'LUN-JUE' => [1, 2, 3, 4],
-            'LUN-VIE' => [1, 2, 3, 4, 5],
-        ];
-        $diasUpper = strtoupper(trim((string)$diasSemana));
-        $listaDiasNum = $mapaPresetADias[$diasUpper] ?? [1, 2, 3, 4, 5, 6, 7];
+        $listaDiasNum = [];
+        if (is_array($diasRaw)) {
+            foreach ($diasRaw as $dVal) {
+                $n = intval($dVal);
+                if ($n >= 1 && $n <= 7) {
+                    $listaDiasNum[] = $n;
+                }
+            }
+        } elseif (is_string($diasRaw)) {
+            $mapaPresetADias = [
+                'TODOS'   => [1, 2, 3, 4, 5, 6, 7],
+                'JUE-DOM' => [4, 5, 6, 7],
+                'VIE-DOM' => [5, 6, 7],
+                'VIE-SAB' => [5, 6],
+                'LUN-JUE' => [1, 2, 3, 4],
+                'LUN-VIE' => [1, 2, 3, 4, 5],
+            ];
+            $diasUpper = strtoupper(trim($diasRaw));
+            if (isset($mapaPresetADias[$diasUpper])) {
+                $listaDiasNum = $mapaPresetADias[$diasUpper];
+            } else {
+                foreach (explode(',', $diasRaw) as $dVal) {
+                    $n = intval(trim($dVal));
+                    if ($n >= 1 && $n <= 7) {
+                        $listaDiasNum[] = $n;
+                    }
+                }
+            }
+        }
+        $listaDiasNum = array_values(array_unique($listaDiasNum));
+        sort($listaDiasNum);
+        if (empty($listaDiasNum)) {
+            if ($tipo === 'HAPPY_HOUR') {
+                throw new Exception("Debes seleccionar al menos un día de la semana para la campaña Happy Hour.");
+            }
+            $listaDiasNum = [1, 2, 3, 4, 5, 6, 7];
+        }
         $stmtInsDia = $pdo->prepare("INSERT INTO promociones.promociones_dias (promocion_id, dia_semana) VALUES (?, ?) ON CONFLICT DO NOTHING");
         foreach ($listaDiasNum as $diaNum) {
             $stmtInsDia->execute([$promocionId, $diaNum]);

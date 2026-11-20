@@ -73,12 +73,56 @@ try {
             exit;
         }
 
-        $pdo->beginTransaction();
-
         $esEdicion = ($origRepartidorId !== '' && $origDiaSemana >= 1 && $origDiaSemana <= 7 && $origHoraInicio !== '');
 
+        // Validación: Verificar si ya existe horario para este repartidor en alguno de los días seleccionados
+        $diasNombres = [
+            1 => 'Lunes', 2 => 'Martes', 3 => 'Miércoles',
+            4 => 'Jueves', 5 => 'Viernes', 6 => 'Sábado', 7 => 'Domingo'
+        ];
+
+        $conflictos = [];
+        foreach ($diasSeleccionados as $dia) {
+            $sqlCheck = "
+                SELECT dia_semana, TO_CHAR(hora_inicio, 'HH24:MI') AS ini, TO_CHAR(hora_fin, 'HH24:MI') AS fin
+                FROM ventas.repartidor_horarios
+                WHERE repartidor_id = :rep
+                  AND dia_semana    = :dia
+            ";
+            $paramsCheck = [
+                ':rep' => $repartidorId,
+                ':dia' => $dia
+            ];
+
+            if ($esEdicion) {
+                $sqlCheck .= " AND NOT (repartidor_id = :orig_rep AND dia_semana = :orig_dia AND TO_CHAR(hora_inicio, 'HH24:MI') = :orig_ini)";
+                $paramsCheck[':orig_rep'] = $origRepartidorId;
+                $paramsCheck[':orig_dia'] = $origDiaSemana;
+                $paramsCheck[':orig_ini'] = substr($origHoraInicio, 0, 5);
+            }
+
+            $stmtCheck = $pdo->prepare($sqlCheck);
+            $stmtCheck->execute($paramsCheck);
+            $existentes = $stmtCheck->fetchAll(PDO::FETCH_ASSOC);
+
+            foreach ($existentes as $ex) {
+                $nomDia = $diasNombres[$ex['dia_semana']] ?? ('Día ' . $ex['dia_semana']);
+                $conflictos[] = "{$nomDia} ({$ex['ini']} - {$ex['fin']})";
+            }
+        }
+
+        if (!empty($conflictos)) {
+            echo json_encode([
+                'status'  => 'error',
+                'message' => 'El repartidor ya tiene un horario existente para: ' . implode(', ', array_unique($conflictos)) . '. No se permiten horarios repetidos.'
+            ]);
+            exit;
+        }
+
+        $pdo->beginTransaction();
+
         if ($esEdicion) {
-            // Eliminar el registro original antes de insertar/actualizar los días seleccionados
+            // Eliminar el registro original antes de insertar los días seleccionados
             $stmtDelOrig = $pdo->prepare("
                 DELETE FROM ventas.repartidor_horarios
                 WHERE repartidor_id = :orig_rep
@@ -92,51 +136,21 @@ try {
             ]);
         }
 
-        $stmtCheckExist = $pdo->prepare("
-            SELECT COUNT(*) FROM ventas.repartidor_horarios
-            WHERE repartidor_id = :rep
-              AND dia_semana    = :dia
-              AND TO_CHAR(hora_inicio, 'HH24:MI') = :ini
-        ");
-
-        $stmtUpdExist = $pdo->prepare("
-            UPDATE ventas.repartidor_horarios
-            SET hora_fin = :fin
-            WHERE repartidor_id = :rep
-              AND dia_semana    = :dia
-              AND TO_CHAR(hora_inicio, 'HH24:MI') = :ini
-        ");
-
         $stmtIns = $pdo->prepare("
             INSERT INTO ventas.repartidor_horarios (repartidor_id, dia_semana, hora_inicio, hora_fin)
             VALUES (:rep, :dia, :ini, :fin)
         ");
 
-        $iniCorto = substr($horaInicio, 0, 5);
-
         foreach ($diasSeleccionados as $dia) {
-            $stmtCheckExist->execute([
+            $stmtIns->execute([
                 ':rep' => $repartidorId,
                 ':dia' => $dia,
-                ':ini' => $iniCorto
+                ':ini' => $horaInicio,
+                ':fin' => $horaFin
             ]);
-
-            if ((int)$stmtCheckExist->fetchColumn() > 0) {
-                $stmtUpdExist->execute([
-                    ':fin' => $horaFin,
-                    ':rep' => $repartidorId,
-                    ':dia' => $dia,
-                    ':ini' => $iniCorto
-                ]);
-            } else {
-                $stmtIns->execute([
-                    ':rep' => $repartidorId,
-                    ':dia' => $dia,
-                    ':ini' => $horaInicio,
-                    ':fin' => $horaFin
-                ]);
-            }
         }
+
+        $pdo->commit();
 
         // Consultar la lista completa actualizada de horarios para sincronizar la tabla
         $stmtAll = $pdo->query("

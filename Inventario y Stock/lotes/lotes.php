@@ -60,7 +60,7 @@ if ($pdo) {
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>House &amp; Ice • Consulta de Lotes y Vencimientos (FEFO)</title>
+  <title>House &amp; Ice • Consulta de Lotes y Vencimientos</title>
   <link rel="stylesheet" href="../../Panel de configuracion/styles.css?v=15" />
   <style>
     .fefo-kpi-grid {
@@ -181,7 +181,7 @@ if ($pdo) {
     <main class="main-content">
       <div class="page-header">
         <div>
-          <h1 class="page-title">Consulta de Lotes y Vencimientos (FEFO)</h1>
+          <h1 class="page-title">Consulta de Lotes y Vencimientos</h1>
           <p class="page-subtitle">Monitoreo dinámico en tiempo real de existencias por lote, semáforo de caducidad y prioridad de salida (Solo Consulta)</p>
         </div>
         <div style="display: flex; align-items: center; gap: 8px;">

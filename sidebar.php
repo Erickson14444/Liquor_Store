@@ -37,7 +37,6 @@ $ventasPfx     = $rootPfx . 'Ventas y Facturacion/';
 // Lista de páginas pertenecientes al panel de configuración
 $configPages = [
     'clasificaciones.php', 'productos.php', 'presentaciones.php', 'almacenes.php',
-    'clientes.php', 'proveedores.php', 'personal.php',
     'cajas.php', 'secuencias-dgii.php', 'cuentas-bancarias.php', 'metodos-pago.php',
     'monedas.php', 'impuestos.php', 'retenciones.php', 'zonas-delivery.php',
     'usuarios.php'
@@ -48,7 +47,7 @@ $isIdentidadActive   = in_array($currentPage, ['clientes.php', 'proveedores.php'
 $isSeguridadActive   = in_array($currentPage, ['roles.php']);
 $isInventarioActive  = in_array($currentPage, ['lotes.php']);
 $isVentasActive      = in_array($currentPage, ['delivery.php', 'facturacion.php']);
-$isPromocionesActive = in_array($currentPage, ['promociones.php']);
+$isPromocionesActive = in_array($currentPage, ['promociones.php', 'cupones.php']);
 $isBancosActive      = false;
 $isConfigOnlyActive  = in_array($currentPage, [
     'clasificaciones.php', 'productos.php', 'presentaciones.php', 'almacenes.php',
@@ -101,7 +100,7 @@ $isConfigActive      = (!empty($configPages) && is_array($configPages)) ? in_arr
         <span class="sidebar-chevron">▸</span>
       </div>
       <ul class="sidebar-subnav">
-        <li><a href="<?= $inventarioPfx ?>lotes/lotes.php" class="sidebar-sublink <?= ($currentPage === 'lotes.php') ? 'active' : '' ?>"><span>⏳</span> Lotes y Vencimientos (FEFO)</a></li>
+        <li><a href="<?= $inventarioPfx ?>lotes/lotes.php" class="sidebar-sublink <?= ($currentPage === 'lotes.php') ? 'active' : '' ?>"><span>⏳</span> Lotes y Vencimientos</a></li>
         <li><a href="#" class="sidebar-sublink" onclick="alert('Ajustes de Inventario y Mermas en desarrollo'); return false;"><span>⚖️</span> Ajustes y Mermas</a></li>
         <li><a href="#" class="sidebar-sublink" onclick="alert('Traslados entre Bodegas en desarrollo'); return false;"><span>🔄</span> Traslados entre Bodegas</a></li>
       </ul>
@@ -144,7 +143,7 @@ $isConfigActive      = (!empty($configPages) && is_array($configPages)) ? in_arr
       </div>
       <ul class="sidebar-subnav">
         <li><a href="<?= $promoPfx ?>promociones.php" class="sidebar-sublink <?= ($currentPage === 'promociones.php') ? 'active' : '' ?>"><span>🎁</span> Campañas y Reglas</a></li>
-        <li><a href="#" class="sidebar-sublink" onclick="alert('Emisión y Canje de Cupones en desarrollo'); return false;"><span>🏷️</span> Cupones &amp; Descuentos</a></li>
+        <li><a href="<?= $promoPfx ?>cupones.php" class="sidebar-sublink <?= ($currentPage === 'cupones.php') ? 'active' : '' ?>"><span>🏷️</span> Cupones &amp; Descuentos</a></li>
       </ul>
     </li>
 
@@ -181,9 +180,6 @@ $isConfigActive      = (!empty($configPages) && is_array($configPages)) ? in_arr
         <span class="sidebar-chevron">▸</span>
       </div>
       <ul class="sidebar-subnav">
-        <li><a href="<?= $cfgPfx ?>clientes/clientes.php" class="sidebar-sublink <?= ($currentPage === 'clientes.php') ? 'active' : '' ?>"><span>👥</span> Clientes</a></li>
-        <li><a href="<?= $cfgPfx ?>proveedores/proveedores.php" class="sidebar-sublink <?= ($currentPage === 'proveedores.php') ? 'active' : '' ?>"><span>🏭</span> Proveedores</a></li>
-        <li><a href="<?= $cfgPfx ?>personal/personal.php" class="sidebar-sublink <?= ($currentPage === 'personal.php') ? 'active' : '' ?>"><span>👔</span> Personal y Repartidores</a></li>
         <li><a href="<?= $cfgPfx ?>usuarios/usuarios.php" class="sidebar-sublink <?= ($currentPage === 'usuarios.php') ? 'active' : '' ?>"><span>👤</span> Usuarios</a></li>
         <li><a href="<?= $cfgPfx ?>clasificaciones/clasificaciones.php" class="sidebar-sublink <?= ($currentPage === 'clasificaciones.php') ? 'active' : '' ?>"><span>🏷️</span> Marcas y Categorías</a></li>
         <li><a href="<?= $cfgPfx ?>productos/productos.php" class="sidebar-sublink <?= ($currentPage === 'productos.php') ? 'active' : '' ?>"><span>🍾</span> Maestro de Productos</a></li>
