@@ -12,17 +12,40 @@ $empleados = [];
 $roles = [];
 if ($pdo) {
     try {
+        $sqlSyncPath = __DIR__ . '/../../actualizacion_roles_permisos_pin.sql';
+        if (is_file($sqlSyncPath)) {
+            $pdo->exec(file_get_contents($sqlSyncPath));
+        }
+    } catch (Throwable $e) {}
+
+    try {
         $stmt = $pdo->query("
-            SELECT u.usuario_id, u.username, u.estado, (u.estado = 'ACTIVO') AS es_activo, u.ultimo_acceso, u.creado_en,
+            SELECT u.usuario_id, u.username, u.estado, (u.estado = 'ACTIVO') AS es_activo,
+                   u.ultimo_acceso, u.creado_en,
+                   (u.pin_autorizacion IS NOT NULL AND TRIM(u.pin_autorizacion) <> '') AS tiene_pin_guardado,
                    p.persona_id, p.nombre_razon_social, p.nombre_comercial, p.email, p.documento_identidad,
-                   r.rol_id, r.nombre AS rol_nombre
+                   COALESCE((
+                       SELECT JSON_AGG(ur.rol_id ORDER BY r2.nombre)
+                       FROM seguridad.usuarios_roles ur
+                       JOIN seguridad.roles r2 ON ur.rol_id = r2.rol_id
+                       WHERE ur.usuario_id = u.usuario_id
+                   ), '[]') AS roles_ids_json,
+                   COALESCE((
+                       SELECT STRING_AGG(r2.nombre, ' | ' ORDER BY r2.nombre)
+                       FROM seguridad.usuarios_roles ur
+                       JOIN seguridad.roles r2 ON ur.rol_id = r2.rol_id
+                       WHERE ur.usuario_id = u.usuario_id
+                   ), '') AS roles_nombres
             FROM seguridad.usuarios u
             JOIN identidad.personas p ON u.persona_id = p.persona_id
-            LEFT JOIN seguridad.usuarios_roles ur ON u.usuario_id = ur.usuario_id
-            LEFT JOIN seguridad.roles r ON ur.rol_id = r.rol_id
             ORDER BY u.creado_en DESC
         ");
         $usuarios = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+        foreach ($usuarios as &$uRow) {
+            $uRow['roles_ids'] = json_decode($uRow['roles_ids_json'] ?? '[]', true) ?: [];
+        }
+        unset($uRow);
+
         $empleados = $pdo->query("
             SELECT e.empleado_id, e.persona_id, e.codigo_empleado, e.cargo,
                    p.nombre_razon_social, p.nombre_comercial, p.documento_identidad
@@ -31,7 +54,20 @@ if ($pdo) {
             WHERE e.estado_laboral = 'ACTIVO'
             ORDER BY p.nombre_razon_social ASC
         ")->fetchAll(PDO::FETCH_ASSOC) ?: [];
-        $roles = $pdo->query("SELECT rol_id, nombre FROM seguridad.roles WHERE es_activo = true ORDER BY nombre ASC")->fetchAll(PDO::FETCH_ASSOC) ?: [];
+
+        $roles = $pdo->query("
+            SELECT r.rol_id, r.nombre, COALESCE(r.descripcion, '') AS descripcion,
+                   EXISTS (
+                       SELECT 1
+                       FROM seguridad.roles_permisos rp
+                       JOIN seguridad.permisos perm ON rp.permiso_id = perm.permiso_id
+                       WHERE rp.rol_id = r.rol_id
+                         AND (UPPER(perm.clave_sistema) = 'AUTORIZAR_CON_PIN' OR UPPER(perm.clave_sistema) LIKE '%PIN%')
+                   ) AS tiene_permiso_pin
+            FROM seguridad.roles r
+            WHERE r.es_activo = true
+            ORDER BY CASE WHEN UPPER(r.nombre) = 'ADMINISTRADOR' THEN 0 ELSE 1 END, r.nombre ASC
+        ")->fetchAll(PDO::FETCH_ASSOC) ?: [];
     } catch (Throwable $e) {}
 }
 
@@ -123,7 +159,8 @@ $tipoMsg = $_GET['tipo'] ?? 'exito';
             <tr>
               <th>Usuario (Login)</th>
               <th>Empleado Asociado</th>
-              <th>Rol Asignado</th>
+              <th>Roles Asignados</th>
+              <th class="text-center">PIN Seguridad</th>
               <th>Último Acceso</th>
               <th class="text-center">Estado</th>
               <th class="text-right">Acciones</th>
@@ -132,7 +169,7 @@ $tipoMsg = $_GET['tipo'] ?? 'exito';
           <tbody id="tablaBody">
             <?php if (empty($usuarios)): ?>
               <tr>
-                <td colspan="6" class="text-center" style="padding: 30px; color: #888;">
+                <td colspan="7" class="text-center" style="padding: 30px; color: #888;">
                   No hay usuarios registrados. Haz clic en <strong>+ Nuevo Usuario</strong> para dar de alta uno.
                 </td>
               </tr>
@@ -140,8 +177,10 @@ $tipoMsg = $_GET['tipo'] ?? 'exito';
               <?php foreach ($usuarios as $u): 
                 $nombreCompleto = trim($u['nombre_razon_social'] ?? '') ?: $u['username'];
                 $esActivo = ($u['es_activo'] === true || $u['es_activo'] === 't' || strtoupper($u['estado'] ?? '') === 'ACTIVO');
+                $tienePinGuardado = ($u['tiene_pin_guardado'] === true || $u['tiene_pin_guardado'] === 't' || $u['tiene_pin_guardado'] === 1);
+                $listaRoles = !empty($u['roles_nombres']) ? explode(' | ', $u['roles_nombres']) : [];
               ?>
-                <tr class="fila-usuario" data-texto="<?= strtolower(htmlspecialchars($u['username'] . ' ' . $nombreCompleto . ' ' . ($u['rol_nombre'] ?? ''))) ?>">
+                <tr class="fila-usuario" data-texto="<?= strtolower(htmlspecialchars($u['username'] . ' ' . $nombreCompleto . ' ' . ($u['roles_nombres'] ?? ''))) ?>">
                   <td>
                     <strong style="color: #a66e2e; font-size: 1.05em;"><?= htmlspecialchars($u['username']) ?></strong>
                   </td>
@@ -150,9 +189,24 @@ $tipoMsg = $_GET['tipo'] ?? 'exito';
                     <div style="font-size: 0.8em; color: #8a7b70;"><?= htmlspecialchars($u['email'] ?: 'Sin email') ?></div>
                   </td>
                   <td>
-                    <span class="badge" style="background: #eadecd; color: #5a3818; font-weight: bold;">
-                      <?= htmlspecialchars($u['rol_nombre'] ?: 'Sin Rol') ?>
-                    </span>
+                    <?php if (!empty($listaRoles)): ?>
+                      <?php foreach ($listaRoles as $rNom): ?>
+                        <span class="badge" style="background: #eadecd; color: #5a3818; font-weight: bold; display: inline-block; margin: 2px;">
+                          <?= htmlspecialchars($rNom) ?>
+                        </span>
+                      <?php endforeach; ?>
+                    <?php else: ?>
+                      <span class="badge" style="background: #f0ebe3; color: #888;">Sin Rol</span>
+                    <?php endif; ?>
+                  </td>
+                  <td class="text-center">
+                    <?php if ($tienePinGuardado): ?>
+                      <span class="badge" style="background: #e8f5e9; color: #2e7d32; border: 1px solid #c8e6c9; font-weight: 700; font-size: 0.75rem;">
+                        🔐 PIN Configurado
+                      </span>
+                    <?php else: ?>
+                      <span style="color: #999; font-size: 0.8rem;">No asignado</span>
+                    <?php endif; ?>
                   </td>
                   <td style="font-size: 0.88em; color: #555;">
                     <?= $u['ultimo_acceso'] ? date('d/m/Y H:i', strtotime($u['ultimo_acceso'])) : 'Nunca' ?>
@@ -188,9 +242,10 @@ $tipoMsg = $_GET['tipo'] ?? 'exito';
       <div class="modal-header">
         <h2 class="modal-title" id="modalTitulo">Nuevo Usuario</h2>
       </div>
-      <form id="formUsuario" action="procesar_usuarios.php" method="POST">
+      <form id="formUsuario" action="procesar_usuarios.php" method="POST" onsubmit="return validarFormularioUsuario(event)">
         <input type="hidden" name="accion" id="formAccion" value="crear" />
         <input type="hidden" name="usuario_id" id="usuario_id" value="" />
+        <input type="hidden" id="tiene_pin_guardado" value="0" />
 
         <div class="modal-body">
           <div class="form-group" id="grupoPersona">
@@ -208,23 +263,7 @@ $tipoMsg = $_GET['tipo'] ?? 'exito';
           <div class="form-row-2">
             <div class="form-group">
               <label for="username" class="form-label">Nombre de Usuario (Login) *</label>
-              <input type="text" id="username" name="username" class="form-control" required placeholder="ej. jperez" maxlength="50" />
-            </div>
-            <div class="form-group">
-              <label for="rol_id" class="form-label">Rol del Sistema *</label>
-              <select id="rol_id" name="rol_id" class="form-control" required>
-                <?php foreach ($roles as $r): ?>
-                  <option value="<?= $r['rol_id'] ?>"><?= htmlspecialchars($r['nombre']) ?></option>
-                <?php endforeach; ?>
-              </select>
-            </div>
-          </div>
-
-          <div class="form-row-2">
-            <div class="form-group">
-              <label for="password" class="form-label" id="lblPassword">Contraseña de Seguridad *</label>
-              <input type="password" id="password" name="password" class="form-control" placeholder="Mínimo 8 caracteres" />
-              <small id="hintPassword" style="display: none; color: #888; font-size: 0.8em;">Deja en blanco para conservar la actual</small>
+              <input type="text" id="username" name="username" class="form-control" required placeholder="ej. jperez" maxlength="50" oninput="this.value = this.value.toLowerCase().replace(/[^a-z0-9._-]/g, '');" />
             </div>
             <div class="form-group">
               <label for="es_activo" class="form-label">Estado de Acceso *</label>
@@ -232,6 +271,80 @@ $tipoMsg = $_GET['tipo'] ?? 'exito';
                 <option value="true">ACTIVO</option>
                 <option value="false">INACTIVO / BLOQUEADO</option>
               </select>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label for="password" class="form-label" id="lblPassword">Contraseña de Seguridad *</label>
+            <input type="password" id="password" name="password" class="form-control" placeholder="Mínimo 8 caracteres" />
+            <small id="hintPassword" style="display: none; color: #888; font-size: 0.8em;">Deja en blanco para conservar la contraseña actual</small>
+          </div>
+
+          <!-- MATRIZ DE ROLES DEL USUARIO (CHECKBOXES MÚLTIPLES IGUAL QUE ROLES TIENE PERMISOS) -->
+          <div class="form-group" style="margin-top: 12px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+              <label class="form-label" style="font-weight: 700; color: #a66e2e; margin: 0;">Roles Asignados al Usuario (Selección Múltiple) *</label>
+              <span style="font-size: 0.76rem; color: #8a7b70;">Un usuario puede ejercer uno o varios roles</span>
+            </div>
+            <div id="contenedorRolesUsuario" style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; background: #faf7f2; border: 1px solid #eedcb9; border-radius: 8px; padding: 12px; max-height: 215px; overflow-y: auto;">
+              <?php foreach ($roles as $r):
+                $tienePinRol = ($r['tiene_permiso_pin'] === true || $r['tiene_permiso_pin'] === 't' || $r['tiene_permiso_pin'] === 1);
+              ?>
+                <label style="display: flex; align-items: flex-start; gap: 8px; padding: 8px 10px; border-radius: 6px; background: #fff; border: 1px solid #eadecd; cursor: pointer;">
+                  <input
+                    type="checkbox"
+                    name="roles[]"
+                    class="chk-rol-usuario"
+                    value="<?= htmlspecialchars($r['rol_id']) ?>"
+                    data-nombre="<?= htmlspecialchars($r['nombre']) ?>"
+                    data-tiene-pin="<?= $tienePinRol ? '1' : '0' ?>"
+                    onchange="evaluarPermisoPinUsuario()"
+                    style="width: 16px; height: 16px; margin-top: 2px; accent-color: #a66e2e;"
+                  />
+                  <div style="flex: 1;">
+                    <div style="display: flex; align-items: center; justify-content: space-between; gap: 6px; flex-wrap: wrap;">
+                      <strong style="font-size: 0.86rem; color: #211813;"><?= htmlspecialchars($r['nombre']) ?></strong>
+                      <?php if ($tienePinRol): ?>
+                        <span style="font-size: 0.68rem; background: #fdf3e2; color: #9c621c; border: 1px solid #e7cca4; padding: 1px 6px; border-radius: 4px; font-weight: 700;">
+                          🔐 Permiso PIN
+                        </span>
+                      <?php endif; ?>
+                    </div>
+                    <?php if (!empty($r['descripcion'])): ?>
+                      <div style="font-size: 0.74rem; color: #7a6b5d; margin-top: 2px; line-height: 1.3;">
+                        <?= htmlspecialchars(mb_strimwidth($r['descripcion'], 0, 95, '...')) ?>
+                      </div>
+                    <?php endif; ?>
+                  </div>
+                </label>
+              <?php endforeach; ?>
+            </div>
+          </div>
+
+          <!-- CASILLA CONDICIONAL DE PIN (COMPACTA) -->
+          <div class="form-group" id="bloquePinUsuario" style="display: none; margin-top: 8px; background: #fdf8ef; border: 1px solid #e4c99b; border-radius: 6px; padding: 8px 12px;">
+            <div style="display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap;">
+              <div style="display: flex; align-items: center; gap: 10px;">
+                <label for="pin_autorizacion" class="form-label" id="lblPinAutorizacion" style="color: #794a15; font-weight: 700; font-size: 0.78rem; margin: 0; white-space: nowrap;">
+                  🔐 PIN DE AUTORIZACIÓN (4 A 6 DÍGITOS) *
+                </label>
+                <input
+                  type="password"
+                  id="pin_autorizacion"
+                  name="pin_autorizacion"
+                  class="form-control"
+                  inputmode="numeric"
+                  minlength="4"
+                  maxlength="6"
+                  autocomplete="new-password"
+                  placeholder="••••"
+                  style="width: 120px; height: 32px; padding: 4px 10px; font-family: monospace; font-size: 0.95rem; letter-spacing: 3px; font-weight: 700; text-align: center;"
+                  onkeydown="return soloNumerosPin(event)"
+                  oninput="this.value = this.value.replace(/[^0-9]/g, '').slice(0, 6); validarInputPinEnVivo(this);"
+                />
+              </div>
+              <small id="errorPinUsuario" style="display: none; font-size: 0.74rem; font-weight: 600; margin: 0;"></small>
+              <small id="hintPinUsuario" style="color: #8a7b70; font-size: 0.72rem; margin: 0;">Solo números (4 a 6 dígitos)</small>
             </div>
           </div>
         </div>
@@ -246,7 +359,7 @@ $tipoMsg = $_GET['tipo'] ?? 'exito';
 
   <div id="toast" class="toast"></div>
 
-    <script src="usuarios.js"></script>
+    <script src="usuarios.js?v=5"></script>
 </body>
 </html>
 

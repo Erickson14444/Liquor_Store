@@ -20,6 +20,13 @@ if (!in_array($tabActiva, ['roles', 'permisos'])) {
 
 if ($pdo) {
     try {
+        $sqlSyncPath = __DIR__ . '/../../actualizacion_roles_permisos_pin.sql';
+        if (is_file($sqlSyncPath)) {
+            $pdo->exec(file_get_contents($sqlSyncPath));
+        }
+    } catch (Throwable $e) {}
+
+    try {
         // Consultar roles con conteo de permisos asignados
         $stmt = $pdo->query("
             SELECT r.*,

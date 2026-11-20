@@ -13,9 +13,9 @@ $currentDir  = basename(dirname($_SERVER['PHP_SELF']));
 // Detección de nivel de carpeta respecto a la raíz del proyecto (Liquor_Store/)
 $isSubdir = in_array($currentDir, [
     'almacenes', 'cajas', 'clasificaciones', 'clientes', 'cuentas-bancarias',
-    'metodos-pago', 'personal', 'presentaciones', 'productos',
-    'proveedores', 'roles', 'secuencias-dgii', 'usuarios', 'zonas-delivery',
-    'Delivery', 'Facturacion'
+    'impuestos', 'lotes', 'metodos-pago', 'monedas', 'personal', 'presentaciones',
+    'productos', 'proveedores', 'retenciones', 'roles', 'secuencias-dgii',
+    'usuarios', 'zonas-delivery', 'Delivery', 'Facturacion'
 ]);
 
 if ($isSubdir) {
@@ -36,9 +36,9 @@ $ventasPfx    = $rootPfx . 'Ventas y Facturacion/';
 // Lista de páginas pertenecientes al panel de configuración
 $configPages = [
     'clasificaciones.php', 'productos.php', 'presentaciones.php', 'almacenes.php',
-    'clientes.php', 'proveedores.php', 'personal.php',
+    'lotes.php', 'clientes.php', 'proveedores.php', 'personal.php',
     'cajas.php', 'secuencias-dgii.php', 'cuentas-bancarias.php', 'metodos-pago.php',
-    'zonas-delivery.php',
+    'monedas.php', 'impuestos.php', 'retenciones.php', 'zonas-delivery.php',
     'usuarios.php'
 ];
 
@@ -51,9 +51,9 @@ $isPromocionesActive = in_array($currentPage, ['promociones.php']);
 $isBancosActive      = false;
 $isConfigOnlyActive  = in_array($currentPage, [
     'clasificaciones.php', 'productos.php', 'presentaciones.php', 'almacenes.php',
-    'cajas.php', 'secuencias-dgii.php', 'cuentas-bancarias.php', 'metodos-pago.php',
-    'zonas-delivery.php',
-    'usuarios.php'
+    'lotes.php', 'cajas.php', 'secuencias-dgii.php', 'cuentas-bancarias.php',
+    'metodos-pago.php', 'monedas.php', 'impuestos.php', 'retenciones.php',
+    'zonas-delivery.php', 'usuarios.php'
 ]);
 $isConfigActive      = (!empty($configPages) && is_array($configPages)) ? in_array($currentPage, $configPages) : false;
 ?>
@@ -100,7 +100,7 @@ $isConfigActive      = (!empty($configPages) && is_array($configPages)) ? in_arr
         <span class="sidebar-chevron">▸</span>
       </div>
       <ul class="sidebar-subnav">
-        <li><a href="#" class="sidebar-sublink" onclick="alert('Control de Lotes y Caducidad FEFO en desarrollo'); return false;"><span>⏳</span> Lotes y FEFO</a></li>
+        <li><a href="<?= $cfgPfx ?>lotes/lotes.php" class="sidebar-sublink <?= ($currentPage === 'lotes.php') ? 'active' : '' ?>"><span>⏳</span> Lotes y Vencimientos (FEFO)</a></li>
         <li><a href="#" class="sidebar-sublink" onclick="alert('Ajustes de Inventario y Mermas en desarrollo'); return false;"><span>⚖️</span> Ajustes y Mermas</a></li>
         <li><a href="#" class="sidebar-sublink" onclick="alert('Traslados entre Bodegas en desarrollo'); return false;"><span>🔄</span> Traslados entre Bodegas</a></li>
       </ul>
@@ -187,11 +187,17 @@ $isConfigActive      = (!empty($configPages) && is_array($configPages)) ? in_arr
         <li><a href="<?= $cfgPfx ?>clasificaciones/clasificaciones.php" class="sidebar-sublink <?= ($currentPage === 'clasificaciones.php') ? 'active' : '' ?>"><span>🏷️</span> Marcas y Categorías</a></li>
         <li><a href="<?= $cfgPfx ?>productos/productos.php" class="sidebar-sublink <?= ($currentPage === 'productos.php') ? 'active' : '' ?>"><span>🍾</span> Maestro de Productos</a></li>
         <li><a href="<?= $cfgPfx ?>presentaciones/presentaciones.php" class="sidebar-sublink <?= ($currentPage === 'presentaciones.php') ? 'active' : '' ?>"><span>📦</span> Presentaciones</a></li>
+        <li><a href="<?= $cfgPfx ?>lotes/lotes.php" class="sidebar-sublink <?= ($currentPage === 'lotes.php') ? 'active' : '' ?>"><span>⏳</span> Lotes y Vencimientos</a></li>
         <li><a href="<?= $cfgPfx ?>almacenes/almacenes.php" class="sidebar-sublink <?= ($currentPage === 'almacenes.php') ? 'active' : '' ?>"><span>🏢</span> Almacenes Físicos</a></li>
         <li><a href="<?= $cfgPfx ?>cajas/cajas.php" class="sidebar-sublink <?= ($currentPage === 'cajas.php') ? 'active' : '' ?>"><span>💻</span> Cajas Registradoras</a></li>
         <li><a href="<?= $cfgPfx ?>secuencias-dgii/secuencias-dgii.php" class="sidebar-sublink <?= ($currentPage === 'secuencias-dgii.php') ? 'active' : '' ?>"><span>📜</span> Secuencias Fiscales</a></li>
+        <li><a href="<?= $cfgPfx ?>monedas/monedas.php" class="sidebar-sublink <?= ($currentPage === 'monedas.php') ? 'active' : '' ?>"><span>💱</span> Monedas y Tasas</a></li>
+        <li><a href="<?= $cfgPfx ?>impuestos/impuestos.php" class="sidebar-sublink <?= ($currentPage === 'impuestos.php') ? 'active' : '' ?>"><span>🧾</span> Impuestos y Tributos</a></li>
+        <li><a href="<?= $cfgPfx ?>retenciones/retenciones.php" class="sidebar-sublink <?= ($currentPage === 'retenciones.php') ? 'active' : '' ?>"><span>🏛️</span> Retenciones DGII</a></li>
         <li><a href="<?= $cfgPfx ?>cuentas-bancarias/cuentas-bancarias.php" class="sidebar-sublink <?= ($currentPage === 'cuentas-bancarias.php') ? 'active' : '' ?>"><span>🏦</span> Cuentas Bancarias</a></li>
-        <li><a href="<?= $cfgPfx ?>metodos-pago/metodos-pago.php" class="sidebar-sublink <?= ($currentPage === 'metodos-pago.php') ? 'active' : '' ?>"><span>💳</span> Métodos de Pago</a></li>
+        <?php if (!function_exists('usuarioPuedeAccederMetodosPago') || usuarioPuedeAccederMetodosPago()): ?>
+          <li><a href="<?= $cfgPfx ?>metodos-pago/metodos-pago.php" class="sidebar-sublink <?= ($currentPage === 'metodos-pago.php') ? 'active' : '' ?>"><span>💳</span> Métodos de Pago</a></li>
+        <?php endif; ?>
         <li><a href="<?= $cfgPfx ?>zonas-delivery/zonas-delivery.php" class="sidebar-sublink <?= ($currentPage === 'zonas-delivery.php') ? 'active' : '' ?>"><span>📍</span> Zonas Delivery</a></li>
       </ul>
     </li>
@@ -252,7 +258,7 @@ $isConfigActive      = (!empty($configPages) && is_array($configPages)) ? in_arr
     const integerIds = new Set([
       'factor_multiplicador', 'secuencia_desde', 'secuencia_hasta', 'secuencia_actual',
       'tiempo_promedio_min', 'dias_credito_habitual', 'regla_cantidad', 'rep_capacidad_pedidos',
-      'codigo_barra', 'numero_cuenta'
+      'codigo_barra', 'numero_cuenta', 'pin_autorizacion', 'cantidad_actual', 'orden_calculo'
     ]);
 
     const phoneIds = new Set([

@@ -3446,6 +3446,9 @@ a2586bed-282b-4f4a-b393-7335538df30c	GESTIONAR_ALTAS_MAESTRAS	identidad	Permiso 
 708b9fad-4dbd-46b6-b3d1-b0d57ec5dac9	VER_AUDITORIA_FORENSE	auditoria	Consultar los logs de la caja negra (auditoria_logs) para rastrear eliminaciones lógicas (soft deletes) y modificaciones sensibles.	2026-11-13 00:29:41.857887-04	AUDITORIA_FORENSE	VER
 87971ce3-269f-49b9-8c41-389b811f2af4	GESTIONAR_SECUENCIAS_FISCALES	configuracion	Cargar, auditar y bloquear los bloques de NCF autorizados por la DGII.	2026-11-13 00:29:41.857887-04	SECUENCIAS_FISCALES	GESTIONAR
 39dcd047-33ad-49cc-879a-901ae501ef50	VER_REPORTES_FINANCIEROS	tesoreria	Acceder a la consulta global de liquidez en cuentas bancarias.	2026-11-13 00:29:41.857887-04	REPORTES_FINANCIEROS	VER
+c4100001-0000-4000-8000-000000000001	GESTIONAR_METODOS_PAGO	configuracion	Acceso exclusivo del Administrador para crear, editar y activar/desactivar los Métodos de Pago.	2026-11-19 23:00:00-04	METODOS_PAGO	GESTIONAR
+c4100002-0000-4000-8000-000000000002	GESTIONAR_LOTES_FEFO	inventario	Consultar existencias por caducidad, corregir fechas de vencimiento y dar de alta lotes iniciales (FEFO).	2026-11-19 23:00:00-04	LOTES	GESTIONAR
+c4100003-0000-4000-8000-000000000003	GESTIONAR_PROVEEDORES	compras	Registrar y actualizar proveedores, días de crédito habitual y retenciones fiscales DGII.	2026-11-19 23:00:00-04	PROVEEDORES	GESTIONAR
 \.
 
 
@@ -3462,6 +3465,8 @@ c2396a51-7ed9-4693-962f-58c0b6e1792f	Cajero	Operador de primera línea en la caj
 10850c39-309c-4d9d-b0b9-12d993f7b3cf	Repartidor	Operador logístico en campo. Su enfoque es la entrega segura y puntual de los pedidos a domicilio asignados por el motor del servidor.	t	2026-11-13 00:29:41.857887-04
 25419f15-97e2-4329-a72e-f6752f8de237	Encargado de Almacén y Compras	Administrador de la logística física, el inventario y las relaciones comerciales con los proveedores de la licorería.	t	2026-11-13 00:29:41.857887-04
 59cb0d40-1302-487c-afd3-7257785878d8	Oficial de Crédito, Cobros y Tesorería	Gestor de la salud financiera corporativa, las carteras de crédito y el control de las cuentas bancarias de la empresa (sin tocar el POS).	t	2026-11-13 00:29:41.857887-04
+d5200001-0000-4000-8000-000000000001	Almacenista	Encargado de bodega, control físico de existencias, lotes y vencimientos FEFO, recepción física de camiones, traslados internos y registro de mermas.	t	2026-11-19 23:00:00-04
+d5200002-0000-4000-8000-000000000002	Gerente de Compras	Responsable de abastecimiento, negociación con proveedores y casas licoreras, emisión de órdenes de compra, recepción con NCF y seguimiento de cuentas por pagar.	t	2026-11-19 23:00:00-04
 \.
 
 
@@ -3501,6 +3506,21 @@ c2396a51-7ed9-4693-962f-58c0b6e1792f	8957a46f-37ed-4310-9098-f8a2658a649a	2026-1
 9f018e62-4810-46f4-8abb-fef7019ab4f2	708b9fad-4dbd-46b6-b3d1-b0d57ec5dac9	2026-11-13 00:29:41.857887-04
 9f018e62-4810-46f4-8abb-fef7019ab4f2	87971ce3-269f-49b9-8c41-389b811f2af4	2026-11-13 00:29:41.857887-04
 9f018e62-4810-46f4-8abb-fef7019ab4f2	39dcd047-33ad-49cc-879a-901ae501ef50	2026-11-13 00:29:41.857887-04
+9f018e62-4810-46f4-8abb-fef7019ab4f2	fe93dbb2-90b5-4b2d-b6f6-abccd2491022	2026-11-19 23:00:00-04
+9f018e62-4810-46f4-8abb-fef7019ab4f2	c4100001-0000-4000-8000-000000000001	2026-11-19 23:00:00-04
+9f018e62-4810-46f4-8abb-fef7019ab4f2	c4100002-0000-4000-8000-000000000002	2026-11-19 23:00:00-04
+9f018e62-4810-46f4-8abb-fef7019ab4f2	c4100003-0000-4000-8000-000000000003	2026-11-19 23:00:00-04
+d5200001-0000-4000-8000-000000000001	c0e91bd0-3b2a-4713-acfa-609528f84efa	2026-11-19 23:00:00-04
+d5200001-0000-4000-8000-000000000001	c4100002-0000-4000-8000-000000000002	2026-11-19 23:00:00-04
+d5200001-0000-4000-8000-000000000001	61db4689-9f57-4fbd-acc0-9c30b2bd7c4a	2026-11-19 23:00:00-04
+d5200001-0000-4000-8000-000000000001	9364992a-0a61-4f01-a252-1965894128c0	2026-11-19 23:00:00-04
+d5200001-0000-4000-8000-000000000001	126ac8d2-005d-4cad-afaf-2994dff37f95	2026-11-19 23:00:00-04
+d5200001-0000-4000-8000-000000000001	e33b7d6a-a47e-45bd-b6c3-75b9933c8eef	2026-11-19 23:00:00-04
+d5200002-0000-4000-8000-000000000002	c0e91bd0-3b2a-4713-acfa-609528f84efa	2026-11-19 23:00:00-04
+d5200002-0000-4000-8000-000000000002	c4100003-0000-4000-8000-000000000003	2026-11-19 23:00:00-04
+d5200002-0000-4000-8000-000000000002	ff8a0f06-e1c8-4c59-b11c-80da9b255f6b	2026-11-19 23:00:00-04
+d5200002-0000-4000-8000-000000000002	61db4689-9f57-4fbd-acc0-9c30b2bd7c4a	2026-11-19 23:00:00-04
+d5200002-0000-4000-8000-000000000002	b2c393d2-4b49-4e4c-b652-921debffeadb	2026-11-19 23:00:00-04
 \.
 
 

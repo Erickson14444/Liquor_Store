@@ -70,7 +70,7 @@ try {
         $pdo->beginTransaction();
 
         if ($accion === 'crear') {
-            $stmt = $pdo->prepare("INSERT INTO seguridad.roles (nombre, descripcion, es_activo) VALUES (?, ?, ?) RETURNING rol_id");
+            $stmt = $pdo->prepare("INSERT INTO seguridad.roles (rol_id, nombre, descripcion, es_activo) VALUES (gen_random_uuid(), ?, ?, ?) RETURNING rol_id");
             $stmt->execute([$nombre, $descripcion, $esActivo ? 'true' : 'false']);
             $rolId = $stmt->fetchColumn();
 
@@ -184,8 +184,8 @@ try {
             }
 
             $stmt = $pdo->prepare("
-                INSERT INTO seguridad.permisos (clave_sistema, modulo, descripcion, entidad, accion) 
-                VALUES (?, ?, ?, ?, ?) 
+                INSERT INTO seguridad.permisos (permiso_id, clave_sistema, modulo, descripcion, entidad, accion) 
+                VALUES (gen_random_uuid(), ?, ?, ?, ?, ?) 
                 RETURNING permiso_id
             ");
             $stmt->execute([$claveSistema, $modulo, $descripcion, $entidad, $accionPerm]);

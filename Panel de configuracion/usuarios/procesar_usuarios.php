@@ -35,12 +35,60 @@ try {
         $personaId = !empty($_POST['persona_id']) ? trim($_POST['persona_id']) : null;
         $username = strtolower(trim($_POST['username'] ?? ''));
         $password = trim($_POST['password'] ?? '');
-        $rolId = !empty($_POST['rol_id']) ? trim($_POST['rol_id']) : null;
+        $pinRaw = trim((string)($_POST['pin_autorizacion'] ?? ''));
+        $rolesArr = isset($_POST['roles']) && is_array($_POST['roles'])
+                    ? array_values(array_unique(array_filter(array_map('trim', $_POST['roles']), fn($v) => $v !== '')))
+                    : [];
+        if (empty($rolesArr) && !empty($_POST['rol_id'])) {
+            $rolesArr = [trim($_POST['rol_id'])];
+        }
         $esActivo = filter_var($_POST['es_activo'] ?? true, FILTER_VALIDATE_BOOLEAN);
         $estado = $esActivo ? 'ACTIVO' : 'INACTIVO';
 
         if (empty($username)) {
             throw new Exception("El nombre de usuario es obligatorio.");
+        }
+        if (empty($rolesArr)) {
+            throw new Exception("Debes seleccionar al menos un rol para el usuario.");
+        }
+
+        // Verificar si alguno de los roles seleccionados posee el permiso AUTORIZAR_CON_PIN
+        $placeholders = implode(',', array_fill(0, count($rolesArr), '?'));
+        $stmtChkPinPerm = $pdo->prepare("
+            SELECT COUNT(*)
+            FROM seguridad.roles_permisos rp
+            JOIN seguridad.permisos perm ON rp.permiso_id = perm.permiso_id
+            WHERE rp.rol_id IN ($placeholders)
+              AND (UPPER(perm.clave_sistema) = 'AUTORIZAR_CON_PIN' OR UPPER(perm.clave_sistema) LIKE '%PIN%')
+        ");
+        $stmtChkPinPerm->execute($rolesArr);
+        $algunRolTienePermisoPin = ((int)$stmtChkPinPerm->fetchColumn() > 0);
+
+        $pinHashNuevo = null;
+        $actualizarPin = false;
+
+        if ($algunRolTienePermisoPin) {
+            if ($pinRaw !== '') {
+                if (!preg_match('/^\d{4,6}$/', $pinRaw)) {
+                    throw new Exception("El PIN de autorización debe contener únicamente números y tener entre 4 y 6 dígitos.");
+                }
+                $pinHashNuevo = password_hash($pinRaw, PASSWORD_BCRYPT);
+                $actualizarPin = true;
+            } elseif ($accion === 'crear') {
+                throw new Exception("El rol seleccionado posee el permiso de PIN: debes asignar un PIN numérico de 4 a 6 dígitos.");
+            } else {
+                // En edición, verificar si el usuario ya tenía un PIN guardado
+                $stmtTienePin = $pdo->prepare("SELECT pin_autorizacion FROM seguridad.usuarios WHERE usuario_id = ?");
+                $stmtTienePin->execute([$usuarioId]);
+                $pinActualDb = $stmtTienePin->fetchColumn();
+                if (empty($pinActualDb)) {
+                    throw new Exception("El rol seleccionado requiere un PIN numérico de 4 a 6 dígitos.");
+                }
+            }
+        } else {
+            // Si ningún rol seleccionado tiene permiso de PIN, limpiar el PIN
+            $pinHashNuevo = null;
+            $actualizarPin = true;
         }
 
         $pdo->beginTransaction();
@@ -64,21 +112,21 @@ try {
 
             $stmtIns = $pdo->prepare("
                 INSERT INTO seguridad.usuarios 
-                (persona_id, username, password_hash, estado) 
-                VALUES (?, ?, ?, ?) 
+                (persona_id, username, password_hash, pin_autorizacion, estado) 
+                VALUES (?, ?, ?, ?, ?) 
                 RETURNING usuario_id
             ");
-            $stmtIns->execute([$personaId, $username, $passwordHash, $estado]);
+            $stmtIns->execute([$personaId, $username, $passwordHash, $pinHashNuevo, $estado]);
             $usuarioId = $stmtIns->fetchColumn();
 
-            // Asignar rol
-            if ($rolId) {
-                $stmtRol = $pdo->prepare("INSERT INTO seguridad.usuarios_roles (usuario_id, rol_id) VALUES (?, ?)");
-                $stmtRol->execute([$usuarioId, $rolId]);
+            // Asignar múltiples roles
+            $stmtRol = $pdo->prepare("INSERT INTO seguridad.usuarios_roles (usuario_id, rol_id) VALUES (?, ?) ON CONFLICT DO NOTHING");
+            foreach ($rolesArr as $rId) {
+                $stmtRol->execute([$usuarioId, $rId]);
             }
 
             $pdo->commit();
-            responder('success', "Usuario '{$username}' creado exitosamente.");
+            responder('success', "Usuario '{$username}' creado exitosamente con " . count($rolesArr) . " rol(es).");
         }
 
         if ($accion === 'editar') {
@@ -103,11 +151,16 @@ try {
                 $stmtUp->execute([$username, $estado, $usuarioId]);
             }
 
-            // Actualizar rol
-            if ($rolId) {
-                $pdo->prepare("DELETE FROM seguridad.usuarios_roles WHERE usuario_id = ?")->execute([$usuarioId]);
-                $stmtRol = $pdo->prepare("INSERT INTO seguridad.usuarios_roles (usuario_id, rol_id) VALUES (?, ?)");
-                $stmtRol->execute([$usuarioId, $rolId]);
+            if ($actualizarPin) {
+                $stmtPin = $pdo->prepare("UPDATE seguridad.usuarios SET pin_autorizacion = ? WHERE usuario_id = ?");
+                $stmtPin->execute([$pinHashNuevo, $usuarioId]);
+            }
+
+            // Actualizar múltiples roles
+            $pdo->prepare("DELETE FROM seguridad.usuarios_roles WHERE usuario_id = ?")->execute([$usuarioId]);
+            $stmtRol = $pdo->prepare("INSERT INTO seguridad.usuarios_roles (usuario_id, rol_id) VALUES (?, ?) ON CONFLICT DO NOTHING");
+            foreach ($rolesArr as $rId) {
+                $stmtRol->execute([$usuarioId, $rId]);
             }
 
             $pdo->commit();
