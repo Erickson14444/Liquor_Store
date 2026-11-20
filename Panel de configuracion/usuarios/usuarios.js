@@ -1,4 +1,10 @@
-function soloNumerosPin(e) {
+function alternarVisibilidadPin() {
+      const inp = document.getElementById('pin_autorizacion');
+      if (!inp) return;
+      inp.type = (inp.type === 'password') ? 'text' : 'password';
+    }
+
+    function soloNumerosPin(e) {
       const k = e.key;
       if (['Backspace', 'Delete', 'Tab', 'Escape', 'Enter', 'ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(k) || e.ctrlKey || e.metaKey) {
         return true;
@@ -60,11 +66,11 @@ function soloNumerosPin(e) {
         bloquePin.style.display = 'block';
         if (esEditar && tienePinGuardado) {
           inputPin.required = false;
-          if (lblPin) lblPin.textContent = '🔐 CAMBIAR PIN (4-6 DÍGITOS)';
-          if (hintPin) hintPin.textContent = 'Opcional (deja vacío para conservar actual)';
+          if (lblPin) lblPin.textContent = '🔐 PIN (4 a 6 dígitos)';
+          if (hintPin) hintPin.textContent = 'Deja igual o cámbialo (4-6 dígitos)';
         } else {
           inputPin.required = true;
-          if (lblPin) lblPin.textContent = '🔐 PIN DE AUTORIZACIÓN (4-6 DÍGITOS) *';
+          if (lblPin) lblPin.textContent = '🔐 PIN (4 a 6 dígitos) *';
           if (hintPin) hintPin.textContent = 'Solo números (4 a 6 dígitos)';
         }
       } else {
@@ -123,7 +129,9 @@ function soloNumerosPin(e) {
       document.getElementById('lblPassword').textContent = 'Contraseña de Seguridad *';
       document.getElementById('hintPassword').style.display = 'none';
       document.getElementById('es_activo').value = 'true';
-      document.getElementById('pin_autorizacion').value = '';
+      const inpPin = document.getElementById('pin_autorizacion');
+      inpPin.type = 'text';
+      inpPin.value = '';
       const errPin = document.getElementById('errorPinUsuario');
       if (errPin) errPin.style.display = 'none';
       marcarRolesUsuario([]);
@@ -143,11 +151,14 @@ function soloNumerosPin(e) {
       document.getElementById('lblPassword').textContent = 'Cambiar Contraseña (Opcional)';
       document.getElementById('hintPassword').style.display = 'block';
       document.getElementById('es_activo').value = (u.es_activo === true || u.es_activo === 't') ? 'true' : 'false';
-      document.getElementById('pin_autorizacion').value = '';
+      const inpPin = document.getElementById('pin_autorizacion');
+      inpPin.type = 'text';
+      inpPin.value = u.pin_visible || '';
       const errPin = document.getElementById('errorPinUsuario');
       if (errPin) errPin.style.display = 'none';
       const rolesAsignados = Array.isArray(u.roles_ids) ? u.roles_ids : (u.rol_id ? [u.rol_id] : []);
       marcarRolesUsuario(rolesAsignados);
+      if (inpPin.value) validarInputPinEnVivo(inpPin);
       document.getElementById('modalUsuario').classList.add('open');
     }
 

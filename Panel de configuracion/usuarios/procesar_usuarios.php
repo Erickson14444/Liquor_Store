@@ -72,7 +72,7 @@ try {
                 if (!preg_match('/^\d{4,6}$/', $pinRaw)) {
                     throw new Exception("El PIN de autorización debe contener únicamente números y tener entre 4 y 6 dígitos.");
                 }
-                $pinHashNuevo = password_hash($pinRaw, PASSWORD_BCRYPT);
+                $pinHashNuevo = $pinRaw;
                 $actualizarPin = true;
             } elseif ($accion === 'crear') {
                 throw new Exception("El rol seleccionado posee el permiso de PIN: debes asignar un PIN numérico de 4 a 6 dígitos.");

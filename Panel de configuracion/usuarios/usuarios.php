@@ -22,6 +22,8 @@ if ($pdo) {
         $stmt = $pdo->query("
             SELECT u.usuario_id, u.username, u.estado, (u.estado = 'ACTIVO') AS es_activo,
                    u.ultimo_acceso, u.creado_en,
+                   u.pin_autorizacion,
+                   CASE WHEN u.pin_autorizacion ~ '^[0-9]{4,6}$' THEN u.pin_autorizacion ELSE '' END AS pin_visible,
                    (u.pin_autorizacion IS NOT NULL AND TRIM(u.pin_autorizacion) <> '') AS tiene_pin_guardado,
                    p.persona_id, p.nombre_razon_social, p.nombre_comercial, p.email, p.documento_identidad,
                    COALESCE((
@@ -200,7 +202,11 @@ $tipoMsg = $_GET['tipo'] ?? 'exito';
                     <?php endif; ?>
                   </td>
                   <td class="text-center">
-                    <?php if ($tienePinGuardado): ?>
+                    <?php if (!empty($u['pin_visible'])): ?>
+                      <span class="badge" style="background: #fdf3e2; color: #794a15; border: 1px solid #e4c99b; font-family: monospace; font-weight: 700; font-size: 0.84rem; letter-spacing: 1px;">
+                        🔐 <?= htmlspecialchars($u['pin_visible']) ?>
+                      </span>
+                    <?php elseif ($tienePinGuardado): ?>
                       <span class="badge" style="background: #e8f5e9; color: #2e7d32; border: 1px solid #c8e6c9; font-weight: 700; font-size: 0.75rem;">
                         🔐 PIN Configurado
                       </span>
@@ -274,19 +280,49 @@ $tipoMsg = $_GET['tipo'] ?? 'exito';
             </div>
           </div>
 
-          <div class="form-group">
-            <label for="password" class="form-label" id="lblPassword">Contraseña de Seguridad *</label>
-            <input type="password" id="password" name="password" class="form-control" placeholder="Mínimo 8 caracteres" />
-            <small id="hintPassword" style="display: none; color: #888; font-size: 0.8em;">Deja en blanco para conservar la contraseña actual</small>
+          <!-- FILA DE CONTRASEÑA + PIN AL LADO (CUANDO EL ROL POSEE PERMISO DE PIN) -->
+          <div style="display: flex; gap: 12px; align-items: flex-start; flex-wrap: nowrap;">
+            <div class="form-group" style="flex: 1; min-width: 0;">
+              <label for="password" class="form-label" id="lblPassword">Contraseña de Seguridad *</label>
+              <input type="password" id="password" name="password" class="form-control" placeholder="Mínimo 8 caracteres" />
+              <small id="hintPassword" style="display: none; color: #888; font-size: 0.78em;">Deja en blanco para conservar la actual</small>
+            </div>
+
+            <div class="form-group" id="bloquePinUsuario" style="display: none; width: 235px; flex-shrink: 0;">
+              <label for="pin_autorizacion" class="form-label" id="lblPinAutorizacion" style="color: #794a15; font-weight: 700;">
+                🔐 PIN (4 a 6 dígitos) *
+              </label>
+              <div style="display: flex; align-items: center; gap: 6px;">
+                <input
+                  type="text"
+                  id="pin_autorizacion"
+                  name="pin_autorizacion"
+                  class="form-control"
+                  inputmode="numeric"
+                  minlength="4"
+                  maxlength="6"
+                  autocomplete="off"
+                  placeholder="Ej. 1234"
+                  style="font-family: monospace; font-size: 0.96rem; letter-spacing: 2px; font-weight: 700; text-align: center; color: #211813;"
+                  onkeydown="return soloNumerosPin(event)"
+                  oninput="this.value = this.value.replace(/[^0-9]/g, '').slice(0, 6); validarInputPinEnVivo(this);"
+                />
+                <button type="button" class="btn-sm btn-outline" onclick="alternarVisibilidadPin()" id="btnVerPin" title="Mostrar / Ocultar PIN" style="height: 38px; padding: 0 9px; font-size: 0.85rem;">
+                  👁️
+                </button>
+              </div>
+              <small id="errorPinUsuario" style="display: none; font-size: 0.74rem; font-weight: 600; margin-top: 2px;"></small>
+              <small id="hintPinUsuario" style="display: block; color: #8a7b70; font-size: 0.72rem; margin-top: 2px;">Solo números (4 a 6 dígitos)</small>
+            </div>
           </div>
 
           <!-- MATRIZ DE ROLES DEL USUARIO (CHECKBOXES MÚLTIPLES IGUAL QUE ROLES TIENE PERMISOS) -->
-          <div class="form-group" style="margin-top: 12px;">
+          <div class="form-group" style="margin-top: 10px;">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
               <label class="form-label" style="font-weight: 700; color: #a66e2e; margin: 0;">Roles Asignados al Usuario (Selección Múltiple) *</label>
               <span style="font-size: 0.76rem; color: #8a7b70;">Un usuario puede ejercer uno o varios roles</span>
             </div>
-            <div id="contenedorRolesUsuario" style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; background: #faf7f2; border: 1px solid #eedcb9; border-radius: 8px; padding: 12px; max-height: 215px; overflow-y: auto;">
+            <div id="contenedorRolesUsuario" style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; background: #faf7f2; border: 1px solid #eedcb9; border-radius: 8px; padding: 12px; max-height: 205px; overflow-y: auto;">
               <?php foreach ($roles as $r):
                 $tienePinRol = ($r['tiene_permiso_pin'] === true || $r['tiene_permiso_pin'] === 't' || $r['tiene_permiso_pin'] === 1);
               ?>
@@ -320,33 +356,6 @@ $tipoMsg = $_GET['tipo'] ?? 'exito';
               <?php endforeach; ?>
             </div>
           </div>
-
-          <!-- CASILLA CONDICIONAL DE PIN (COMPACTA) -->
-          <div class="form-group" id="bloquePinUsuario" style="display: none; margin-top: 8px; background: #fdf8ef; border: 1px solid #e4c99b; border-radius: 6px; padding: 8px 12px;">
-            <div style="display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap;">
-              <div style="display: flex; align-items: center; gap: 10px;">
-                <label for="pin_autorizacion" class="form-label" id="lblPinAutorizacion" style="color: #794a15; font-weight: 700; font-size: 0.78rem; margin: 0; white-space: nowrap;">
-                  🔐 PIN DE AUTORIZACIÓN (4 A 6 DÍGITOS) *
-                </label>
-                <input
-                  type="password"
-                  id="pin_autorizacion"
-                  name="pin_autorizacion"
-                  class="form-control"
-                  inputmode="numeric"
-                  minlength="4"
-                  maxlength="6"
-                  autocomplete="new-password"
-                  placeholder="••••"
-                  style="width: 120px; height: 32px; padding: 4px 10px; font-family: monospace; font-size: 0.95rem; letter-spacing: 3px; font-weight: 700; text-align: center;"
-                  onkeydown="return soloNumerosPin(event)"
-                  oninput="this.value = this.value.replace(/[^0-9]/g, '').slice(0, 6); validarInputPinEnVivo(this);"
-                />
-              </div>
-              <small id="errorPinUsuario" style="display: none; font-size: 0.74rem; font-weight: 600; margin: 0;"></small>
-              <small id="hintPinUsuario" style="color: #8a7b70; font-size: 0.72rem; margin: 0;">Solo números (4 a 6 dígitos)</small>
-            </div>
-          </div>
         </div>
 
         <div class="modal-footer">
@@ -359,7 +368,7 @@ $tipoMsg = $_GET['tipo'] ?? 'exito';
 
   <div id="toast" class="toast"></div>
 
-    <script src="usuarios.js?v=5"></script>
+    <script src="usuarios.js?v=7"></script>
 </body>
 </html>
 
