@@ -7,6 +7,10 @@
 
 require_once __DIR__ . '/../../config/conexion.php';
 
+if (!usuarioPuedeAccederSecuenciasFiscales()) {
+    header("Location: ../../Login%20y%20Menu/menu.php?msg=" . urlencode("Acceso restringido: Solo Administrador y Supervisor poseen el permiso para gestionar Secuencias Fiscales."));
+    exit;
+}
 
 $secuenciasDb = [];
 if ($pdo) {

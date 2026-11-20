@@ -26,17 +26,18 @@ if ($isSubdir) {
     $rootPfx = '../';
 }
 
-$menuLink     = $rootPfx . 'Login y Menu/menu.php';
-$logoutLink   = $rootPfx . 'Login y Menu/logout.php';
-$cfgPfx       = $rootPfx . 'Panel de configuracion/';
-$seguridadPfx = $rootPfx . 'Seguridad y Control/';
-$promoPfx     = $rootPfx . 'Gestion de Promociones/';
-$ventasPfx    = $rootPfx . 'Ventas y Facturacion/';
+$menuLink      = $rootPfx . 'Login y Menu/menu.php';
+$logoutLink    = $rootPfx . 'Login y Menu/logout.php';
+$cfgPfx        = $rootPfx . 'Panel de configuracion/';
+$seguridadPfx  = $rootPfx . 'Seguridad y Control/';
+$inventarioPfx = $rootPfx . 'Inventario y Stock/';
+$promoPfx      = $rootPfx . 'Gestion de Promociones/';
+$ventasPfx     = $rootPfx . 'Ventas y Facturacion/';
 
 // Lista de páginas pertenecientes al panel de configuración
 $configPages = [
     'clasificaciones.php', 'productos.php', 'presentaciones.php', 'almacenes.php',
-    'lotes.php', 'clientes.php', 'proveedores.php', 'personal.php',
+    'clientes.php', 'proveedores.php', 'personal.php',
     'cajas.php', 'secuencias-dgii.php', 'cuentas-bancarias.php', 'metodos-pago.php',
     'monedas.php', 'impuestos.php', 'retenciones.php', 'zonas-delivery.php',
     'usuarios.php'
@@ -45,13 +46,13 @@ $configPages = [
 // Detección de módulo activo para abrir el acordeón correspondiente
 $isIdentidadActive   = in_array($currentPage, ['clientes.php', 'proveedores.php', 'personal.php']);
 $isSeguridadActive   = in_array($currentPage, ['roles.php']);
-$isInventarioActive  = false;
+$isInventarioActive  = in_array($currentPage, ['lotes.php']);
 $isVentasActive      = in_array($currentPage, ['delivery.php', 'facturacion.php']);
 $isPromocionesActive = in_array($currentPage, ['promociones.php']);
 $isBancosActive      = false;
 $isConfigOnlyActive  = in_array($currentPage, [
     'clasificaciones.php', 'productos.php', 'presentaciones.php', 'almacenes.php',
-    'lotes.php', 'cajas.php', 'secuencias-dgii.php', 'cuentas-bancarias.php',
+    'cajas.php', 'secuencias-dgii.php', 'cuentas-bancarias.php',
     'metodos-pago.php', 'monedas.php', 'impuestos.php', 'retenciones.php',
     'zonas-delivery.php', 'usuarios.php'
 ]);
@@ -100,7 +101,7 @@ $isConfigActive      = (!empty($configPages) && is_array($configPages)) ? in_arr
         <span class="sidebar-chevron">▸</span>
       </div>
       <ul class="sidebar-subnav">
-        <li><a href="<?= $cfgPfx ?>lotes/lotes.php" class="sidebar-sublink <?= ($currentPage === 'lotes.php') ? 'active' : '' ?>"><span>⏳</span> Lotes y Vencimientos (FEFO)</a></li>
+        <li><a href="<?= $inventarioPfx ?>lotes/lotes.php" class="sidebar-sublink <?= ($currentPage === 'lotes.php') ? 'active' : '' ?>"><span>⏳</span> Lotes y Vencimientos (FEFO)</a></li>
         <li><a href="#" class="sidebar-sublink" onclick="alert('Ajustes de Inventario y Mermas en desarrollo'); return false;"><span>⚖️</span> Ajustes y Mermas</a></li>
         <li><a href="#" class="sidebar-sublink" onclick="alert('Traslados entre Bodegas en desarrollo'); return false;"><span>🔄</span> Traslados entre Bodegas</a></li>
       </ul>
@@ -187,13 +188,20 @@ $isConfigActive      = (!empty($configPages) && is_array($configPages)) ? in_arr
         <li><a href="<?= $cfgPfx ?>clasificaciones/clasificaciones.php" class="sidebar-sublink <?= ($currentPage === 'clasificaciones.php') ? 'active' : '' ?>"><span>🏷️</span> Marcas y Categorías</a></li>
         <li><a href="<?= $cfgPfx ?>productos/productos.php" class="sidebar-sublink <?= ($currentPage === 'productos.php') ? 'active' : '' ?>"><span>🍾</span> Maestro de Productos</a></li>
         <li><a href="<?= $cfgPfx ?>presentaciones/presentaciones.php" class="sidebar-sublink <?= ($currentPage === 'presentaciones.php') ? 'active' : '' ?>"><span>📦</span> Presentaciones</a></li>
-        <li><a href="<?= $cfgPfx ?>lotes/lotes.php" class="sidebar-sublink <?= ($currentPage === 'lotes.php') ? 'active' : '' ?>"><span>⏳</span> Lotes y Vencimientos</a></li>
         <li><a href="<?= $cfgPfx ?>almacenes/almacenes.php" class="sidebar-sublink <?= ($currentPage === 'almacenes.php') ? 'active' : '' ?>"><span>🏢</span> Almacenes Físicos</a></li>
         <li><a href="<?= $cfgPfx ?>cajas/cajas.php" class="sidebar-sublink <?= ($currentPage === 'cajas.php') ? 'active' : '' ?>"><span>💻</span> Cajas Registradoras</a></li>
-        <li><a href="<?= $cfgPfx ?>secuencias-dgii/secuencias-dgii.php" class="sidebar-sublink <?= ($currentPage === 'secuencias-dgii.php') ? 'active' : '' ?>"><span>📜</span> Secuencias Fiscales</a></li>
-        <li><a href="<?= $cfgPfx ?>monedas/monedas.php" class="sidebar-sublink <?= ($currentPage === 'monedas.php') ? 'active' : '' ?>"><span>💱</span> Monedas y Tasas</a></li>
-        <li><a href="<?= $cfgPfx ?>impuestos/impuestos.php" class="sidebar-sublink <?= ($currentPage === 'impuestos.php') ? 'active' : '' ?>"><span>🧾</span> Impuestos y Tributos</a></li>
-        <li><a href="<?= $cfgPfx ?>retenciones/retenciones.php" class="sidebar-sublink <?= ($currentPage === 'retenciones.php') ? 'active' : '' ?>"><span>🏛️</span> Retenciones DGII</a></li>
+        <?php if (!function_exists('usuarioPuedeAccederSecuenciasFiscales') || usuarioPuedeAccederSecuenciasFiscales()): ?>
+          <li><a href="<?= $cfgPfx ?>secuencias-dgii/secuencias-dgii.php" class="sidebar-sublink <?= ($currentPage === 'secuencias-dgii.php') ? 'active' : '' ?>"><span>📜</span> Secuencias Fiscales</a></li>
+        <?php endif; ?>
+        <?php if (!function_exists('usuarioPuedeAccederMonedas') || usuarioPuedeAccederMonedas()): ?>
+          <li><a href="<?= $cfgPfx ?>monedas/monedas.php" class="sidebar-sublink <?= ($currentPage === 'monedas.php') ? 'active' : '' ?>"><span>💱</span> Monedas y Tasas</a></li>
+        <?php endif; ?>
+        <?php if (!function_exists('usuarioPuedeAccederImpuestos') || usuarioPuedeAccederImpuestos()): ?>
+          <li><a href="<?= $cfgPfx ?>impuestos/impuestos.php" class="sidebar-sublink <?= ($currentPage === 'impuestos.php') ? 'active' : '' ?>"><span>🧾</span> Impuestos y Tributos</a></li>
+        <?php endif; ?>
+        <?php if (!function_exists('usuarioPuedeAccederRetenciones') || usuarioPuedeAccederRetenciones()): ?>
+          <li><a href="<?= $cfgPfx ?>retenciones/retenciones.php" class="sidebar-sublink <?= ($currentPage === 'retenciones.php') ? 'active' : '' ?>"><span>🏛️</span> Retenciones DGII</a></li>
+        <?php endif; ?>
         <li><a href="<?= $cfgPfx ?>cuentas-bancarias/cuentas-bancarias.php" class="sidebar-sublink <?= ($currentPage === 'cuentas-bancarias.php') ? 'active' : '' ?>"><span>🏦</span> Cuentas Bancarias</a></li>
         <?php if (!function_exists('usuarioPuedeAccederMetodosPago') || usuarioPuedeAccederMetodosPago()): ?>
           <li><a href="<?= $cfgPfx ?>metodos-pago/metodos-pago.php" class="sidebar-sublink <?= ($currentPage === 'metodos-pago.php') ? 'active' : '' ?>"><span>💳</span> Métodos de Pago</a></li>

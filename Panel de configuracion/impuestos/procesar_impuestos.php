@@ -8,6 +8,12 @@
 require_once __DIR__ . '/../../config/conexion.php';
 header('Content-Type: application/json; charset=utf-8');
 
+if (!usuarioPuedeAccederImpuestos()) {
+    http_response_code(403);
+    echo json_encode(['status' => 'error', 'message' => 'Acceso denegado: Solo el Administrador puede gestionar Impuestos.']);
+    exit;
+}
+
 if (($_SERVER['REQUEST_METHOD'] ?? '') !== 'POST') {
     http_response_code(405);
     echo json_encode(['status' => 'error', 'message' => 'Método no permitido']);

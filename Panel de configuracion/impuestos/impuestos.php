@@ -7,6 +7,11 @@
 
 require_once __DIR__ . '/../../config/conexion.php';
 
+if (!usuarioPuedeAccederImpuestos()) {
+    header("Location: ../../Login%20y%20Menu/menu.php?msg=" . urlencode("Acceso restringido: Solo el rol Administrador posee el permiso para gestionar Impuestos."));
+    exit;
+}
+
 $impuestosDb = [];
 if ($pdo) {
     try {
