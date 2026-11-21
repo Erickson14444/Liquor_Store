@@ -8,58 +8,78 @@
  */
 
 $currentPage = basename($_SERVER['PHP_SELF']);
-$currentDir  = basename(dirname($_SERVER['PHP_SELF']));
+$currentDir = basename(dirname($_SERVER['PHP_SELF']));
 
 // Detección de nivel de carpeta respecto a la raíz del proyecto (Liquor_Store/)
 $isSubdir = in_array($currentDir, [
-    'almacenes', 'cajas', 'clasificaciones', 'clientes', 'cuentas-bancarias',
-    'impuestos', 'lotes', 'metodos-pago', 'monedas', 'personal', 'presentaciones',
-    'productos', 'proveedores', 'retenciones', 'roles', 'secuencias-dgii',
-    'usuarios', 'zonas-delivery', 'Delivery', 'Facturacion', 'ControlCaja'
+  'almacenes', 'cajas', 'clasificaciones', 'clientes', 'cuentas-bancarias',
+  'impuestos', 'lotes', 'metodos-pago', 'monedas', 'personal', 'presentaciones',
+  'productos', 'proveedores', 'retenciones', 'roles', 'secuencias-dgii',
+  'usuarios', 'zonas-delivery', 'Delivery', 'Facturacion', 'ControlCaja',
+  'Movimientos', 'Traslados', 'Lotes'
 ]);
 
 if ($isSubdir) {
-    $rootPfx = '../../';
+  $rootPfx = '../../';
 } elseif ($currentDir === 'Liquor_Store') {
-    $rootPfx = './';
+  $rootPfx = './';
 } else {
-    $rootPfx = '../';
+  $rootPfx = '../';
 }
 
-$menuLink      = $rootPfx . 'Login y Menu/menu.php';
-$logoutLink    = $rootPfx . 'Login y Menu/logout.php';
-$cfgPfx        = $rootPfx . 'Panel de configuracion/';
-$seguridadPfx  = $rootPfx . 'Seguridad y Control/';
+$menuLink = $rootPfx . 'Login y Menu/menu.php';
+$logoutLink = $rootPfx . 'Login y Menu/logout.php';
+$cfgPfx = $rootPfx . 'Panel de configuracion/';
+$seguridadPfx = $rootPfx . 'Seguridad y Control/';
 $inventarioPfx = $rootPfx . 'Inventario y Stock/';
-$promoPfx      = $rootPfx . 'Gestion de Promociones/';
-$ventasPfx     = $rootPfx . 'Ventas y Facturacion/';
+$promoPfx = $rootPfx . 'Gestion de Promociones/';
+$ventasPfx = $rootPfx . 'Ventas y Facturacion/';
+$inventarioPfx = $rootPfx . 'Inventario y Stock/';
 
 // Lista de páginas pertenecientes al panel de configuración
 $configPages = [
-    'clasificaciones.php', 'productos.php', 'presentaciones.php', 'almacenes.php',
-    'cajas.php', 'secuencias-dgii.php', 'cuentas-bancarias.php', 'metodos-pago.php',
-    'monedas.php', 'impuestos.php', 'retenciones.php', 'zonas-delivery.php',
-    'usuarios.php'
+  'clasificaciones.php',
+  'productos.php',
+  'presentaciones.php',
+  'almacenes.php',
+  'cajas.php',
+  'secuencias-dgii.php',
+  'cuentas-bancarias.php',
+  'metodos-pago.php',
+  'monedas.php',
+  'impuestos.php',
+  'retenciones.php',
+  'zonas-delivery.php',
+  'usuarios.php'
 ];
 
 // Detección de módulo activo para abrir el acordeón correspondiente
 $isIdentidadActive   = in_array($currentPage, ['clientes.php', 'proveedores.php', 'personal.php']);
 $isSeguridadActive   = in_array($currentPage, ['roles.php']);
-$isInventarioActive  = in_array($currentPage, ['lotes.php']);
+$isInventarioActive  = in_array($currentPage, ['movimientos.php', 'traslados.php', 'lotes.php']);
 $isVentasActive      = in_array($currentPage, ['delivery.php', 'facturacion.php', 'control_caja.php']);
 $isPromocionesActive = in_array($currentPage, ['promociones.php', 'cupones.php']);
-$isBancosActive      = false;
-$isConfigOnlyActive  = in_array($currentPage, [
-    'clasificaciones.php', 'productos.php', 'presentaciones.php', 'almacenes.php',
-    'cajas.php', 'secuencias-dgii.php', 'cuentas-bancarias.php',
-    'metodos-pago.php', 'monedas.php', 'impuestos.php', 'retenciones.php',
-    'zonas-delivery.php', 'usuarios.php'
+$isBancosActive = false;
+$isConfigOnlyActive = in_array($currentPage, [
+  'clasificaciones.php',
+  'productos.php',
+  'presentaciones.php',
+  'almacenes.php',
+  'cajas.php',
+  'secuencias-dgii.php',
+  'cuentas-bancarias.php',
+  'metodos-pago.php',
+  'monedas.php',
+  'impuestos.php',
+  'retenciones.php',
+  'zonas-delivery.php',
+  'usuarios.php'
 ]);
-$isConfigActive      = (!empty($configPages) && is_array($configPages)) ? in_array($currentPage, $configPages) : false;
+$isConfigActive = (!empty($configPages) && is_array($configPages)) ? in_array($currentPage, $configPages) : false;
 ?>
 <aside class="sidebar">
   <ul class="sidebar-nav">
-    
+
     <!-- Inicio -->
     <li class="sidebar-item">
       <a href="<?= $menuLink ?>" class="sidebar-link <?= ($currentPage === 'menu.php') ? 'active' : '' ?>">
@@ -74,9 +94,15 @@ $isConfigActive      = (!empty($configPages) && is_array($configPages)) ? in_arr
         <span class="sidebar-chevron">▸</span>
       </div>
       <ul class="sidebar-subnav">
-        <li><a href="<?= $cfgPfx ?>clientes/clientes.php" class="sidebar-sublink <?= ($currentPage === 'clientes.php') ? 'active' : '' ?>"><span>👥</span> Clientes</a></li>
-        <li><a href="<?= $cfgPfx ?>proveedores/proveedores.php" class="sidebar-sublink <?= ($currentPage === 'proveedores.php') ? 'active' : '' ?>"><span>🏭</span> Proveedores</a></li>
-        <li><a href="<?= $cfgPfx ?>personal/personal.php" class="sidebar-sublink <?= ($currentPage === 'personal.php') ? 'active' : '' ?>"><span>👔</span> Personal y Repartidores</a></li>
+        <li><a href="<?= $cfgPfx ?>clientes/clientes.php"
+            class="sidebar-sublink <?= ($currentPage === 'clientes.php') ? 'active' : '' ?>"><span>👥</span>
+            Clientes</a></li>
+        <li><a href="<?= $cfgPfx ?>proveedores/proveedores.php"
+            class="sidebar-sublink <?= ($currentPage === 'proveedores.php') ? 'active' : '' ?>"><span>🏭</span>
+            Proveedores</a></li>
+        <li><a href="<?= $cfgPfx ?>personal/personal.php"
+            class="sidebar-sublink <?= ($currentPage === 'personal.php') ? 'active' : '' ?>"><span>👔</span> Personal y
+            Repartidores</a></li>
       </ul>
     </li>
 
@@ -87,22 +113,35 @@ $isConfigActive      = (!empty($configPages) && is_array($configPages)) ? in_arr
         <span class="sidebar-chevron">▸</span>
       </div>
       <ul class="sidebar-subnav">
-        <li><a href="<?= $seguridadPfx ?>roles/roles.php" class="sidebar-sublink <?= ($currentPage === 'roles.php') ? 'active' : '' ?>"><span>🔑</span> Roles y Permisos</a></li>
-        <li><a href="#" class="sidebar-sublink" onclick="alert('Bitácora de Auditoría Forense en desarrollo'); return false;"><span>🔍</span> Auditoría Forense</a></li>
-        <li><a href="#" class="sidebar-sublink" onclick="alert('Control de Accesos y Sesiones en desarrollo'); return false;"><span>🔐</span> Control de Accesos</a></li>
+        <li><a href="<?= $seguridadPfx ?>roles/roles.php"
+            class="sidebar-sublink <?= ($currentPage === 'roles.php') ? 'active' : '' ?>"><span>🔑</span> Roles y
+            Permisos</a></li>
+        <li><a href="#" class="sidebar-sublink"
+            onclick="alert('Bitácora de Auditoría Forense en desarrollo'); return false;"><span>🔍</span> Auditoría
+            Forense</a></li>
+        <li><a href="#" class="sidebar-sublink"
+            onclick="alert('Control de Accesos y Sesiones en desarrollo'); return false;"><span>🔐</span> Control de
+            Accesos</a></li>
       </ul>
     </li>
 
     <!-- MÓDULO 3: Inventario & Stock (SOLO PROCESOS) ▸ -->
     <li class="sidebar-item <?= $isInventarioActive ? '' : 'collapsed' ?>" id="menuInventario">
-      <div class="sidebar-link <?= $isInventarioActive ? 'active' : '' ?>" onclick="toggleSidebarMenu('menuInventario')">
+      <div class="sidebar-link <?= $isInventarioActive ? 'active' : '' ?>"
+        onclick="toggleSidebarMenu('menuInventario')">
         <span>📦 Inventario &amp; Stock</span>
         <span class="sidebar-chevron">▸</span>
       </div>
       <ul class="sidebar-subnav">
-        <li><a href="<?= $inventarioPfx ?>lotes/lotes.php" class="sidebar-sublink <?= ($currentPage === 'lotes.php') ? 'active' : '' ?>"><span>⏳</span> Lotes y Vencimientos</a></li>
-        <li><a href="#" class="sidebar-sublink" onclick="alert('Ajustes de Inventario y Mermas en desarrollo'); return false;"><span>⚖️</span> Ajustes y Mermas</a></li>
-        <li><a href="#" class="sidebar-sublink" onclick="alert('Traslados entre Bodegas en desarrollo'); return false;"><span>🔄</span> Traslados entre Bodegas</a></li>
+        <li><a href="<?= $inventarioPfx ?>lotes/lotes.php"
+            class="sidebar-sublink <?= ($currentPage === 'lotes.php') ? 'active' : '' ?>"><span>⏳</span> Lotes y
+            Vencimientos</a></li>
+        <li><a href="<?= $inventarioPfx ?>Movimientos/movimientos.php"
+            class="sidebar-sublink <?= ($currentPage === 'movimientos.php') ? 'active' : '' ?>"><span>⚖️</span> Ajustes
+            y Mermas</a></li>
+        <li><a href="<?= $inventarioPfx ?>Traslados/traslados.php"
+            class="sidebar-sublink <?= ($currentPage === 'traslados.php') ? 'active' : '' ?>"><span>🚚</span> Traslados
+            entre Almacenes</a></li>
       </ul>
     </li>
 
@@ -114,12 +153,13 @@ $isConfigActive      = (!empty($configPages) && is_array($configPages)) ? in_arr
       </div>
       <ul class="sidebar-subnav">
         <li><a href="<?= $ventasPfx ?>ControlCaja/control_caja.php" class="sidebar-sublink <?= ($currentPage === 'control_caja.php') ? 'active' : '' ?>"><span>🔒</span> Control de Caja</a></li>
+        <li><a href="<?= $ventasPfx ?>Facturacion/facturacion.php" class="sidebar-sublink <?= ($currentPage === 'facturacion.php') ? 'active' : '' ?>"><span>🛒</span> Facturación (POS)</a></li>
+        <li><a href="<?= $ventasPfx ?>Delivery/delivery.php" class="sidebar-sublink <?= ($currentPage === 'delivery.php') ? 'active' : '' ?>"><span>🛵</span> Despacho Delivery</a></li>
+        <li><a href="#" class="sidebar-sublink" onclick="alert('Historial de Ventas en desarrollo'); return false;"><span>🧾</span> Historial de Ventas</a></li>
         <li><a href="#" class="sidebar-sublink" onclick="alert('Proceso 2: Cotizaciones en desarrollo'); return false;"><span>📝</span> Cotizaciones</a></li>
-        <li><a href="<?= $ventasPfx ?>Facturacion/facturacion.php" class="sidebar-sublink <?= ($currentPage === 'facturacion.php') ? 'active' : '' ?>"><span>🛒</span> Facturación</a></li>
-        <li><a href="<?= $ventasPfx ?>Delivery/delivery.php" class="sidebar-sublink <?= ($currentPage === 'delivery.php') ? 'active' : '' ?>"><span>🛵</span> Delivery</a></li>
         <li><a href="#" class="sidebar-sublink" onclick="alert('Proceso 5: Consignaciones en desarrollo'); return false;"><span>🍾</span> Consignaciones</a></li>
         <li><a href="#" class="sidebar-sublink" onclick="alert('Proceso 6: Devoluciones en desarrollo'); return false;"><span>🔄</span> Devoluciones</a></li>
-        <li><a href="#" class="sidebar-sublink" onclick="alert('Proceso 7: Cuentas por Cobrar en desarrollo'); return false;"><span>💳</span> Cuentas por Cobrar</a></li>
+        <li><a href="#" class="sidebar-sublink" onclick="alert('Proceso de Cuentas por Cobrar (CxC) en desarrollo'); return false;"><span>💳</span> Cuentas por Cobrar (CxC)</a></li>
         <li><a href="#" class="sidebar-sublink" onclick="alert('Proceso 8: Notas de Débito en desarrollo'); return false;"><span>📄</span> Notas de Débito</a></li>
       </ul>
     </li>
@@ -131,20 +171,26 @@ $isConfigActive      = (!empty($configPages) && is_array($configPages)) ? in_arr
         <span class="sidebar-chevron">▸</span>
       </div>
       <ul class="sidebar-subnav">
-        <li><a href="#" class="sidebar-sublink" onclick="alert('Proceso 1: Compras y Recepción en desarrollo'); return false;"><span>📥</span> Compras y Recepción</a></li>
-        <li><a href="#" class="sidebar-sublink" onclick="alert('Proceso 2: Cuentas por Pagar en desarrollo'); return false;"><span>🏛️</span> Cuentas por Pagar</a></li>
+        <li><a href="#" class="sidebar-sublink" onclick="alert('Órdenes de Compra en desarrollo'); return false;"><span>📥</span> Órdenes de Compra</a></li>
+        <li><a href="#" class="sidebar-sublink" onclick="alert('Recepción de Mercancía con Lote FEFO en desarrollo'); return false;"><span>🏷️</span> Recepción Check-in</a></li>
+        <li><a href="#" class="sidebar-sublink" onclick="alert('Proceso de Cuentas por Pagar (CxP) en desarrollo'); return false;"><span>🏛️</span> Cuentas por Pagar (CxP)</a></li>
       </ul>
     </li>
 
     <!-- MÓDULO 6: Gestión de Promociones (PROCESOS) ▸ -->
     <li class="sidebar-item <?= $isPromocionesActive ? '' : 'collapsed' ?>" id="menuPromociones">
-      <div class="sidebar-link <?= $isPromocionesActive ? 'active' : '' ?>" onclick="toggleSidebarMenu('menuPromociones')">
+      <div class="sidebar-link <?= $isPromocionesActive ? 'active' : '' ?>"
+        onclick="toggleSidebarMenu('menuPromociones')">
         <span>🎁 Gestión de Promociones</span>
         <span class="sidebar-chevron">▸</span>
       </div>
       <ul class="sidebar-subnav">
-        <li><a href="<?= $promoPfx ?>promociones.php" class="sidebar-sublink <?= ($currentPage === 'promociones.php') ? 'active' : '' ?>"><span>🎁</span> Campañas y Reglas</a></li>
-        <li><a href="<?= $promoPfx ?>cupones.php" class="sidebar-sublink <?= ($currentPage === 'cupones.php') ? 'active' : '' ?>"><span>🏷️</span> Cupones &amp; Descuentos</a></li>
+        <li><a href="<?= $promoPfx ?>promociones.php"
+            class="sidebar-sublink <?= ($currentPage === 'promociones.php') ? 'active' : '' ?>"><span>🎁</span> Campañas
+            y Reglas</a></li>
+        <li><a href="<?= $promoPfx ?>cupones.php"
+            class="sidebar-sublink <?= ($currentPage === 'cupones.php') ? 'active' : '' ?>"><span>🏷️</span> Cupones
+            &amp; Descuentos</a></li>
       </ul>
     </li>
 
@@ -155,7 +201,9 @@ $isConfigActive      = (!empty($configPages) && is_array($configPages)) ? in_arr
         <span class="sidebar-chevron">▸</span>
       </div>
       <ul class="sidebar-subnav">
-        <li><a href="#" class="sidebar-sublink" onclick="alert('Depósito de Arqueos en Cuentas Bancarias en desarrollo'); return false;"><span>💰</span> Depósitos de Arqueos</a></li>
+        <li><a href="#" class="sidebar-sublink"
+            onclick="alert('Depósito de Arqueos en Cuentas Bancarias en desarrollo'); return false;"><span>💰</span>
+            Depósitos de Arqueos</a></li>
       </ul>
     </li>
 
@@ -166,9 +214,13 @@ $isConfigActive      = (!empty($configPages) && is_array($configPages)) ? in_arr
         <span class="sidebar-chevron">▸</span>
       </div>
       <ul class="sidebar-subnav">
-        <li><a href="#" class="sidebar-sublink" onclick="alert('Reportes Fiscales DGII 606 y 607'); return false;"><span>📜</span> Fiscal DGII (606 / 607)</a></li>
-        <li><a href="#" class="sidebar-sublink" onclick="alert('Kardex FEFO en desarrollo'); return false;"><span>📊</span> Kardex Valorado FEFO</a></li>
-        <li><a href="#" class="sidebar-sublink" onclick="alert('Auditoría Forense'); return false;"><span>🛡️</span> Registro de Auditoría</a></li>
+        <li><a href="#" class="sidebar-sublink"
+            onclick="alert('Reportes Fiscales DGII 606 y 607'); return false;"><span>📜</span> Fiscal DGII (606 /
+            607)</a></li>
+        <li><a href="#" class="sidebar-sublink"
+            onclick="alert('Kardex FEFO en desarrollo'); return false;"><span>📊</span> Kardex Valorado FEFO</a></li>
+        <li><a href="#" class="sidebar-sublink" onclick="alert('Auditoría Forense'); return false;"><span>🛡️</span>
+            Registro de Auditoría</a></li>
       </ul>
     </li>
 
@@ -176,34 +228,61 @@ $isConfigActive      = (!empty($configPages) && is_array($configPages)) ? in_arr
     <!-- PANEL DE CONFIGURACIÓN (UBICADO ABAJO DE REPORTES)       -->
     <!-- ======================================================= -->
     <li class="sidebar-item <?= $isConfigOnlyActive ? '' : 'collapsed' ?>" id="menuConfiguracion">
-      <div class="sidebar-link <?= $isConfigOnlyActive ? 'active' : '' ?>" onclick="toggleSidebarMenu('menuConfiguracion')" style="cursor: pointer;">
+      <div class="sidebar-link <?= $isConfigOnlyActive ? 'active' : '' ?>"
+        onclick="toggleSidebarMenu('menuConfiguracion')" style="cursor: pointer;">
         <span>⚙️ Configuración</span>
         <span class="sidebar-chevron">▸</span>
       </div>
       <ul class="sidebar-subnav">
-        <li><a href="<?= $cfgPfx ?>usuarios/usuarios.php" class="sidebar-sublink <?= ($currentPage === 'usuarios.php') ? 'active' : '' ?>"><span>👤</span> Usuarios</a></li>
-        <li><a href="<?= $cfgPfx ?>clasificaciones/clasificaciones.php" class="sidebar-sublink <?= ($currentPage === 'clasificaciones.php') ? 'active' : '' ?>"><span>🏷️</span> Marcas y Categorías</a></li>
-        <li><a href="<?= $cfgPfx ?>productos/productos.php" class="sidebar-sublink <?= ($currentPage === 'productos.php') ? 'active' : '' ?>"><span>🍾</span> Maestro de Productos</a></li>
-        <li><a href="<?= $cfgPfx ?>presentaciones/presentaciones.php" class="sidebar-sublink <?= ($currentPage === 'presentaciones.php') ? 'active' : '' ?>"><span>📦</span> Presentaciones</a></li>
-        <li><a href="<?= $cfgPfx ?>almacenes/almacenes.php" class="sidebar-sublink <?= ($currentPage === 'almacenes.php') ? 'active' : '' ?>"><span>🏢</span> Almacenes Físicos</a></li>
-        <li><a href="<?= $cfgPfx ?>cajas/cajas.php" class="sidebar-sublink <?= ($currentPage === 'cajas.php') ? 'active' : '' ?>"><span>💻</span> Cajas Registradoras</a></li>
+        <li><a href="<?= $cfgPfx ?>usuarios/usuarios.php"
+            class="sidebar-sublink <?= ($currentPage === 'usuarios.php') ? 'active' : '' ?>"><span>👤</span>
+            Usuarios</a></li>
+        <li><a href="<?= $cfgPfx ?>clasificaciones/clasificaciones.php"
+            class="sidebar-sublink <?= ($currentPage === 'clasificaciones.php') ? 'active' : '' ?>"><span>🏷️</span>
+            Marcas y Categorías</a></li>
+        <li><a href="<?= $cfgPfx ?>productos/productos.php"
+            class="sidebar-sublink <?= ($currentPage === 'productos.php') ? 'active' : '' ?>"><span>🍾</span> Maestro de
+            Productos</a></li>
+        <li><a href="<?= $cfgPfx ?>presentaciones/presentaciones.php"
+            class="sidebar-sublink <?= ($currentPage === 'presentaciones.php') ? 'active' : '' ?>"><span>📦</span>
+            Presentaciones</a></li>
+        <li><a href="<?= $cfgPfx ?>almacenes/almacenes.php"
+            class="sidebar-sublink <?= ($currentPage === 'almacenes.php') ? 'active' : '' ?>"><span>🏢</span> Almacenes
+            Físicos</a></li>
+        <li><a href="<?= $cfgPfx ?>cajas/cajas.php"
+            class="sidebar-sublink <?= ($currentPage === 'cajas.php') ? 'active' : '' ?>"><span>💻</span> Cajas
+            Registradoras</a></li>
         <?php if (!function_exists('usuarioPuedeAccederSecuenciasFiscales') || usuarioPuedeAccederSecuenciasFiscales()): ?>
-          <li><a href="<?= $cfgPfx ?>secuencias-dgii/secuencias-dgii.php" class="sidebar-sublink <?= ($currentPage === 'secuencias-dgii.php') ? 'active' : '' ?>"><span>📜</span> Secuencias Fiscales</a></li>
+          <li><a href="<?= $cfgPfx ?>secuencias-dgii/secuencias-dgii.php"
+              class="sidebar-sublink <?= ($currentPage === 'secuencias-dgii.php') ? 'active' : '' ?>"><span>📜</span>
+              Secuencias Fiscales</a></li>
         <?php endif; ?>
         <?php if (!function_exists('usuarioPuedeAccederMonedas') || usuarioPuedeAccederMonedas()): ?>
-          <li><a href="<?= $cfgPfx ?>monedas/monedas.php" class="sidebar-sublink <?= ($currentPage === 'monedas.php') ? 'active' : '' ?>"><span>💱</span> Monedas y Tasas</a></li>
+          <li><a href="<?= $cfgPfx ?>monedas/monedas.php"
+              class="sidebar-sublink <?= ($currentPage === 'monedas.php') ? 'active' : '' ?>"><span>💱</span> Monedas y
+              Tasas</a></li>
         <?php endif; ?>
         <?php if (!function_exists('usuarioPuedeAccederImpuestos') || usuarioPuedeAccederImpuestos()): ?>
-          <li><a href="<?= $cfgPfx ?>impuestos/impuestos.php" class="sidebar-sublink <?= ($currentPage === 'impuestos.php') ? 'active' : '' ?>"><span>🧾</span> Impuestos y Tributos</a></li>
+          <li><a href="<?= $cfgPfx ?>impuestos/impuestos.php"
+              class="sidebar-sublink <?= ($currentPage === 'impuestos.php') ? 'active' : '' ?>"><span>🧾</span> Impuestos
+              y Tributos</a></li>
         <?php endif; ?>
         <?php if (!function_exists('usuarioPuedeAccederRetenciones') || usuarioPuedeAccederRetenciones()): ?>
-          <li><a href="<?= $cfgPfx ?>retenciones/retenciones.php" class="sidebar-sublink <?= ($currentPage === 'retenciones.php') ? 'active' : '' ?>"><span>🏛️</span> Retenciones DGII</a></li>
+          <li><a href="<?= $cfgPfx ?>retenciones/retenciones.php"
+              class="sidebar-sublink <?= ($currentPage === 'retenciones.php') ? 'active' : '' ?>"><span>🏛️</span>
+              Retenciones DGII</a></li>
         <?php endif; ?>
-        <li><a href="<?= $cfgPfx ?>cuentas-bancarias/cuentas-bancarias.php" class="sidebar-sublink <?= ($currentPage === 'cuentas-bancarias.php') ? 'active' : '' ?>"><span>🏦</span> Cuentas Bancarias</a></li>
+        <li><a href="<?= $cfgPfx ?>cuentas-bancarias/cuentas-bancarias.php"
+            class="sidebar-sublink <?= ($currentPage === 'cuentas-bancarias.php') ? 'active' : '' ?>"><span>🏦</span>
+            Cuentas Bancarias</a></li>
         <?php if (!function_exists('usuarioPuedeAccederMetodosPago') || usuarioPuedeAccederMetodosPago()): ?>
-          <li><a href="<?= $cfgPfx ?>metodos-pago/metodos-pago.php" class="sidebar-sublink <?= ($currentPage === 'metodos-pago.php') ? 'active' : '' ?>"><span>💳</span> Métodos de Pago</a></li>
+          <li><a href="<?= $cfgPfx ?>metodos-pago/metodos-pago.php"
+              class="sidebar-sublink <?= ($currentPage === 'metodos-pago.php') ? 'active' : '' ?>"><span>💳</span> Métodos
+              de Pago</a></li>
         <?php endif; ?>
-        <li><a href="<?= $cfgPfx ?>zonas-delivery/zonas-delivery.php" class="sidebar-sublink <?= ($currentPage === 'zonas-delivery.php') ? 'active' : '' ?>"><span>📍</span> Zonas Delivery</a></li>
+        <li><a href="<?= $cfgPfx ?>zonas-delivery/zonas-delivery.php"
+            class="sidebar-sublink <?= ($currentPage === 'zonas-delivery.php') ? 'active' : '' ?>"><span>📍</span> Zonas
+            Delivery</a></li>
       </ul>
     </li>
 
@@ -363,4 +442,3 @@ $isConfigActive      = (!empty($configPages) && is_array($configPages)) ? in_arr
     }, true);
   })();
 </script>
-
