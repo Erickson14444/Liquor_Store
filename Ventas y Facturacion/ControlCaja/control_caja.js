@@ -114,7 +114,26 @@ function abrirModalApertura(cajaId = null) {
 
 function cerrarModalApertura() {
   const modal = document.getElementById('modalAperturaTurno');
-  if (modal) modal.style.display = 'none';
+  if (modal) {
+    modal.style.display = 'none';
+    const errBox = modal.querySelector('.modal-error-box');
+    if (errBox) errBox.style.display = 'none';
+  }
+}
+
+function mostrarErrorEnModal(modalId, mensaje) {
+  const modal = document.getElementById(modalId);
+  if (!modal) return;
+  let box = modal.querySelector('.modal-error-box');
+  if (!box) {
+    box = document.createElement('div');
+    box.className = 'modal-error-box';
+    box.style.cssText = 'background: #fde8e8; border: 1px solid #f8b4b4; color: #9b1c1c; padding: 10px 14px; border-radius: 6px; font-size: 0.85rem; margin-bottom: 12px; font-weight: 600; text-align: left;';
+    const container = modal.querySelector('form') || modal.querySelector('.modal-body') || modal.querySelector('.modal-content');
+    if (container) container.insertBefore(box, container.firstChild);
+  }
+  box.textContent = '⚠️ ' + mensaje;
+  box.style.display = 'block';
 }
 
 function guardarAperturaTurno(e) {
@@ -132,11 +151,11 @@ function guardarAperturaTurno(e) {
   fetch('procesar_caja.php', { method: 'POST', body: fd })
     .then(res => res.json())
     .then(data => {
-      if (data.status === 'success') {
-        alert(data.message);
+      if (data.status === 'success' || data.success) {
+        cerrarModalApertura();
         window.location.reload();
       } else {
-        alert('Error: ' + data.message);
+        mostrarErrorEnModal('modalAperturaTurno', data.message || data.mensaje || 'Error al abrir turno.');
         if (btn) {
           btn.disabled = false;
           btn.innerText = 'Abrir Turno';
@@ -144,7 +163,7 @@ function guardarAperturaTurno(e) {
       }
     })
     .catch(() => {
-      alert('Error de conexión al abrir turno.');
+      mostrarErrorEnModal('modalAperturaTurno', 'Error de conexión con el servidor.');
       if (btn) {
         btn.disabled = false;
         btn.innerText = 'Abrir Turno';
@@ -192,11 +211,11 @@ function guardarArqueoCiego(e) {
   fetch('procesar_caja.php', { method: 'POST', body: fd })
     .then(res => res.json())
     .then(data => {
-      if (data.status === 'success') {
+      if (data.status === 'success' || data.success) {
         cerrarModalArqueo();
         window.location.reload();
       } else {
-        alert('Error: ' + (data.message || data.mensaje));
+        mostrarErrorEnModal('modalArqueoCiego', data.message || data.mensaje || 'Error al procesar el arqueo.');
         if (btn) {
           btn.disabled = false;
           btn.innerText = 'Confirmar y Liquidar Turno';
@@ -204,7 +223,7 @@ function guardarArqueoCiego(e) {
       }
     })
     .catch(() => {
-      alert('Error de conexión al procesar el arqueo.');
+      mostrarErrorEnModal('modalArqueoCiego', 'Error de conexión al procesar el arqueo.');
       if (btn) {
         btn.disabled = false;
         btn.innerText = 'Confirmar y Liquidar Turno';
@@ -248,12 +267,11 @@ function guardarMovimientoCajaChica(e) {
   fetch('procesar_caja.php', { method: 'POST', body: fd })
     .then(res => res.json())
     .then(data => {
-      if (data.status === 'success') {
-        alert(data.message);
+      if (data.status === 'success' || data.success) {
         cerrarModalCajaChica();
         window.location.reload();
       } else {
-        alert('Error: ' + data.message);
+        mostrarErrorEnModal('modalCajaChica', data.message || data.mensaje || 'Error al registrar movimiento.');
         if (btn) {
           btn.disabled = false;
           btn.innerText = 'Registrar y Autorizar con PIN';
@@ -261,7 +279,7 @@ function guardarMovimientoCajaChica(e) {
       }
     })
     .catch(() => {
-      alert('Error de conexión.');
+      mostrarErrorEnModal('modalCajaChica', 'Error de conexión.');
       if (btn) {
         btn.disabled = false;
         btn.innerText = 'Registrar y Autorizar con PIN';
@@ -382,8 +400,9 @@ function verDesgloseArqueo(sesionId) {
       }
     })
     .catch(err => {
-      alert('Error de conexión al consultar el desglose: ' + err.message);
-      cerrarModalDesglose();
+      console.error(err);
+      const v = document.getElementById('desVeredictoTitulo');
+      if (v) v.innerHTML = `<span style="color: #c62828;">Error de conexión: ${escapeHtml(err.message)}</span>`;
     });
 }
 
