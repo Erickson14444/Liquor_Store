@@ -164,11 +164,60 @@ $sesionUsuario        = $_SESSION['usuario'] ?? [];
 $sesionNombreCompleto = $sesionUsuario['nombre_completo'] ?? 'Usuario';
 $sesionRol            = $sesionUsuario['rol'] ?? ($sesionUsuario['cargo'] ?? 'Empleado');
 $sesionCargo          = $sesionUsuario['cargo'] ?? '';
-$sesionCajaId         = intval($sesionUsuario['caja_id'] ?? 1);
 $sesionAvatarInitials = $sesionUsuario['avatar_initials'] ?? calcularInicialesEmpleado($sesionNombreCompleto);
 $sesionEsAdmin        = !empty($sesionUsuario['es_admin']) || stripos($sesionRol, 'Administrador') !== false;
 $sesionEsSupervisor   = !empty($sesionUsuario['es_supervisor']) || stripos($sesionRol, 'Supervisor') !== false;
 $sesionPermisos       = is_array($sesionUsuario['permisos'] ?? null) ? $sesionUsuario['permisos'] : [];
+
+// ============================================================================
+// Detección dinámica de la Caja POS asignada al cajero/usuario logueado
+// ============================================================================
+$sesionCajaActiva   = null;
+$sesionTieneCaja    = false;
+$sesionCajaNombre   = 'Sin Caja Asignada';
+$sesionCajaId       = null;
+
+if (isset($pdo) && $pdo && !empty($sesionUsuario['usuario_id'])) {
+    try {
+        $stmtCjActiva = $pdo->prepare("
+            SELECT sc.id, sc.caja_id, sc.cajero_id, sc.monto_inicial_efectivo, sc.estado,
+                   cp.nombre_equipo, cp.ubicacion
+            FROM ventas.sesiones_caja sc
+            JOIN ventas.cajas_pos cp ON cp.id = sc.caja_id
+            WHERE sc.cajero_id = ?
+              AND sc.estado IN ('ABIERTA', 'EN_CUADRE')
+            ORDER BY sc.fecha_apertura DESC
+            LIMIT 1
+        ");
+        $stmtCjActiva->execute([$sesionUsuario['usuario_id']]);
+        $rowCjActiva = $stmtCjActiva->fetch(PDO::FETCH_ASSOC);
+
+        if ($rowCjActiva) {
+            $sesionCajaActiva = $rowCjActiva;
+            $sesionTieneCaja  = true;
+            $sesionCajaId     = intval($rowCjActiva['caja_id']);
+            $sesionCajaNombre = $rowCjActiva['nombre_equipo'];
+        }
+    } catch (Throwable $e) {
+        $sesionTieneCaja = false;
+    }
+}
+
+// Fallback de retrocompatibilidad si $sesionCajaId se usa en consultas numéricas
+$cajaId = $sesionCajaId ?: 1;
+
+if (!function_exists('renderizarPillCajaTopbar')) {
+    function renderizarPillCajaTopbar(): string {
+        global $sesionTieneCaja, $sesionCajaNombre, $sesionCajaActiva;
+        if (!empty($sesionTieneCaja)) {
+            $nombre = htmlspecialchars($sesionCajaNombre);
+            $title = !empty($sesionCajaActiva['id']) ? " title=\"Sesión #{$sesionCajaActiva['id']} activa\"" : ' title="Caja asignada activa"';
+            return '<span class="user-caja-pill open"' . $title . '><span class="pill-dot green"></span>' . $nombre . '</span>';
+        } else {
+            return '<span class="user-caja-pill" style="background: #fdf5ea; color: #b25e09; border: 1px solid #eccca2;" title="No tiene turno abierto en ninguna terminal física"><span class="pill-dot" style="background: #b25e09;"></span>Sin Caja Asignada</span>';
+        }
+    }
+}
 
 if (!function_exists('usuarioTienePermiso')) {
     function usuarioTienePermiso(string $clave): bool {

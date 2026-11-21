@@ -320,10 +320,7 @@ foreach ($historialSesiones as $h) {
           <div class="user-sub-line">
             <span class="user-role-text"><?= htmlspecialchars($sesionRol ?? 'Administrador') ?></span>
             <span class="user-bullet">•</span>
-            <span class="user-caja-pill open">
-              <span class="pill-dot green"></span>
-              Caja 0<?= htmlspecialchars((string)($sesionCajaId ?? 1)) ?>
-            </span>
+            <?= renderizarPillCajaTopbar() ?>
           </div>
         </div>
       </div>

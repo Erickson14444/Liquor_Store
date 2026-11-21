@@ -1,4 +1,4 @@
-<?php
+﻿<?php
 require_once __DIR__ . '/../../config/conexion.php';
 
 if (!usuarioPuedeAccederMetodosPago()) {
@@ -45,10 +45,7 @@ if ($pdo) {
           <div class="user-sub-line">
             <span class="user-role-text"><?= htmlspecialchars($sesionRol) ?></span>
             <span class="user-bullet">•</span>
-            <span class="user-caja-pill open">
-              <span class="pill-dot green"></span>
-              Caja 0<?= htmlspecialchars((string)$sesionCajaId) ?>
-            </span>
+            <?= renderizarPillCajaTopbar() ?>
           </div>
         </div>
       </div>

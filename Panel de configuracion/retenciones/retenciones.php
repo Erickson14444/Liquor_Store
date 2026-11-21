@@ -1,4 +1,4 @@
-<?php
+﻿<?php
 /**
  * #14 — Mantenimiento de Retenciones DGII [NUEVO]
  * House & Ice • Sistema Administrativo (ERP Licorero)
@@ -54,10 +54,7 @@ if ($pdo) {
           <div class="user-sub-line">
             <span class="user-role-text"><?= htmlspecialchars($sesionRol) ?></span>
             <span class="user-bullet">•</span>
-            <span class="user-caja-pill open">
-              <span class="pill-dot green"></span>
-              Caja 0<?= htmlspecialchars((string)$sesionCajaId) ?>
-            </span>
+            <?= renderizarPillCajaTopbar() ?>
           </div>
         </div>
       </div>
