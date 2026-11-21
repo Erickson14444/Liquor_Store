@@ -219,3 +219,11 @@ if (!function_exists('usuarioPuedeAccederSecuenciasFiscales')) {
         return usuarioEsAdministrador() || $sesionEsSupervisor || usuarioTienePermiso('GESTIONAR_SECUENCIAS_FISCALES');
     }
 }
+
+// Control de Caja: Exclusivo para Administrador y Supervisor (no cajero)
+if (!function_exists('usuarioPuedeAccederControlCaja')) {
+    function usuarioPuedeAccederControlCaja(): bool {
+        global $sesionEsAdmin, $sesionEsSupervisor;
+        return $sesionEsAdmin || $sesionEsSupervisor || usuarioTienePermiso('GESTIONAR_CONTROL_CAJA') || usuarioTienePermiso('SUPERVISOR_CAJA');
+    }
+}

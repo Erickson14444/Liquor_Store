@@ -9,6 +9,15 @@
 
 require_once __DIR__ . '/../../config/conexion.php';
 
+// ============================================================================
+// CONTROL DE ACCESO (RBAC): Exclusivo para Supervisores y Administradores
+// Los cajeros únicamente acceden a Facturación; no a Control de Caja.
+// ============================================================================
+if (function_exists('usuarioPuedeAccederControlCaja') && !usuarioPuedeAccederControlCaja()) {
+    header("Location: ../../Login y Menu/menu.php?error=" . urlencode("Acceso Restringido: El módulo de Control de Caja es exclusivo para Supervisores y Administradores."));
+    exit;
+}
+
 $cajasPos          = [];
 $empleadosCajeros  = [];
 $historialSesiones = [];

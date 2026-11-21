@@ -152,7 +152,9 @@ $isConfigActive = (!empty($configPages) && is_array($configPages)) ? in_array($c
         <span class="sidebar-chevron">▸</span>
       </div>
       <ul class="sidebar-subnav">
-        <li><a href="<?= $ventasPfx ?>ControlCaja/control_caja.php" class="sidebar-sublink <?= ($currentPage === 'control_caja.php') ? 'active' : '' ?>"><span>🔒</span> Control de Caja</a></li>
+        <?php if (!function_exists('usuarioPuedeAccederControlCaja') || usuarioPuedeAccederControlCaja()): ?>
+          <li><a href="<?= $ventasPfx ?>ControlCaja/control_caja.php" class="sidebar-sublink <?= ($currentPage === 'control_caja.php') ? 'active' : '' ?>"><span>🔒</span> Control de Caja</a></li>
+        <?php endif; ?>
         <li><a href="<?= $ventasPfx ?>Facturacion/facturacion.php" class="sidebar-sublink <?= ($currentPage === 'facturacion.php') ? 'active' : '' ?>"><span>🛒</span> Facturación (POS)</a></li>
         <li><a href="<?= $ventasPfx ?>Delivery/delivery.php" class="sidebar-sublink <?= ($currentPage === 'delivery.php') ? 'active' : '' ?>"><span>🛵</span> Despacho Delivery</a></li>
         <li><a href="#" class="sidebar-sublink" onclick="alert('Historial de Ventas en desarrollo'); return false;"><span>🧾</span> Historial de Ventas</a></li>

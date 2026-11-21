@@ -622,22 +622,15 @@ foreach ($secuenciasFiscales as $sec) {
             <button type="button" class="btn btn-gold" onclick="abrirModalArqueoFacturacion()" style="background: #965318; border-color: #965318; color: #fff; font-weight: 600;">
               🔒 Finalizar Turno
             </button>
-          <?php else: ?>
-            <a href="../ControlCaja/control_caja.php" class="btn btn-gold" style="background: #2e7d32; border-color: #2e7d32; color: #fff; font-weight: 600; text-decoration: none;">
-              ▶️ Empezar Turno
-            </a>
           <?php endif; ?>
         </div>
       </div>
 
       <?php if (empty($sesionCajaActiva)): ?>
-        <div style="background: #fff8eb; border: 1px solid #f0d8a8; color: #7a5216; padding: 12px 18px; border-radius: 8px; margin-bottom: 18px; display: flex; align-items: center; justify-content: space-between; gap: 12px;">
+        <div style="background: #fff8eb; border: 1px solid #f0d8a8; color: #7a5216; padding: 12px 18px; border-radius: 8px; margin-bottom: 18px; display: flex; align-items: center; gap: 12px;">
           <div style="font-size: 0.88rem;">
             ⚠️ <strong>Turno No Iniciado / Sin Caja Asignada:</strong> No puedes facturar ni registrar cobros. Solicita a tu supervisor que te asigne una caja y fondo de apertura en <strong>Control de Caja</strong>.
           </div>
-          <a href="../ControlCaja/control_caja.php" class="btn-sm" style="background: #965318; color: #fff; text-decoration: none; padding: 6px 14px; border-radius: 4px; font-weight: 600; white-space: nowrap;">
-            Ir a Control de Caja
-          </a>
         </div>
       <?php endif; ?>
 
