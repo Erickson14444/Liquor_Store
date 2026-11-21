@@ -113,12 +113,14 @@ $isConfigActive      = (!empty($configPages) && is_array($configPages)) ? in_arr
         <span class="sidebar-chevron">▸</span>
       </div>
       <ul class="sidebar-subnav">
-        <li><a href="<?= $ventasPfx ?>Facturacion/facturacion.php" class="sidebar-sublink <?= ($currentPage === 'facturacion.php') ? 'active' : '' ?>"><span>🛒</span> Facturación (POS)</a></li>
-        <li><a href="#" class="sidebar-sublink" onclick="alert('Apertura y Arqueo Ciego de Caja en desarrollo'); return false;"><span>🔒</span> Apertura y Cierre Caja</a></li>
-        <li><a href="#" class="sidebar-sublink" onclick="alert('Historial de Facturas en desarrollo'); return false;"><span>🧾</span> Historial de Ventas</a></li>
-        <li><a href="#" class="sidebar-sublink" onclick="alert('Proceso de Cotizaciones en desarrollo'); return false;"><span>📝</span> Cotizaciones</a></li>
-        <li><a href="<?= $ventasPfx ?>Delivery/delivery.php" class="sidebar-sublink <?= ($currentPage === 'delivery.php') ? 'active' : '' ?>"><span>🛵</span> Despacho Delivery</a></li>
-        <li><a href="#" class="sidebar-sublink" onclick="alert('Proceso de Cuentas por Cobrar (CxC) en desarrollo'); return false;"><span>💳</span> Cuentas por Cobrar (CxC)</a></li>
+        <li><a href="#" class="sidebar-sublink" onclick="alert('Proceso 1: Control de Caja en desarrollo'); return false;"><span>🔒</span> Control de Caja</a></li>
+        <li><a href="#" class="sidebar-sublink" onclick="alert('Proceso 2: Cotizaciones en desarrollo'); return false;"><span>📝</span> Cotizaciones</a></li>
+        <li><a href="<?= $ventasPfx ?>Facturacion/facturacion.php" class="sidebar-sublink <?= ($currentPage === 'facturacion.php') ? 'active' : '' ?>"><span>🛒</span> Facturación</a></li>
+        <li><a href="<?= $ventasPfx ?>Delivery/delivery.php" class="sidebar-sublink <?= ($currentPage === 'delivery.php') ? 'active' : '' ?>"><span>🛵</span> Delivery</a></li>
+        <li><a href="#" class="sidebar-sublink" onclick="alert('Proceso 5: Consignaciones en desarrollo'); return false;"><span>🍾</span> Consignaciones</a></li>
+        <li><a href="#" class="sidebar-sublink" onclick="alert('Proceso 6: Devoluciones en desarrollo'); return false;"><span>🔄</span> Devoluciones</a></li>
+        <li><a href="#" class="sidebar-sublink" onclick="alert('Proceso 7: Cuentas por Cobrar en desarrollo'); return false;"><span>💳</span> Cuentas por Cobrar</a></li>
+        <li><a href="#" class="sidebar-sublink" onclick="alert('Proceso 8: Notas de Débito en desarrollo'); return false;"><span>📄</span> Notas de Débito</a></li>
       </ul>
     </li>
 
@@ -129,9 +131,8 @@ $isConfigActive      = (!empty($configPages) && is_array($configPages)) ? in_arr
         <span class="sidebar-chevron">▸</span>
       </div>
       <ul class="sidebar-subnav">
-        <li><a href="#" class="sidebar-sublink" onclick="alert('Órdenes de Compra en desarrollo'); return false;"><span>📥</span> Órdenes de Compra</a></li>
-        <li><a href="#" class="sidebar-sublink" onclick="alert('Recepción de Mercancía con Lote FEFO en desarrollo'); return false;"><span>🏷️</span> Recepción Check-in</a></li>
-        <li><a href="#" class="sidebar-sublink" onclick="alert('Proceso de Cuentas por Pagar (CxP) en desarrollo'); return false;"><span>🏛️</span> Cuentas por Pagar (CxP)</a></li>
+        <li><a href="#" class="sidebar-sublink" onclick="alert('Proceso 1: Compras y Recepción en desarrollo'); return false;"><span>📥</span> Compras y Recepción</a></li>
+        <li><a href="#" class="sidebar-sublink" onclick="alert('Proceso 2: Cuentas por Pagar en desarrollo'); return false;"><span>🏛️</span> Cuentas por Pagar</a></li>
       </ul>
     </li>
 
