@@ -937,6 +937,11 @@ async function guardarClienteRapido(event) {
    GUARDAR FACTURA COMPLETA
    ========================================================================== */
 async function procesarGuardadoFactura() {
+  if (typeof window.POS_TIENE_CAJA_ACTIVA !== 'undefined' && window.POS_TIENE_CAJA_ACTIVA === false) {
+    mostrarToast('No tienes una caja asignada. Por favor, solicita a tu supervisor que abra tu turno en Control de Caja.', 'error');
+    return;
+  }
+
   if (carrito.length === 0) {
     mostrarToast('Agrega al menos un producto al carrito antes de guardar la factura.', 'error');
     return;

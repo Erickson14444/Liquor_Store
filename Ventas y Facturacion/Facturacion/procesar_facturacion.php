@@ -241,36 +241,23 @@ try {
             throw new Exception('No se encontró un usuario cajero/vendedor activo para emitir la factura.');
         }
 
-        // 2. Resolver sesion_caja_id abierta (o crear una automáticamente para no bloquear el POS)
+        // 2. Validar que exista una sesión de caja asignada y ABIERTA por el supervisor
         $stmtSes = $pdo->prepare("
             SELECT id FROM ventas.sesiones_caja
-            WHERE estado = 'ABIERTA'
+            WHERE cajero_id = ? AND estado = 'ABIERTA'
             ORDER BY id DESC LIMIT 1
         ");
-        $stmtSes->execute();
+        $stmtSes->execute([$vendedorId]);
         $sesionCajaId = (int)$stmtSes->fetchColumn();
 
         if ($sesionCajaId <= 0) {
-            // Buscar o crear una Caja POS
-            $cajaPosId = (int)$pdo->query("SELECT id FROM ventas.cajas_pos ORDER BY id ASC LIMIT 1")->fetchColumn();
-            if ($cajaPosId <= 0) {
-                $stmtNewCaja = $pdo->query("
-                    INSERT INTO ventas.cajas_pos (nombre_equipo, estado, ubicacion)
-                    VALUES ('Caja Principal 01', 'ABIERTA', 'Mostrador Principal')
-                    RETURNING id
-                ");
-                $cajaPosId = (int)$stmtNewCaja->fetchColumn();
-            } else {
-                $pdo->prepare("UPDATE ventas.cajas_pos SET estado = 'ABIERTA' WHERE id = ?")->execute([$cajaPosId]);
-            }
+            // Verificación general si el cajero no tiene asignación directa pero hay un turno abierto
+            $stmtSesGen = $pdo->query("SELECT id FROM ventas.sesiones_caja WHERE estado = 'ABIERTA' ORDER BY id DESC LIMIT 1");
+            $sesionCajaId = (int)$stmtSesGen->fetchColumn();
+        }
 
-            $stmtNewSes = $pdo->prepare("
-                INSERT INTO ventas.sesiones_caja (caja_id, cajero_id, monto_inicial_efectivo, estado)
-                VALUES (?, ?, 2000.00, 'ABIERTA')
-                RETURNING id
-            ");
-            $stmtNewSes->execute([$cajaPosId, $vendedorId]);
-            $sesionCajaId = (int)$stmtNewSes->fetchColumn();
+        if ($sesionCajaId <= 0) {
+            throw new Exception('No tienes una caja asignada con turno abierto. Solicita a tu supervisor que abra tu turno en Control de Caja.');
         }
 
         // 3. Resolver cliente_id y datos fiscales del cliente

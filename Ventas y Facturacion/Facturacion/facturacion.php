@@ -630,6 +630,17 @@ foreach ($secuenciasFiscales as $sec) {
         </div>
       </div>
 
+      <?php if (empty($sesionCajaActiva)): ?>
+        <div style="background: #fff8eb; border: 1px solid #f0d8a8; color: #7a5216; padding: 12px 18px; border-radius: 8px; margin-bottom: 18px; display: flex; align-items: center; justify-content: space-between; gap: 12px;">
+          <div style="font-size: 0.88rem;">
+            ⚠️ <strong>Turno No Iniciado / Sin Caja Asignada:</strong> No puedes facturar ni registrar cobros. Solicita a tu supervisor que te asigne una caja y fondo de apertura en <strong>Control de Caja</strong>.
+          </div>
+          <a href="../ControlCaja/control_caja.php" class="btn-sm" style="background: #965318; color: #fff; text-decoration: none; padding: 6px 14px; border-radius: 4px; font-weight: 600; white-space: nowrap;">
+            Ir a Control de Caja
+          </a>
+        </div>
+      <?php endif; ?>
+
       <!-- BLOQUE SUPERIOR: TARJETA IZQUIERDA (CLIENTE Y PAGO) + TARJETA DERECHA (TOTAL FACTURA) -->
       <div class="pos-top-grid">
 
@@ -770,9 +781,15 @@ foreach ($secuenciasFiscales as $sec) {
           <button type="button" class="btn btn-outline-card" id="btnLimpiarCarrito" onclick="limpiarCarritoConConfirmacion()" style="display: none;">
             Vaciar Carrito
           </button>
-          <button type="button" class="btn btn-dark-save" id="btnGuardarFactura" onclick="procesarGuardadoFactura()">
-            Guardar Factura
-          </button>
+          <?php if (empty($sesionCajaActiva)): ?>
+            <button type="button" class="btn btn-dark-save" id="btnGuardarFactura" disabled style="opacity: 0.55; cursor: not-allowed; background: #6c757d; border-color: #6c757d;" title="Solicita a tu supervisor abrir tu turno en Control de Caja">
+              🔒 Sin Caja Asignada
+            </button>
+          <?php else: ?>
+            <button type="button" class="btn btn-dark-save" id="btnGuardarFactura" onclick="procesarGuardadoFactura()">
+              Guardar Factura
+            </button>
+          <?php endif; ?>
         </div>
       </div>
 
@@ -1444,6 +1461,7 @@ foreach ($secuenciasFiscales as $sec) {
 
   <!-- DATOS INICIALES PARA JS -->
   <script>
+    window.POS_TIENE_CAJA_ACTIVA  = <?= !empty($sesionCajaActiva) ? 'true' : 'false' ?>;
     window.POS_CATALOGO           = <?= json_encode($catalogoProductos, JSON_UNESCAPED_UNICODE) ?>;
     window.POS_NCF_INFO           = <?= json_encode($ncfDisponibles, JSON_UNESCAPED_UNICODE) ?>;
     window.POS_PROMOCIONES        = <?= json_encode($promocionesActivas, JSON_UNESCAPED_UNICODE) ?>;
