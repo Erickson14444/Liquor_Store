@@ -270,6 +270,8 @@ if ($pdo) {
     }
 
     try {
+        require_once __DIR__ . '/../../config/auditoria_helper.php';
+        $supervisoresAutorizados = ($pdo && function_exists('obtenerSupervisoresAutorizados')) ? obtenerSupervisoresAutorizados($pdo) : [];
         // Cajas POS registradas para apertura de turno
         $stmtCjDisp = $pdo->query("SELECT id, nombre_equipo, ubicacion, estado FROM ventas.cajas_pos ORDER BY id ASC");
         $cajasPosDisponibles = $stmtCjDisp->fetchAll(PDO::FETCH_ASSOC) ?: [];
@@ -1421,19 +1423,39 @@ foreach ($secuenciasFiscales as $sec) {
             />
           </div>
 
-          <div class="form-group" style="margin: 0; background: #fff8e1; border: 1.5px dashed #ffe082; padding: 12px; border-radius: 8px;">
-            <label class="form-label" for="pos_mov_pin" style="color: #794a15; font-size: 0.76rem; font-weight: 700;">PIN DE AUTORIZACIÓN DEL SUPERVISOR *</label>
-            <input
-              type="password"
-              maxlength="8"
-              id="pos_mov_pin"
-              name="pin_supervisor"
-              class="arqueo-input-control"
-              placeholder="••••"
-              style="text-align: center; font-size: 1.35rem; letter-spacing: 6px; background: #fff;"
-              required
-            />
-            <small style="color: #8a7b70; font-size: 0.72rem; margin-top: 4px; display: block;">El supervisor debe digitar su PIN para validar esta transacción de caja.</small>
+          <div class="form-group" style="margin: 0; background: #fff8e1; border: 1.5px dashed #ffe082; padding: 14px; border-radius: 8px;">
+            <div style="font-weight: 700; color: #794a15; margin-bottom: 8px; font-size: 0.84rem;">
+              🔐 AUTORIZACIÓN DEL SUPERVISOR EN TURNO
+            </div>
+
+            <!-- SELECCIONAR USUARIO DEL SUPERVISOR -->
+            <div style="margin-bottom: 10px;">
+              <label class="form-label" for="pos_mov_supervisor_id" style="color: #794a15; font-size: 0.76rem; font-weight: 700;">USUARIO SUPERVISOR *</label>
+              <select id="pos_mov_supervisor_id" name="supervisor_id" class="arqueo-input-control" style="font-size: 0.88rem; background: #fff;" required>
+                <option value="">-- Seleccione el Supervisor --</option>
+                <?php foreach ($supervisoresAutorizados as $sup): ?>
+                  <option value="<?= htmlspecialchars($sup['usuario_id']) ?>">
+                    <?= htmlspecialchars($sup['nombre_completo']) ?> (@<?= htmlspecialchars($sup['username']) ?>)
+                  </option>
+                <?php endforeach; ?>
+              </select>
+            </div>
+
+            <!-- PIN DE AUTORIZACIÓN -->
+            <div>
+              <label class="form-label" for="pos_mov_pin" style="color: #794a15; font-size: 0.76rem; font-weight: 700;">PIN DE SEGURIDAD DEL SUPERVISOR *</label>
+              <input
+                type="password"
+                maxlength="6"
+                id="pos_mov_pin"
+                name="pin_supervisor"
+                class="arqueo-input-control"
+                placeholder="••••"
+                style="text-align: center; font-size: 1.35rem; letter-spacing: 6px; background: #fff;"
+                required
+              />
+              <small style="color: #8a7b70; font-size: 0.72rem; margin-top: 4px; display: block;">El supervisor seleccionado debe digitar su PIN para validar esta transacción de caja.</small>
+            </div>
           </div>
         </div>
 
@@ -1483,18 +1505,24 @@ foreach ($secuenciasFiscales as $sec) {
         });
         const data = await resp.json();
         if (data.status !== 'success' && !data.success) {
-          alert('Error: ' + (data.message || data.mensaje));
+          if (typeof mostrarToast === 'function') {
+            mostrarToast('Error: ' + (data.message || data.mensaje), 'error');
+          }
           btn.disabled = false;
           btn.textContent = 'Registrar con PIN';
           return;
         }
 
-        alert('✅ ' + (data.message || data.mensaje || 'Movimiento de caja chica registrado exitosamente.'));
+        if (typeof mostrarToast === 'function') {
+          mostrarToast('✅ ' + (data.message || data.mensaje || 'Movimiento registrado exitosamente.'), 'exito');
+        }
         cerrarModalConConfirmacion('modalCajaChicaFacturacion');
         btn.disabled = false;
         btn.textContent = 'Registrar con PIN';
       } catch (err) {
-        alert('Error de conexión al registrar movimiento: ' + err.message);
+        if (typeof mostrarToast === 'function') {
+          mostrarToast('Error de conexión al registrar movimiento: ' + err.message, 'error');
+        }
         btn.disabled = false;
         btn.textContent = 'Registrar con PIN';
       }
@@ -1649,18 +1677,24 @@ foreach ($secuenciasFiscales as $sec) {
         });
         const data = await resp.json();
         if (data.status !== 'success' && !data.success) {
-          alert('Error: ' + (data.message || data.mensaje));
+          if (typeof mostrarToast === 'function') {
+            mostrarToast('Error: ' + (data.message || data.mensaje), 'error');
+          }
           btn.disabled = false;
           btn.textContent = 'Registrar con PIN';
           return;
         }
 
-        alert('✅ ' + (data.message || data.mensaje || 'Movimiento de caja chica registrado exitosamente.'));
+        if (typeof mostrarToast === 'function') {
+          mostrarToast('✅ ' + (data.message || data.mensaje || 'Movimiento registrado exitosamente.'), 'exito');
+        }
         cerrarModalConConfirmacion('modalCajaChicaFacturacion');
         btn.disabled = false;
         btn.textContent = 'Registrar con PIN';
       } catch (err) {
-        alert('Error de conexión al registrar movimiento: ' + err.message);
+        if (typeof mostrarToast === 'function') {
+          mostrarToast('Error de conexión al registrar movimiento: ' + err.message, 'error');
+        }
         btn.disabled = false;
         btn.textContent = 'Registrar con PIN';
       }

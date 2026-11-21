@@ -8,6 +8,7 @@
  */
 
 require_once __DIR__ . '/../../config/conexion.php';
+require_once __DIR__ . '/../../config/auditoria_helper.php';
 
 // ============================================================================
 // CONTROL DE ACCESO (RBAC): Exclusivo para Supervisores y Administradores
@@ -18,10 +19,11 @@ if (function_exists('usuarioPuedeAccederControlCaja') && !usuarioPuedeAccederCon
     exit;
 }
 
-$cajasPos          = [];
-$empleadosCajeros  = [];
-$historialSesiones = [];
-$sesionesActivas   = [];
+$cajasPos                = [];
+$empleadosCajeros        = [];
+$historialSesiones       = [];
+$sesionesActivas         = [];
+$supervisoresAutorizados = ($pdo && function_exists('obtenerSupervisoresAutorizados')) ? obtenerSupervisoresAutorizados($pdo) : [];
 
 if ($pdo) {
     try {
@@ -770,19 +772,39 @@ foreach ($historialSesiones as $h) {
             />
           </div>
 
-          <div class="form-group" style="background: #fff8e1; border: 1px dashed #ffe082; padding: 12px; border-radius: 8px;">
-            <label class="form-label" for="mov_pin" style="color: #794a15;">PIN DE AUTORIZACIÓN DEL SUPERVISOR *</label>
-            <input
-              type="password"
-              maxlength="8"
-              id="mov_pin"
-              name="pin_supervisor"
-              class="form-control"
-              placeholder="••••"
-              style="text-align: center; font-size: 1.4rem; letter-spacing: 6px;"
-              required
-            />
-            <small style="color: #8a7b70; font-size: 0.72rem;">El supervisor debe digitar su PIN para validar esta salida/entrada.</small>
+          <div class="form-group" style="background: #fff8e1; border: 1.5px dashed #ffe082; padding: 14px; border-radius: 8px;">
+            <div style="font-weight: 700; color: #794a15; margin-bottom: 8px; font-size: 0.88rem;">
+              🔐 AUTORIZACIÓN DEL SUPERVISOR EN TURNO
+            </div>
+
+            <!-- SELECCIONAR USUARIO DEL SUPERVISOR -->
+            <div style="margin-bottom: 10px;">
+              <label class="form-label" for="mov_supervisor_id" style="color: #794a15; font-size: 0.78rem; font-weight: 700;">USUARIO SUPERVISOR *</label>
+              <select id="mov_supervisor_id" name="supervisor_id" class="form-control" required style="background: #fff;">
+                <option value="">-- Seleccione el Supervisor --</option>
+                <?php foreach ($supervisoresAutorizados as $sup): ?>
+                  <option value="<?= htmlspecialchars($sup['usuario_id']) ?>">
+                    <?= htmlspecialchars($sup['nombre_completo']) ?> (@<?= htmlspecialchars($sup['username']) ?> • <?= htmlspecialchars($sup['roles_nombres']) ?>)
+                  </option>
+                <?php endforeach; ?>
+              </select>
+            </div>
+
+            <!-- PIN DE AUTORIZACIÓN -->
+            <div>
+              <label class="form-label" for="mov_pin" style="color: #794a15; font-size: 0.78rem; font-weight: 700;">PIN DE SEGURIDAD DEL SUPERVISOR *</label>
+              <input
+                type="password"
+                maxlength="6"
+                id="mov_pin"
+                name="pin_supervisor"
+                class="form-control"
+                placeholder="••••"
+                style="text-align: center; font-size: 1.4rem; letter-spacing: 6px; background: #fff;"
+                required
+              />
+              <small style="color: #8a7b70; font-size: 0.72rem; display: block; margin-top: 4px;">El supervisor seleccionado debe digitar su PIN confidencial.</small>
+            </div>
           </div>
         </div>
 

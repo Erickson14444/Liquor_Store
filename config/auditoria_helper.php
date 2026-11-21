@@ -95,7 +95,12 @@ if (!function_exists('obtenerSupervisoresAutorizados')) {
                   JOIN seguridad.permisos perm ON perm.permiso_id = rp.permiso_id
                   WHERE ur.usuario_id = u.usuario_id
                     AND r.es_activo = TRUE
-                    AND (UPPER(perm.clave_sistema) = 'AUTORIZAR_CON_PIN' OR UPPER(perm.clave_sistema) LIKE '%PIN%')
+                    AND (
+                        UPPER(perm.clave_sistema) = 'AUTORIZAR_CON_PIN' 
+                        OR UPPER(perm.clave_sistema) LIKE '%PIN%'
+                        OR UPPER(r.nombre) LIKE '%SUPERVISOR%'
+                        OR UPPER(r.nombre) LIKE '%ADMIN%'
+                    )
               )
             ORDER BY nombre_completo ASC
         ");
@@ -137,7 +142,12 @@ if (!function_exists('validarPinSupervisor')) {
                        JOIN seguridad.permisos perm ON perm.permiso_id = rp.permiso_id
                        WHERE ur.usuario_id = u.usuario_id
                          AND r.es_activo = TRUE
-                         AND (UPPER(perm.clave_sistema) = 'AUTORIZAR_CON_PIN' OR UPPER(perm.clave_sistema) LIKE '%PIN%')
+                         AND (
+                             UPPER(perm.clave_sistema) = 'AUTORIZAR_CON_PIN' 
+                             OR UPPER(perm.clave_sistema) LIKE '%PIN%'
+                             OR UPPER(r.nombre) LIKE '%SUPERVISOR%'
+                             OR UPPER(r.nombre) LIKE '%ADMIN%'
+                         )
                    ) AS tiene_permiso_pin
             FROM seguridad.usuarios u
             JOIN identidad.personas p ON p.persona_id = u.persona_id

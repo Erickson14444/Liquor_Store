@@ -304,11 +304,12 @@ try {
     // 4. REGISTRAR MOVIMIENTO DE CAJA CHICA (INGRESO / EGRESO CON PIN)
     // =========================================================================
     if ($accion === 'movimiento_caja_chica') {
-        $sesionId = intval($datos['sesion_id'] ?? 0);
-        $tipo     = strtoupper(trim($datos['tipo_movimiento'] ?? 'EGRESO'));
-        $monto    = floatval($datos['monto'] ?? 0);
-        $concepto = trim($datos['concepto'] ?? '');
-        $pin      = trim($datos['pin_supervisor'] ?? '');
+        $sesionId            = intval($datos['sesion_id'] ?? 0);
+        $tipo                = strtoupper(trim($datos['tipo_movimiento'] ?? 'EGRESO'));
+        $monto               = floatval($datos['monto'] ?? 0);
+        $concepto            = trim($datos['concepto'] ?? '');
+        $supervisorUsuarioId = trim($datos['supervisor_id'] ?? $datos['usuario_supervisor'] ?? '');
+        $pin                 = trim($datos['pin_supervisor'] ?? '');
 
         if ($sesionId <= 0 || $monto <= 0 || empty($concepto)) {
             responderJson('error', 'Complete el monto mayor a 0 y el concepto obligatorio del movimiento.');
@@ -325,34 +326,20 @@ try {
             responderJson('error', 'La sesión de caja no está ABIERTA.');
         }
 
-        // Validación de PIN de Supervisor
+        // Validación estricta: Siempre se requiere USUARIO SUPERVISOR y su PIN
+        if (empty($supervisorUsuarioId)) {
+            responderJson('error', 'Debe seleccionar el usuario del Supervisor que autoriza la operación.');
+        }
         if (empty($pin)) {
-            responderJson('error', 'Se requiere el PIN de un Supervisor para autorizar este movimiento de caja chica.');
+            responderJson('error', 'Se requiere el PIN de autorización del Supervisor seleccionado.');
         }
 
-        // Buscar supervisor con este PIN en seguridad.usuarios
-        $stmtSup = $pdo->query("
-            SELECT u.usuario_id, u.pin_autorizacion, u.persona_id
-            FROM seguridad.usuarios u
-            JOIN seguridad.usuarios_roles ur ON u.usuario_id = ur.usuario_id
-            JOIN seguridad.roles r ON ur.rol_id = r.rol_id
-            WHERE u.estado = 'ACTIVO' 
-              AND u.pin_autorizacion IS NOT NULL
-              AND (LOWER(r.nombre) LIKE '%supervisor%' OR LOWER(r.nombre) LIKE '%administrador%')
-        ");
-        $supervisores = $stmtSup->fetchAll(PDO::FETCH_ASSOC);
-
-        $supervisorValidoId = null;
-        foreach ($supervisores as $sup) {
-            $hash = $sup['pin_autorizacion'];
-            if (password_verify($pin, $hash) || $pin === $hash) {
-                $supervisorValidoId = $sup['persona_id'] ?? $sup['usuario_id'];
-                break;
-            }
-        }
-
-        if (!$supervisorValidoId) {
-            responderJson('error', 'PIN de supervisor incorrecto o no autorizado.');
+        require_once __DIR__ . '/../../config/auditoria_helper.php';
+        try {
+            $supAut = validarPinSupervisor($pdo, $supervisorUsuarioId, $pin);
+            $supervisorValidoId = $supAut['usuario_id'];
+        } catch (Throwable $e) {
+            responderJson('error', $e->getMessage());
         }
 
         $stmtInsMov = $pdo->prepare("
@@ -363,7 +350,7 @@ try {
         $stmtInsMov->execute([$sesionId, $tipo, $monto, $concepto, $supervisorValidoId]);
         $movId = $stmtInsMov->fetchColumn();
 
-        responderJson('success', "Movimiento de {$tipo} por RD$ " . number_format($monto, 2) . " registrado y autorizado con PIN correctamente.", [
+        responderJson('success', "Movimiento de {$tipo} por RD$ " . number_format($monto, 2) . " autorizado correctamente por {$supAut['nombre_completo']}.", [
             'movimiento_id' => $movId
         ]);
     }
