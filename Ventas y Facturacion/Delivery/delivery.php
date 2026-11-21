@@ -240,7 +240,7 @@ if ($pdo) {
           <?php if (empty($repartidores)): ?>
             <div style="background: #fff8eb; border: 1px solid #f0d8a8; border-radius: 6px; padding: 12px 14px; margin-bottom: 14px; font-size: 0.84rem; color: #7a5216;">
               ⚠️ <strong>No hay repartidores registrados.</strong><br>
-              Primero registra un repartidor en <a href="../../Panel de configuracion/personal/personal.php?tab=repartidores" style="color: var(--accent-gold); font-weight: 700;">Personal y Repartidores</a>.
+              Primero registra un repartidor en <a href="../../Gestion de Identidad/personal/personal.php?tab=repartidores" style="color: var(--accent-gold); font-weight: 700;">Personal y Repartidores</a>.
             </div>
           <?php endif; ?>
 
@@ -364,7 +364,7 @@ if ($pdo) {
             <div style="background: #fff8eb; border: 1px solid #f0d8a8; border-radius: 6px; padding: 12px 14px; margin-bottom: 14px; font-size: 0.84rem; color: #7a5216;">
               ⚠️ <strong>Faltan datos requeridos:</strong>
               <?php if (empty($repartidores)): ?>
-                <div>• Registra al menos un repartidor en <a href="../../Panel de configuracion/personal/personal.php?tab=repartidores" style="color: var(--accent-gold); font-weight: 700;">Personal y Repartidores</a>.</div>
+                <div>• Registra al menos un repartidor en <a href="../../Gestion de Identidad/personal/personal.php?tab=repartidores" style="color: var(--accent-gold); font-weight: 700;">Personal y Repartidores</a>.</div>
               <?php endif; ?>
               <?php if (empty($zonasDelivery)): ?>
                 <div>• Registra al menos una zona en <a href="../../Panel de configuracion/zonas-delivery/zonas-delivery.php" style="color: var(--accent-gold); font-weight: 700;">Zonas Delivery</a>.</div>

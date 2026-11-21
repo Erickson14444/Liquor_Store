@@ -29,12 +29,12 @@ if ($isSubdir) {
 
 $menuLink = $rootPfx . 'Login y Menu/menu.php';
 $logoutLink = $rootPfx . 'Login y Menu/logout.php';
+$identidadPfx = $rootPfx . 'Gestion de Identidad/';
 $cfgPfx = $rootPfx . 'Panel de configuracion/';
 $seguridadPfx = $rootPfx . 'Seguridad y Control/';
 $inventarioPfx = $rootPfx . 'Inventario y Stock/';
 $promoPfx = $rootPfx . 'Gestion de Promociones/';
 $ventasPfx = $rootPfx . 'Ventas y Facturacion/';
-$inventarioPfx = $rootPfx . 'Inventario y Stock/';
 
 // Lista de páginas pertenecientes al panel de configuración
 $configPages = [
@@ -94,13 +94,13 @@ $isConfigActive = (!empty($configPages) && is_array($configPages)) ? in_array($c
         <span class="sidebar-chevron">▸</span>
       </div>
       <ul class="sidebar-subnav">
-        <li><a href="<?= $cfgPfx ?>clientes/clientes.php"
+        <li><a href="<?= $identidadPfx ?>clientes/clientes.php"
             class="sidebar-sublink <?= ($currentPage === 'clientes.php') ? 'active' : '' ?>"><span>👥</span>
             Clientes</a></li>
-        <li><a href="<?= $cfgPfx ?>proveedores/proveedores.php"
+        <li><a href="<?= $identidadPfx ?>proveedores/proveedores.php"
             class="sidebar-sublink <?= ($currentPage === 'proveedores.php') ? 'active' : '' ?>"><span>🏭</span>
             Proveedores</a></li>
-        <li><a href="<?= $cfgPfx ?>personal/personal.php"
+        <li><a href="<?= $identidadPfx ?>personal/personal.php"
             class="sidebar-sublink <?= ($currentPage === 'personal.php') ? 'active' : '' ?>"><span>👔</span> Personal y
             Repartidores</a></li>
       </ul>
