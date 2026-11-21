@@ -242,6 +242,40 @@ if ($pdo) {
         ");
         $facturasRecientes = $stmtFac->fetchAll(PDO::FETCH_ASSOC) ?: [];
     } catch (Throwable $e) {}
+
+    try {
+        // 10. Sesión de caja activa del cajero logueado (Control de Caja)
+        $cajeroUsuarioId = $_SESSION['usuario']['usuario_id'] ?? null;
+        $stmtSc = $pdo->prepare("
+            SELECT sc.id, sc.caja_id, sc.cajero_id, sc.monto_inicial_efectivo, sc.estado,
+                   TO_CHAR(sc.fecha_apertura, 'DD/MM/YYYY HH12:MI AM') AS fecha_apertura_fmt,
+                   cp.nombre_equipo, cp.ubicacion, p.nombre_razon_social AS cajero_nombre
+            FROM ventas.sesiones_caja sc
+            JOIN ventas.cajas_pos cp ON cp.id = sc.caja_id
+            JOIN seguridad.usuarios u ON sc.cajero_id = u.usuario_id
+            JOIN identidad.personas p ON u.persona_id = p.persona_id
+            WHERE sc.cajero_id = :usuario_id
+              AND sc.estado IN ('ABIERTA', 'EN_CUADRE')
+            ORDER BY sc.fecha_apertura DESC
+            LIMIT 1
+        ");
+        $stmtSc->execute([':usuario_id' => $cajeroUsuarioId]);
+        $sesionCajaActiva = $stmtSc->fetch(PDO::FETCH_ASSOC) ?: null;
+
+        if ($sesionCajaActiva) {
+            $sesionCajaId = $sesionCajaActiva['caja_id'];
+        }
+    } catch (Throwable $e) {
+        $sesionCajaActiva = null;
+    }
+
+    try {
+        // Cajas POS registradas para apertura de turno
+        $stmtCjDisp = $pdo->query("SELECT id, nombre_equipo, ubicacion, estado FROM ventas.cajas_pos ORDER BY id ASC");
+        $cajasPosDisponibles = $stmtCjDisp->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    } catch (Throwable $e) {
+        $cajasPosDisponibles = [];
+    }
 }
 
 // Mapa rápido de NCF disponible por tipo
@@ -269,6 +303,258 @@ foreach ($secuenciasFiscales as $sec) {
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>House &amp; Ice • Facturación</title>
   <link rel="stylesheet" href="../styles.css?v=23" />
+  <style>
+    .btn-close {
+      background: none;
+      border: none;
+      font-size: 1.6rem;
+      line-height: 1;
+      color: #8a7b70;
+      cursor: pointer;
+      padding: 2px 8px;
+      border-radius: 6px;
+      transition: all 0.15s ease;
+    }
+    .btn-close:hover {
+      color: #211813;
+      background: rgba(0, 0, 0, 0.06);
+    }
+
+    /* =======================================================
+       ESTILOS PREMIUM • MODAL ARQUEO CIEGO (FIN DE TURNO)
+       ======================================================= */
+    .modal-arqueo-premium {
+      max-width: 680px !important;
+      border-radius: 14px !important;
+      box-shadow: 0 16px 40px rgba(33, 24, 19, 0.22) !important;
+      border: 1px solid #e0d5c5 !important;
+      overflow: hidden;
+    }
+
+    .arqueo-header-pills {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      align-items: center;
+      margin-top: 6px;
+    }
+
+    .arqueo-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      padding: 3px 10px;
+      border-radius: 20px;
+      font-size: 0.74rem;
+      font-weight: 700;
+      letter-spacing: 0.2px;
+    }
+
+    .arqueo-pill-sesion {
+      background: #fdf5ea;
+      color: #8c4c15;
+      border: 1px solid #e8caa0;
+    }
+
+    .arqueo-pill-terminal {
+      background: #f0ebe4;
+      color: #3d3229;
+      border: 1px solid #d4c7b8;
+    }
+
+    .arqueo-pill-cajero {
+      background: #eef5ee;
+      color: #27672b;
+      border: 1px solid #c3dec4;
+    }
+
+    .arqueo-notice-card {
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
+      background: linear-gradient(135deg, #fdf8ee 0%, #fffbf5 100%);
+      border: 1px solid #edd5b2;
+      border-left: 4px solid #b25e09;
+      border-radius: 10px;
+      padding: 12px 14px;
+    }
+
+    .arqueo-notice-icon {
+      font-size: 1.4rem;
+      line-height: 1;
+    }
+
+    .arqueo-notice-title {
+      font-weight: 800;
+      color: #794a15;
+      font-size: 0.84rem;
+      margin-bottom: 2px;
+    }
+
+    .arqueo-notice-desc {
+      font-size: 0.77rem;
+      color: #855b2a;
+      line-height: 1.35;
+    }
+
+    .arqueo-section-card {
+      background: #ffffff;
+      border: 1px solid #e8decb;
+      border-radius: 10px;
+      padding: 14px;
+      box-shadow: 0 1px 4px rgba(33, 24, 19, 0.02);
+    }
+
+    .arqueo-section-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 10px;
+    }
+
+    .arqueo-section-label {
+      font-size: 0.78rem;
+      font-weight: 800;
+      color: #4a3c31;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .arqueo-total-badge {
+      background: #fdf5ea;
+      color: #8c4c15;
+      border: 1px solid #eccca2;
+      padding: 5px 12px;
+      border-radius: 20px;
+      font-weight: 900;
+      font-size: 1.05rem;
+      font-family: monospace;
+      box-shadow: 0 1px 3px rgba(140, 76, 21, 0.08);
+    }
+
+    .pos-denoms-container {
+      max-height: 235px;
+      overflow-y: auto;
+      border: 1px solid #ede4d6;
+      border-radius: 8px;
+      background: #faf7f2;
+      padding: 4px;
+    }
+
+    .pos-denoms-container::-webkit-scrollbar,
+    .arqueo-body-scroll::-webkit-scrollbar {
+      width: 6px;
+    }
+    .pos-denoms-container::-webkit-scrollbar-track,
+    .arqueo-body-scroll::-webkit-scrollbar-track {
+      background: #f3ede2;
+      border-radius: 4px;
+    }
+    .pos-denoms-container::-webkit-scrollbar-thumb,
+    .arqueo-body-scroll::-webkit-scrollbar-thumb {
+      background: #d8b888;
+      border-radius: 4px;
+    }
+    .pos-denoms-container::-webkit-scrollbar-thumb:hover,
+    .arqueo-body-scroll::-webkit-scrollbar-thumb:hover {
+      background: #b25e09;
+    }
+
+    .denom-item-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      background: #ffffff;
+      padding: 7px 12px;
+      margin-bottom: 3px;
+      border-radius: 6px;
+      border: 1px solid #f0e6d6;
+      transition: all 0.12s ease;
+    }
+
+    .denom-item-row:hover {
+      background: #fffcf8;
+      border-color: #d8b888;
+    }
+
+    .denom-item-row:last-child {
+      margin-bottom: 0;
+    }
+
+    .denom-badge-type {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 3px 8px;
+      border-radius: 6px;
+      font-weight: 700;
+      font-size: 0.82rem;
+      min-width: 135px;
+    }
+
+    .denom-type-billete {
+      background: #edf7ec;
+      color: #236528;
+      border: 1px solid #c7e5c6;
+    }
+
+    .denom-type-moneda {
+      background: #f2f3f5;
+      color: #4e555d;
+      border: 1px solid #dcdfe3;
+    }
+
+    .denom-qty-input {
+      width: 76px;
+      text-align: center;
+      padding: 5px 6px;
+      border: 1.5px solid #d4c7b8;
+      border-radius: 6px;
+      font-family: monospace;
+      font-size: 0.92rem;
+      font-weight: 800;
+      color: #211813;
+      background: #fff;
+      transition: all 0.15s ease;
+    }
+
+    .denom-qty-input:focus {
+      outline: none;
+      border-color: #8c4c15;
+      box-shadow: 0 0 0 3px rgba(140, 76, 21, 0.12);
+    }
+
+    .denom-subtotal-text {
+      font-family: monospace;
+      font-size: 0.88rem;
+      font-weight: 800;
+      width: 108px;
+      text-align: right;
+      color: #8c4c15;
+    }
+
+    .arqueo-input-control {
+      font-family: monospace;
+      font-weight: 700;
+      font-size: 0.95rem;
+      background: #fff;
+      border: 1.5px solid #d4c7b8;
+      border-radius: 6px;
+      padding: 8px 10px;
+      width: 100%;
+      box-sizing: border-box;
+      transition: all 0.15s ease;
+    }
+
+    .arqueo-input-control:focus {
+      outline: none;
+      border-color: #8c4c15;
+      box-shadow: 0 0 0 3px rgba(140, 76, 21, 0.12);
+    }
+  </style>
 </head>
 <body>
 
@@ -295,10 +581,17 @@ foreach ($secuenciasFiscales as $sec) {
           <div class="user-sub-line">
             <span class="user-role-text"><?= htmlspecialchars($sesionRol) ?></span>
             <span class="user-bullet">•</span>
-            <span class="user-caja-pill open">
-              <span class="pill-dot green"></span>
-              Caja 0<?= htmlspecialchars((string)$sesionCajaId) ?>
-            </span>
+            <?php if (!empty($sesionCajaActiva)): ?>
+              <span class="user-caja-pill open" title="Sesión #<?= $sesionCajaActiva['id'] ?> activa">
+                <span class="pill-dot green"></span>
+                <?= htmlspecialchars($sesionCajaActiva['nombre_equipo']) ?>
+              </span>
+            <?php else: ?>
+              <span class="user-caja-pill" style="background: #fdf5ea; color: #b25e09; border: 1px solid #eccca2;" title="No tiene turno abierto en ninguna terminal física">
+                <span class="pill-dot" style="background: #b25e09;"></span>
+                Sin Caja Asignada
+              </span>
+            <?php endif; ?>
           </div>
         </div>
       </div>
@@ -322,6 +615,18 @@ foreach ($secuenciasFiscales as $sec) {
           <button type="button" class="btn btn-outline" onclick="abrirModalHistorial()">
             🧾 Facturas Emitidas (<?= count($facturasRecientes) ?>)
           </button>
+          <?php if (!empty($sesionCajaActiva)): ?>
+            <button type="button" class="btn btn-outline" onclick="abrirModalCajaChicaFacturacion()" style="border-color: #d8b888; color: #794a15; background: #fffcf8; font-weight: 600;">
+              💵 Caja Chica
+            </button>
+            <button type="button" class="btn btn-gold" onclick="abrirModalArqueoFacturacion()" style="background: #965318; border-color: #965318; color: #fff; font-weight: 600;">
+              🔒 Finalizar Turno
+            </button>
+          <?php else: ?>
+            <a href="../ControlCaja/control_caja.php" class="btn btn-gold" style="background: #2e7d32; border-color: #2e7d32; color: #fff; font-weight: 600; text-decoration: none;">
+              ▶️ Empezar Turno
+            </a>
+          <?php endif; ?>
         </div>
       </div>
 
@@ -548,6 +853,7 @@ foreach ($secuenciasFiscales as $sec) {
           <h3 class="modal-title">Datos del Pedido a Domicilio (Delivery)</h3>
           <p class="modal-subtitle">Selecciona la zona de entrega, el repartidor disponible asignado a esa zona y la dirección del cliente</p>
         </div>
+        <button type="button" class="btn-close" onclick="cerrarModalConConfirmacion('modalPedidoDelivery')" aria-label="Cerrar">&times;</button>
       </div>
 
       <form id="formPedidoDelivery" onsubmit="confirmarPedidoDeliveryModal(event)">
@@ -619,6 +925,7 @@ foreach ($secuenciasFiscales as $sec) {
           <h3 class="modal-title">Seleccionar Producto o Presentación</h3>
           <p class="modal-subtitle">Busca por nombre, SKU, marca o código de barra y agrégalo al carrito</p>
         </div>
+        <button type="button" class="btn-close" onclick="cerrarModalConConfirmacion('modalCatalogoProductos')" aria-label="Cerrar">&times;</button>
       </div>
 
       <div class="modal-body">
@@ -715,10 +1022,6 @@ foreach ($secuenciasFiscales as $sec) {
           </table>
         </div>
       </div>
-
-      <div class="modal-footer">
-        <button type="button" class="btn btn-secondary" onclick="cerrarModalConConfirmacion('modalCatalogoProductos')">Cancelar</button>
-      </div>
     </div>
   </div>
 
@@ -732,6 +1035,7 @@ foreach ($secuenciasFiscales as $sec) {
           <h3 class="modal-title">Importar Cotización Pendiente</h3>
           <p class="modal-subtitle">Selecciona una cotización vigente para cargar su cliente y productos al carrito</p>
         </div>
+        <button type="button" class="btn-close" onclick="cerrarModalConConfirmacion('modalImportarCotizacion')" aria-label="Cerrar">&times;</button>
       </div>
 
       <div class="modal-body">
@@ -780,10 +1084,6 @@ foreach ($secuenciasFiscales as $sec) {
           </table>
         </div>
       </div>
-
-      <div class="modal-footer">
-        <button type="button" class="btn btn-secondary" onclick="cerrarModalConConfirmacion('modalImportarCotizacion')">Cancelar</button>
-      </div>
     </div>
   </div>
 
@@ -797,6 +1097,7 @@ foreach ($secuenciasFiscales as $sec) {
           <h3 class="modal-title">Registrar Nuevo Cliente</h3>
           <p class="modal-subtitle">Crea un cliente rápidamente y selecciónalo de inmediato en la factura actual</p>
         </div>
+        <button type="button" class="btn-close" onclick="cerrarModalConConfirmacion('modalNuevoClienteRapido')" aria-label="Cerrar">&times;</button>
       </div>
 
       <form id="formClienteRapido" onsubmit="guardarClienteRapido(event)">
@@ -882,6 +1183,7 @@ foreach ($secuenciasFiscales as $sec) {
           <h3 class="modal-title">Facturas Emitidas Recientemente</h3>
           <p class="modal-subtitle">Consulta rápida de comprobantes facturados en el punto de venta</p>
         </div>
+        <button type="button" class="btn-close" onclick="cerrarModalConConfirmacion('modalHistorialFacturas')" aria-label="Cerrar">&times;</button>
       </div>
 
       <div class="modal-body">
@@ -934,10 +1236,206 @@ foreach ($secuenciasFiscales as $sec) {
           </table>
         </div>
       </div>
+    </div>
+  </div>
 
-      <div class="modal-footer">
-        <button type="button" class="btn btn-secondary" onclick="cerrarModalConConfirmacion('modalHistorialFacturas')">Cancelar</button>
+  <!-- ==================================================================== -->
+  <!-- MODAL 6: ARQUEO CIEGO EN FACTURACIÓN (CIERRE DE TURNO)               -->
+  <!-- ==================================================================== -->
+  <div id="modalArqueoCiegoFacturacion" class="modal-overlay">
+    <div class="modal-box modal-arqueo-premium">
+      <div class="modal-header" style="border-bottom: 1px solid #ede3d5; padding: 16px 22px; background: #faf7f2;">
+        <div>
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <span style="font-size: 1.25rem;">🔒</span>
+            <h3 class="modal-title" style="margin: 0; font-size: 1.15rem; color: #211813; font-weight: 800;">Arqueo Ciego de Caja (Fin de Turno)</h3>
+          </div>
+          <div class="arqueo-header-pills">
+            <?php if (!empty($sesionCajaActiva)): ?>
+              <span class="arqueo-pill arqueo-pill-sesion">📌 Sesión #<?= $sesionCajaActiva['id'] ?></span>
+              <span class="arqueo-pill arqueo-pill-terminal">🖥️ <?= htmlspecialchars($sesionCajaActiva['nombre_equipo']) ?></span>
+              <span class="arqueo-pill arqueo-pill-cajero">👤 Cajero: <?= htmlspecialchars($sesionCajaActiva['cajero_nombre']) ?></span>
+            <?php else: ?>
+              <span class="arqueo-pill arqueo-pill-sesion">Declaración de efectivo y comprobantes físicos</span>
+            <?php endif; ?>
+          </div>
+        </div>
+        <button type="button" class="btn-close" onclick="cerrarModalConConfirmacion('modalArqueoCiegoFacturacion')" aria-label="Cerrar">&times;</button>
       </div>
+
+      <form id="formArqueoFacturacion" onsubmit="enviarArqueoFacturacion(event)">
+        <input type="hidden" name="accion" value="procesar_arqueo" />
+        <input type="hidden" name="sesion_id" value="<?= $sesionCajaActiva['id'] ?? '' ?>" />
+        <input type="hidden" id="pos_arq_efectivo_declarado" name="efectivo_declarado" value="0.00" />
+
+        <div class="modal-body arqueo-body-scroll" style="display: flex; flex-direction: column; gap: 14px; max-height: 68vh; overflow-y: auto; padding: 18px 22px;">
+          
+          <!-- AVISO DE POLÍTICA DE ARQUEO CIEGO -->
+          <div class="arqueo-notice-card">
+            <span class="arqueo-notice-icon">🛡️</span>
+            <div>
+              <div class="arqueo-notice-title">Regla Oficial de Arqueo Ciego</div>
+              <div class="arqueo-notice-desc">
+                Declare únicamente el conteo físico de billetes, monedas y vouchers que tiene en su gaveta. Por seguridad de auditoría, el sistema mantiene los saldos contables ocultos hasta procesar el cierre.
+              </div>
+            </div>
+          </div>
+
+          <!-- SECCIÓN 1: BILLETES Y MONEDAS -->
+          <div class="arqueo-section-card">
+            <div class="arqueo-section-head">
+              <span class="arqueo-section-label">💵 Conteo de Efectivo Físico (DOP)</span>
+              <div style="display: flex; align-items: center; gap: 8px;">
+                <span style="font-size: 0.74rem; font-weight: 700; color: #8a7b70; text-transform: uppercase;">Total Contado:</span>
+                <span class="arqueo-total-badge" id="posTotalEfectivoLbl">RD$ 0.00</span>
+              </div>
+            </div>
+
+            <div id="posDenominacionesWrap" class="pos-denoms-container">
+              <!-- Se puebla dinámicamente con JavaScript -->
+            </div>
+          </div>
+
+          <!-- SECCIÓN 2: VOUCHERS / TARJETAS -->
+          <div class="arqueo-section-card">
+            <div class="arqueo-section-head" style="margin-bottom: 8px;">
+              <span class="arqueo-section-label">💳 Comprobantes de Tarjetas y Vouchers POS</span>
+              <span style="font-size: 0.72rem; color: #8a7b70;">(Verifone / Terminal de pago)</span>
+            </div>
+            <div class="form-row-2" style="margin-bottom: 0;">
+              <div class="form-group" style="margin-bottom: 0;">
+                <label class="form-label" for="pos_tarjeta_declarada" style="font-size: 0.74rem; font-weight: 700;">TOTAL EN VOUCHERS (RD$) *</label>
+                <input type="number" step="0.01" min="0" id="pos_tarjeta_declarada" name="tarjeta_declarada" class="arqueo-input-control" value="0.00" placeholder="0.00" required />
+              </div>
+              <div class="form-group" style="margin-bottom: 0;">
+                <label class="form-label" for="pos_cantidad_vouchers" style="font-size: 0.74rem; font-weight: 700;">CANTIDAD DE VOUCHERS FÍSICOS *</label>
+                <input type="number" min="0" step="1" id="pos_cantidad_vouchers" name="cantidad_vouchers" class="arqueo-input-control" value="0" placeholder="0" required />
+              </div>
+            </div>
+          </div>
+
+          <!-- SECCIÓN 3: CUSTODIA Y FONDO PRÓXIMO TURNO -->
+          <div class="arqueo-section-card">
+            <div class="arqueo-section-head" style="margin-bottom: 8px;">
+              <span class="arqueo-section-label">🏦 Custodia y Menudo para el Próximo Turno</span>
+            </div>
+            <div class="form-row-2" style="margin-bottom: 0;">
+              <div class="form-group" style="margin-bottom: 0;">
+                <label class="form-label" for="pos_monto_retenido" style="font-size: 0.74rem; font-weight: 700;">FONDO DEJADO EN GAVETA (RD$)</label>
+                <input type="number" step="0.01" min="0" id="pos_monto_retenido" name="monto_retenido_fondo" class="arqueo-input-control" value="<?= htmlspecialchars((string)($sesionCajaActiva['monto_inicial_efectivo'] ?? '2500.00')) ?>" />
+                <small style="color: #8a7b70; font-size: 0.7rem; margin-top: 3px; display: block;">Menudo que permanece en gaveta para el próximo cajero.</small>
+              </div>
+              <div class="form-group" style="margin-bottom: 0;">
+                <label class="form-label" for="pos_estado_deposito" style="font-size: 0.74rem; font-weight: 700;">DESTINO DE LA REMESA</label>
+                <select id="pos_estado_deposito" name="estado_deposito" class="arqueo-input-control" style="font-family: inherit;">
+                  <option value="PENDIENTE">🔒 PENDIENTE (En Bóveda Local / A depositar mañana)</option>
+                  <option value="DEPOSITADO">🏦 DEPOSITADO (Envío directo a Banco)</option>
+                  <option value="RETENIDO">📦 RETENIDO (En Caja Registradora)</option>
+                </select>
+                <small style="color: #8a7b70; font-size: 0.7rem; margin-top: 3px; display: block;">Por defecto queda en custodia en la bóveda de la tienda.</small>
+              </div>
+            </div>
+          </div>
+
+          <!-- CAJA DE VEREDICTO DE AUDITORÍA -->
+          <div id="posVeredictoBox" style="display: none; padding: 14px 18px; border-radius: 10px; font-weight: 700; text-align: center; font-size: 0.92rem; box-shadow: 0 2px 8px rgba(0,0,0,0.06);"></div>
+        </div>
+
+        <div class="modal-footer" style="padding: 14px 22px; background: #faf7f2; border-top: 1px solid #ede3d5; display: flex; justify-content: flex-end; align-items: center; gap: 12px;">
+          <button type="button" class="btn btn-secondary" onclick="cerrarModalConConfirmacion('modalArqueoCiegoFacturacion')" style="padding: 9px 18px; font-weight: 600;">
+            Volver a Facturar
+          </button>
+          <button type="submit" id="posBtnSubmitArqueo" class="btn btn-gold" style="background: linear-gradient(135deg, #8c4c15 0%, #6e3a0f 100%); border: none; padding: 9px 22px; font-weight: 700; font-size: 0.92rem; border-radius: 8px; box-shadow: 0 3px 10px rgba(110, 58, 15, 0.25); color: #fff;">
+            🔒 Finalizar Turno y Cuadrar
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- ==================================================================== -->
+  <!-- MODAL 7: MOVIMIENTO DE CAJA CHICA EN FACTURACIÓN (CON PIN)          -->
+  <!-- ==================================================================== -->
+  <div id="modalCajaChicaFacturacion" class="modal-overlay">
+    <div class="modal-box" style="max-width: 480px; border-radius: 12px; border: 1px solid #e0d5c5; box-shadow: 0 16px 40px rgba(33, 24, 19, 0.22); overflow: hidden;">
+      <div class="modal-header" style="border-bottom: 1px solid #ede3d5; padding: 16px 20px; background: #faf7f2;">
+        <div>
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <span style="font-size: 1.25rem;">💵</span>
+            <h3 class="modal-title" style="margin: 0; font-size: 1.1rem; color: #211813; font-weight: 800;">Movimiento de Caja Chica</h3>
+          </div>
+          <p class="modal-subtitle" style="margin-top: 4px; font-size: 0.78rem;">
+            <?= !empty($sesionCajaActiva) ? 'Sesión #' . $sesionCajaActiva['id'] . ' • ' . htmlspecialchars($sesionCajaActiva['nombre_equipo']) : 'Registro de gasto o refuerzo menor' ?>
+          </p>
+        </div>
+        <button type="button" class="btn-close" onclick="cerrarModalConConfirmacion('modalCajaChicaFacturacion')" aria-label="Cerrar">&times;</button>
+      </div>
+
+      <form id="formCajaChicaFacturacion" onsubmit="enviarCajaChicaFacturacion(event)">
+        <input type="hidden" name="sesion_id" value="<?= $sesionCajaActiva['id'] ?? '' ?>" />
+
+        <div class="modal-body" style="display: flex; flex-direction: column; gap: 14px; padding: 18px 20px;">
+          <div class="form-group" style="margin: 0;">
+            <label class="form-label" for="pos_mov_tipo" style="font-size: 0.76rem; font-weight: 700;">TIPO DE MOVIMIENTO *</label>
+            <select id="pos_mov_tipo" name="tipo_movimiento" class="arqueo-input-control" style="font-family: inherit;" required>
+              <option value="EGRESO">📤 EGRESO (Salida: Compra de hielo, agua, insumos)</option>
+              <option value="INGRESO">📥 INGRESO (Entrada: Fianza de consignación, refuerzo)</option>
+            </select>
+          </div>
+
+          <div class="form-group" style="margin: 0;">
+            <label class="form-label" for="pos_mov_monto" style="font-size: 0.76rem; font-weight: 700;">MONTO (RD$) *</label>
+            <input
+              type="number"
+              step="0.01"
+              min="0.01"
+              id="pos_mov_monto"
+              name="monto"
+              class="arqueo-input-control"
+              placeholder="0.00"
+              style="font-size: 1.15rem; font-weight: 800; color: #965318;"
+              required
+            />
+          </div>
+
+          <div class="form-group" style="margin: 0;">
+            <label class="form-label" for="pos_mov_concepto" style="font-size: 0.76rem; font-weight: 700;">CONCEPTO O JUSTIFICACIÓN *</label>
+            <input
+              type="text"
+              id="pos_mov_concepto"
+              name="concepto"
+              class="arqueo-input-control"
+              style="font-family: inherit; font-size: 0.88rem;"
+              placeholder="Ej. Compra urgente de 10 fundas de hielo"
+              required
+            />
+          </div>
+
+          <div class="form-group" style="margin: 0; background: #fff8e1; border: 1.5px dashed #ffe082; padding: 12px; border-radius: 8px;">
+            <label class="form-label" for="pos_mov_pin" style="color: #794a15; font-size: 0.76rem; font-weight: 700;">PIN DE AUTORIZACIÓN DEL SUPERVISOR *</label>
+            <input
+              type="password"
+              maxlength="8"
+              id="pos_mov_pin"
+              name="pin_supervisor"
+              class="arqueo-input-control"
+              placeholder="••••"
+              style="text-align: center; font-size: 1.35rem; letter-spacing: 6px; background: #fff;"
+              required
+            />
+            <small style="color: #8a7b70; font-size: 0.72rem; margin-top: 4px; display: block;">El supervisor debe digitar su PIN para validar esta transacción de caja.</small>
+          </div>
+        </div>
+
+        <div class="modal-footer" style="padding: 14px 20px; background: #faf7f2; border-top: 1px solid #ede3d5; display: flex; justify-content: flex-end; gap: 10px;">
+          <button type="button" class="btn btn-secondary" onclick="cerrarModalConConfirmacion('modalCajaChicaFacturacion')" style="padding: 8px 16px;">
+            Cancelar
+          </button>
+          <button type="submit" id="posBtnSubmitCajaChica" class="btn btn-gold" style="background: #965318; border-color: #965318; font-weight: 700; padding: 8px 20px;">
+            Registrar con PIN
+          </button>
+        </div>
+      </form>
     </div>
   </div>
 
@@ -951,7 +1449,211 @@ foreach ($secuenciasFiscales as $sec) {
     window.POS_PROMOCIONES        = <?= json_encode($promocionesActivas, JSON_UNESCAPED_UNICODE) ?>;
     window.POS_REPARTIDORES_ZONAS = <?= json_encode($repartidoresPorZona, JSON_UNESCAPED_UNICODE) ?>;
     window.POS_REPARTIDORES_TODOS = <?= json_encode($repartidoresDisp, JSON_UNESCAPED_UNICODE) ?>;
+    function abrirModalCajaChicaFacturacion() {
+      const form = document.getElementById('formCajaChicaFacturacion');
+      if (form) form.reset();
+      const modal = document.getElementById('modalCajaChicaFacturacion');
+      if (modal) modal.classList.add('active');
+    }
+
+    async function enviarCajaChicaFacturacion(e) {
+      e.preventDefault();
+      const form = document.getElementById('formCajaChicaFacturacion');
+      const fd = new FormData(form);
+      fd.append('accion', 'movimiento_caja_chica');
+      const btn = document.getElementById('posBtnSubmitCajaChica');
+      btn.disabled = true;
+      btn.textContent = 'Autorizando...';
+
+      try {
+        const resp = await fetch('../ControlCaja/procesar_caja.php', {
+          method: 'POST',
+          body: fd
+        });
+        const data = await resp.json();
+        if (data.status !== 'success' && !data.success) {
+          alert('Error: ' + (data.message || data.mensaje));
+          btn.disabled = false;
+          btn.textContent = 'Registrar con PIN';
+          return;
+        }
+
+        alert('✅ ' + (data.message || data.mensaje || 'Movimiento de caja chica registrado exitosamente.'));
+        cerrarModalConConfirmacion('modalCajaChicaFacturacion');
+        btn.disabled = false;
+        btn.textContent = 'Registrar con PIN';
+      } catch (err) {
+        alert('Error de conexión al registrar movimiento: ' + err.message);
+        btn.disabled = false;
+        btn.textContent = 'Registrar con PIN';
+      }
+    }
   </script>
-  <script src="facturacion.js?v=4"></script>
+  <script src="facturacion.js?v=<?= time() ?>"></script>
+  <script>
+    // Cierre inmediato de cualquier modal sin confirmación ni mensajes nativos
+    window.cerrarModalConConfirmacion = function(modalId) {
+      const modal = document.getElementById(modalId);
+      if (modal) modal.classList.remove('open', 'active');
+    };
+    const DENOMINACIONES_DOP_POS = [
+      { valor: 2000, tipo: 'Billete' },
+      { valor: 1000, tipo: 'Billete' },
+      { valor: 500,  tipo: 'Billete' },
+      { valor: 200,  tipo: 'Billete' },
+      { valor: 100,  tipo: 'Billete' },
+      { valor: 50,   tipo: 'Billete' },
+      { valor: 25,   tipo: 'Moneda' },
+      { valor: 10,   tipo: 'Moneda' },
+      { valor: 5,    tipo: 'Moneda' },
+      { valor: 1,    tipo: 'Moneda' }
+    ];
+
+    function renderizarDenominacionesFacturacion() {
+      const wrap = document.getElementById('posDenominacionesWrap');
+      if (!wrap) return;
+      wrap.innerHTML = '';
+      DENOMINACIONES_DOP_POS.forEach(d => {
+        const esMoneda = d.tipo === 'Moneda';
+        const icon = esMoneda ? '🪙' : '💵';
+        const badgeClass = esMoneda ? 'denom-type-moneda' : 'denom-type-billete';
+        
+        const row = document.createElement('div');
+        row.className = 'denom-item-row';
+        row.innerHTML = `
+          <div class="denom-badge-type ${badgeClass}">
+            <span style="font-size: 1.05rem;">${icon}</span>
+            <span>RD$ ${d.valor.toLocaleString()}</span>
+            <span style="font-size: 0.68rem; font-weight: 700; opacity: 0.7; text-transform: uppercase;">${d.tipo}</span>
+          </div>
+          <div style="display: flex; align-items: center; gap: 10px;">
+            <span style="font-size: 0.74rem; font-weight: 700; color: #8a7b70;">Cant:</span>
+            <input type="number" min="0" step="1" value="0" data-denominacion="${d.valor}" 
+                   class="denom-qty-input"
+                   placeholder="0"
+                   onkeydown="if(['e','E','+','-','.'].includes(event.key)) event.preventDefault();"
+                   oninput="recalcularEfectivoFacturacion()" />
+            <span class="denom-subtotal-text subtotal-dop">RD$ 0.00</span>
+          </div>
+        `;
+        wrap.appendChild(row);
+      });
+    }
+
+    function recalcularEfectivoFacturacion() {
+      let total = 0;
+      const inputs = document.querySelectorAll('#posDenominacionesWrap input[data-denominacion]');
+      inputs.forEach(inp => {
+        const cant = parseInt(inp.value) || 0;
+        const val = parseFloat(inp.getAttribute('data-denominacion')) || 0;
+        const sub = cant * val;
+        total += sub;
+        const subSpan = inp.parentElement.querySelector('.subtotal-dop');
+        if (subSpan) subSpan.textContent = 'RD$ ' + sub.toLocaleString('es-DO', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+      });
+      const lbl = document.getElementById('posTotalEfectivoLbl');
+      if (lbl) lbl.textContent = 'RD$ ' + total.toLocaleString('es-DO', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+      const hiddenInp = document.getElementById('pos_arq_efectivo_declarado');
+      if (hiddenInp) hiddenInp.value = total.toFixed(2);
+    }
+
+    function abrirModalArqueoFacturacion() {
+      renderizarDenominacionesFacturacion();
+      recalcularEfectivoFacturacion();
+      const modal = document.getElementById('modalArqueoCiegoFacturacion');
+      if (modal) modal.classList.add('active');
+    }
+
+    async function enviarArqueoFacturacion(e) {
+      e.preventDefault();
+      const form = document.getElementById('formArqueoFacturacion');
+      const fd = new FormData(form);
+      fd.set('accion', 'procesar_arqueo');
+      const btn = document.getElementById('posBtnSubmitArqueo');
+      btn.disabled = true;
+      btn.textContent = 'Calculando auditoría...';
+
+      try {
+        const resp = await fetch('../ControlCaja/procesar_caja.php', {
+          method: 'POST',
+          body: fd
+        });
+        const data = await resp.json();
+        if (!data.success && data.status !== 'success') {
+          alert('Error: ' + (data.message || data.mensaje || 'Error al procesar arqueo.'));
+          btn.disabled = false;
+          btn.textContent = 'Finalizar Turno y Cuadrar';
+          return;
+        }
+
+        const vBox = document.getElementById('posVeredictoBox');
+        vBox.style.display = 'block';
+        let dif = parseFloat(data.diferencia ?? data.descuadre_efectivo ?? 0) || 0;
+        if (dif === 0) {
+          vBox.style.background = '#e8f5e9';
+          vBox.style.color = '#2e7d32';
+          vBox.innerHTML = '✅ CUADRE EXACTO: El conteo físico coincide perfectamente con el sistema.';
+        } else if (dif < 0) {
+          vBox.style.background = '#ffebee';
+          vBox.style.color = '#c62828';
+          vBox.innerHTML = `⚠️ FALTANTE DETECTADO: Faltan RD$ ${Math.abs(dif).toLocaleString('es-DO', {minimumFractionDigits: 2})} en caja. Se ha registrado en auditoría.`;
+        } else {
+          vBox.style.background = '#fff8e1';
+          vBox.style.color = '#b25e09';
+          vBox.innerHTML = `⚠️ SOBRANTE DETECTADO: Sobran RD$ ${dif.toLocaleString('es-DO', {minimumFractionDigits: 2})} en caja.`;
+        }
+
+        setTimeout(() => {
+          window.location.reload();
+        }, 1600);
+
+      } catch (err) {
+        alert('Error de conexión al procesar el arqueo: ' + err.message);
+        btn.disabled = false;
+        btn.textContent = 'Finalizar Turno y Cuadrar';
+      }
+    }
+
+
+    function abrirModalCajaChicaFacturacion() {
+      const form = document.getElementById('formCajaChicaFacturacion');
+      if (form) form.reset();
+      const modal = document.getElementById('modalCajaChicaFacturacion');
+      if (modal) modal.classList.add('active');
+    }
+
+    async function enviarCajaChicaFacturacion(e) {
+      e.preventDefault();
+      const form = document.getElementById('formCajaChicaFacturacion');
+      const fd = new FormData(form);
+      fd.append('accion', 'movimiento_caja_chica');
+      const btn = document.getElementById('posBtnSubmitCajaChica');
+      btn.disabled = true;
+      btn.textContent = 'Autorizando...';
+
+      try {
+        const resp = await fetch('../ControlCaja/procesar_caja.php', {
+          method: 'POST',
+          body: fd
+        });
+        const data = await resp.json();
+        if (data.status !== 'success' && !data.success) {
+          alert('Error: ' + (data.message || data.mensaje));
+          btn.disabled = false;
+          btn.textContent = 'Registrar con PIN';
+          return;
+        }
+
+        alert('✅ ' + (data.message || data.mensaje || 'Movimiento de caja chica registrado exitosamente.'));
+        cerrarModalConConfirmacion('modalCajaChicaFacturacion');
+        btn.disabled = false;
+        btn.textContent = 'Registrar con PIN';
+      } catch (err) {
+        alert('Error de conexión al registrar movimiento: ' + err.message);
+        btn.disabled = false;
+        btn.textContent = 'Registrar con PIN';
+      }
+    }
+  </script>
 </body>
 </html>

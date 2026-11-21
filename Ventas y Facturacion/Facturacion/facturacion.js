@@ -705,14 +705,12 @@ function calcularTotalesCarrito() {
 }
 
 /* ==========================================================================
-   MODALES (SIN BOTÓN X Y CON CONFIRMACIÓN AL CANCELAR)
+   MODALES (CIERRE DIRECTO CON BOTÓN X Y CANCELAR SIN CONFIRMACIÓN)
    ========================================================================== */
 function cerrarModalConConfirmacion(modalId) {
   const modal = document.getElementById(modalId);
   if (!modal) return;
-  if (confirm('¿Estás seguro de que deseas cancelar?')) {
-    modal.classList.remove('open', 'active');
-  }
+  modal.classList.remove('open', 'active');
 }
 
 function abrirModalCatalogo() {

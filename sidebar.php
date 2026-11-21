@@ -15,7 +15,7 @@ $isSubdir = in_array($currentDir, [
     'almacenes', 'cajas', 'clasificaciones', 'clientes', 'cuentas-bancarias',
     'impuestos', 'lotes', 'metodos-pago', 'monedas', 'personal', 'presentaciones',
     'productos', 'proveedores', 'retenciones', 'roles', 'secuencias-dgii',
-    'usuarios', 'zonas-delivery', 'Delivery', 'Facturacion'
+    'usuarios', 'zonas-delivery', 'Delivery', 'Facturacion', 'ControlCaja'
 ]);
 
 if ($isSubdir) {
@@ -46,7 +46,7 @@ $configPages = [
 $isIdentidadActive   = in_array($currentPage, ['clientes.php', 'proveedores.php', 'personal.php']);
 $isSeguridadActive   = in_array($currentPage, ['roles.php']);
 $isInventarioActive  = in_array($currentPage, ['lotes.php']);
-$isVentasActive      = in_array($currentPage, ['delivery.php', 'facturacion.php']);
+$isVentasActive      = in_array($currentPage, ['delivery.php', 'facturacion.php', 'control_caja.php']);
 $isPromocionesActive = in_array($currentPage, ['promociones.php', 'cupones.php']);
 $isBancosActive      = false;
 $isConfigOnlyActive  = in_array($currentPage, [
@@ -113,7 +113,7 @@ $isConfigActive      = (!empty($configPages) && is_array($configPages)) ? in_arr
         <span class="sidebar-chevron">▸</span>
       </div>
       <ul class="sidebar-subnav">
-        <li><a href="#" class="sidebar-sublink" onclick="alert('Proceso 1: Control de Caja en desarrollo'); return false;"><span>🔒</span> Control de Caja</a></li>
+        <li><a href="<?= $ventasPfx ?>ControlCaja/control_caja.php" class="sidebar-sublink <?= ($currentPage === 'control_caja.php') ? 'active' : '' ?>"><span>🔒</span> Control de Caja</a></li>
         <li><a href="#" class="sidebar-sublink" onclick="alert('Proceso 2: Cotizaciones en desarrollo'); return false;"><span>📝</span> Cotizaciones</a></li>
         <li><a href="<?= $ventasPfx ?>Facturacion/facturacion.php" class="sidebar-sublink <?= ($currentPage === 'facturacion.php') ? 'active' : '' ?>"><span>🛒</span> Facturación</a></li>
         <li><a href="<?= $ventasPfx ?>Delivery/delivery.php" class="sidebar-sublink <?= ($currentPage === 'delivery.php') ? 'active' : '' ?>"><span>🛵</span> Delivery</a></li>
