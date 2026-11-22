@@ -250,8 +250,8 @@ try {
                 // Insertar nueva persona
                 $stmtInsPer = $pdo->prepare("
                     INSERT INTO identidad.personas 
-                    (tipo_documento, documento_identidad, nombre_razon_social, nombre_comercial, telefono_principal, email, tipo_persona, estado) 
-                    VALUES (?, ?, ?, ?, ?, ?, ?, true) 
+                    (persona_id, tipo_documento, documento_identidad, nombre_razon_social, nombre_comercial, telefono_principal, email, tipo_persona, estado) 
+                    VALUES (gen_random_uuid(), ?, ?, ?, ?, ?, ?, ?, true) 
                     RETURNING persona_id
                 ");
                 $stmtInsPer->execute([$tipoDoc, $numDoc, $nombreRazon, $nombreComercial ?: $nombreRazon, $telefono, $email, $tipoPersona]);

@@ -303,14 +303,14 @@ let pestanaActiva = new URLSearchParams(window.location.search).get('tab') === '
             setTimeout(() => location.href = 'personal.php?tab=personal&msg=' + encodeURIComponent(res.message) + '&tipo=exito', 400);
           } else {
             btn.textContent = (document.getElementById('formAccionEmp').value === 'editar_empleado') ? 'Guardar Cambios' : 'Guardar Empleado';
-            alert('⚠️ ' + (res.message || 'Error al procesar empleado'));
+            mostrarToast('⚠️ ' + (res.message || 'Error al procesar empleado'));
           }
         })
         .catch(err => {
           btn.disabled = false;
           btn.textContent = 'Guardar';
           console.error(err);
-          alert('Error de conexión con el servidor.');
+          mostrarToast('⚠️ Error de conexión con el servidor.');
         });
     }
 
@@ -331,10 +331,10 @@ let pestanaActiva = new URLSearchParams(window.location.search).get('tab') === '
             mostrarToast(res.message);
             setTimeout(() => location.href = 'personal.php?tab=personal&msg=' + encodeURIComponent(res.message) + '&tipo=exito', 350);
           } else {
-            alert(res.message || 'Error al cambiar estado');
+            mostrarToast('⚠️ ' + (res.message || 'Error al cambiar estado'));
           }
         })
-        .catch(() => alert('Error de conexión.'));
+        .catch(() => mostrarToast('⚠️ Error de conexión.'));
     }
 
     // ------------------------------------------
@@ -409,14 +409,14 @@ let pestanaActiva = new URLSearchParams(window.location.search).get('tab') === '
             setTimeout(() => location.href = 'personal.php?tab=repartidores&msg=' + encodeURIComponent(res.message) + '&tipo=exito', 400);
           } else {
             btn.textContent = (document.getElementById('formAccionRep').value === 'editar_repartidor') ? 'Guardar Cambios' : 'Guardar Repartidor';
-            alert('⚠️ ' + (res.message || 'Error al procesar repartidor'));
+            mostrarToast('⚠️ ' + (res.message || 'Error al procesar repartidor'));
           }
         })
         .catch(err => {
           btn.disabled = false;
           btn.textContent = 'Guardar';
           console.error(err);
-          alert('Error de conexión.');
+          mostrarToast('⚠️ Error de conexión.');
         });
     }
 
@@ -438,10 +438,10 @@ let pestanaActiva = new URLSearchParams(window.location.search).get('tab') === '
             mostrarToast(res.message);
             setTimeout(() => location.href = 'personal.php?tab=repartidores&msg=' + encodeURIComponent(res.message) + '&tipo=exito', 350);
           } else {
-            alert(res.message || 'Error al retirar repartidor');
+            mostrarToast('⚠️ ' + (res.message || 'Error al retirar repartidor'));
           }
         })
-        .catch(() => alert('Error de conexión.'));
+        .catch(() => mostrarToast('⚠️ Error de conexión.'));
     }
 
     // ------------------------------------------

@@ -112,8 +112,8 @@ try {
 
             $stmtIns = $pdo->prepare("
                 INSERT INTO seguridad.usuarios 
-                (persona_id, username, password_hash, pin_autorizacion, estado) 
-                VALUES (?, ?, ?, ?, ?) 
+                (usuario_id, persona_id, username, password_hash, pin_autorizacion, estado) 
+                VALUES (gen_random_uuid(), ?, ?, ?, ?, ?) 
                 RETURNING usuario_id
             ");
             $stmtIns->execute([$personaId, $username, $passwordHash, $pinHashNuevo, $estado]);

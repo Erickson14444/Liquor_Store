@@ -139,9 +139,9 @@ try {
         } else {
             $stmtInsPer = $pdo->prepare("
                 INSERT INTO identidad.personas (
-                    tipo_documento, documento_identidad, nombre_razon_social,
+                    persona_id, tipo_documento, documento_identidad, nombre_razon_social,
                     telefono_principal, tipo_persona, estado
-                ) VALUES (?, ?, ?, ?, ?, TRUE)
+                ) VALUES (gen_random_uuid(), ?, ?, ?, ?, ?, TRUE)
                 RETURNING persona_id
             ");
             $stmtInsPer->execute([
@@ -297,8 +297,8 @@ try {
                 if (!$perCfId) {
                     $stmtInsPerCf = $pdo->query("
                         INSERT INTO identidad.personas (
-                            tipo_documento, documento_identidad, nombre_razon_social, tipo_persona, estado
-                        ) VALUES ('CEDULA', '00000000000', 'Consumidor Final', 'FISICA', TRUE)
+                            persona_id, tipo_documento, documento_identidad, nombre_razon_social, tipo_persona, estado
+                        ) VALUES (gen_random_uuid(), 'CEDULA', '00000000000', 'Consumidor Final', 'FISICA', TRUE)
                         RETURNING persona_id
                     ");
                     $perCfId = $stmtInsPerCf->fetchColumn();

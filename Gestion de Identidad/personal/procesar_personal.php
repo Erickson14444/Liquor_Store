@@ -247,8 +247,8 @@ try {
                 // Insertar nueva persona únicamente si NO existe en identidad.personas
                 $stmtInsPer = $pdo->prepare("
                     INSERT INTO identidad.personas 
-                    (tipo_documento, documento_identidad, nombre_razon_social, telefono_principal, email, tipo_persona, estado) 
-                    VALUES (?, ?, ?, ?, ?, 'FISICA', true) 
+                    (persona_id, tipo_documento, documento_identidad, nombre_razon_social, telefono_principal, email, tipo_persona, estado) 
+                    VALUES (gen_random_uuid(), ?, ?, ?, ?, ?, 'FISICA', true) 
                     RETURNING persona_id
                 ");
                 $stmtInsPer->execute([$tipoDocumento, $documento, $nombreRazon, $telefono, $email]);
@@ -258,8 +258,8 @@ try {
             // Insertar únicamente el subtipo en identidad.empleados
             $stmtInsEmp = $pdo->prepare("
                 INSERT INTO identidad.empleados 
-                (persona_id, codigo_empleado, cargo, fecha_ingreso, estado_laboral) 
-                VALUES (?, ?, ?, ?, ?)
+                (empleado_id, persona_id, codigo_empleado, cargo, fecha_ingreso, estado_laboral) 
+                VALUES (gen_random_uuid(), ?, ?, ?, ?, ?)
             ");
             $stmtInsEmp->execute([$personaId, $codigoEmpleado, $cargo, $fechaIngreso, $estadoLaboral]);
 

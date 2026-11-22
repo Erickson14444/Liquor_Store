@@ -283,8 +283,8 @@ try {
             // Insertar nuevo tercero
             $stmtInsPer = $pdo->prepare("
                 INSERT INTO identidad.personas 
-                (documento_identidad, tipo_documento, nombre_razon_social, nombre_comercial, tipo_persona, telefono_principal, email, estado)
-                VALUES (?, ?, ?, ?, ?, ?, ?, true)
+                (persona_id, documento_identidad, tipo_documento, nombre_razon_social, nombre_comercial, tipo_persona, telefono_principal, email, estado)
+                VALUES (gen_random_uuid(), ?, ?, ?, ?, ?, ?, ?, true)
                 RETURNING persona_id
             ");
             $stmtInsPer->execute([

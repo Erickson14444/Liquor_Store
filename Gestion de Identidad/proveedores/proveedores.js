@@ -318,14 +318,14 @@
           } else {
             if (checkboxEl) checkboxEl.checked = !checked;
             if (toggleText) toggleText.textContent = (!checked) ? 'Activo' : 'Inactivo';
-            alert(data.message || 'Error al cambiar estado');
+            mostrarToast('⚠️ ' + (data.message || 'Error al cambiar estado'));
           }
         })
         .catch(err => {
           if (checkboxEl) checkboxEl.checked = !checked;
           if (toggleText) toggleText.textContent = (!checked) ? 'Activo' : 'Inactivo';
           console.error(err);
-          alert('Error al comunicarse con el servidor.');
+          mostrarToast('⚠️ Error al comunicarse con el servidor.');
         });
     }
 
