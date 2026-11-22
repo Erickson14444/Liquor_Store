@@ -1,27 +1,35 @@
 <?php
 /**
- * Proceso de Facturación (Punto de Venta)
- * Ubicación: c:\xampp\htdocs\Liquor_Store\Ventas y Facturacion\Facturacion\facturacion.php
- * House & Ice • Sistema Administrativo
+ * ============================================================================
+ * Módulo 4: Ventas • Proceso 3: Facturación (Punto de Venta POS)
+ * Ubicación: Ventas y Facturacion/Facturacion/facturacion.php
+ * House & Ice • Sistema Administrativo (ERP Licorero)
+ * ============================================================================
  */
 
 require_once __DIR__ . '/../../config/conexion.php';
+require_once __DIR__ . '/../../config/auditoria_helper.php';
 
-$clientes            = [];
-$metodosPago         = [];
-$secuenciasFiscales  = [];
-$catalogoProductos   = [];
-$cotizacionesPend    = [];
-$zonasDelivery       = [];
-$repartidoresPorZona = [];
-$repartidoresDisp    = [];
-$facturasRecientes   = [];
-$promocionesActivas  = [];
+requerirSesionActiva(false, '../../Login y Menu/login.php');
+
+$clientes = [];
+$metodosPago = [];
+$secuenciasFiscales = [];
+$almacenes = [];
+$monedas = [];
+$cuentasBancarias = [];
+$categorias = [];
+$marcas = [];
+$cotizacionesPend = [];
+$zonasDelivery = [];
+$facturasRecientes = [];
+$supervisoresAutorizados = [];
+$sesionCajaActiva = null;
 
 if ($pdo) {
-    try {
-        // 1. Clientes registrados activos
-        $stmtCli = $pdo->query("
+  try {
+    // 1. Clientes activos (incluye fecha_nacimiento para referencia)
+    $clientes = $pdo->query("
             SELECT c.persona_id AS cliente_id,
                    c.codigo_cliente,
                    c.categoria_cliente,
@@ -30,116 +38,92 @@ if ($pdo) {
                    p.tipo_documento,
                    p.documento_identidad,
                    p.nombre_razon_social,
-                   p.nombre_comercial,
                    p.telefono_principal
             FROM identidad.clientes c
             INNER JOIN identidad.personas p ON c.persona_id = p.persona_id
             WHERE p.estado = TRUE
+              AND c.codigo_cliente <> 'CLI-000'
+              AND p.documento_identidad <> '00000000000'
             ORDER BY p.nombre_razon_social ASC
-        ");
-        $clientes = $stmtCli->fetchAll(PDO::FETCH_ASSOC) ?: [];
-    } catch (Throwable $e) {}
+        ")->fetchAll(PDO::FETCH_ASSOC) ?: [];
+  } catch (Throwable $e) {
+  }
 
-    try {
-        // 2. Métodos de pago activos
-        $stmtMp = $pdo->query("
+  try {
+    // 2. Métodos de pago activos (Split Universal)
+    $metodosPago = $pdo->query("
             SELECT id, codigo, descripcion, requiere_referencia
             FROM ventas.metodos_pago
             WHERE activo = TRUE
             ORDER BY id ASC
-        ");
-        $metodosPago = $stmtMp->fetchAll(PDO::FETCH_ASSOC) ?: [];
-    } catch (Throwable $e) {}
+        ")->fetchAll(PDO::FETCH_ASSOC) ?: [];
+  } catch (Throwable $e) {
+  }
 
-    try {
-        // 3. Secuencias fiscales DGII activas (B01 y B02)
-        $stmtSec = $pdo->query("
+  try {
+    // 3. Almacenes físicos activos (prioriza Mostrador como almacén POS por defecto)
+    $almacenes = $pdo->query("
+            SELECT id, nombre, ubicacion
+            FROM inventario.almacenes
+            WHERE activo = TRUE
+            ORDER BY CASE WHEN LOWER(nombre) LIKE '%mostrador%' THEN 0 ELSE 1 END, id ASC
+        ")->fetchAll(PDO::FETCH_ASSOC) ?: [];
+  } catch (Throwable $e) {
+  }
+
+  try {
+    // 4. Monedas activas
+    $monedas = $pdo->query("
+            SELECT id, codigo_iso, nombre, simbolo, tasa_cambio_referencia, es_moneda_base
+            FROM tesoreria.monedas
+            WHERE activa = TRUE
+            ORDER BY CASE WHEN es_moneda_base = TRUE THEN 0 ELSE 1 END, id ASC
+        ")->fetchAll(PDO::FETCH_ASSOC) ?: [];
+  } catch (Throwable $e) {
+  }
+
+  try {
+    // 5. Directorio de cuentas bancarias activas (para Transferencias y Cheques)
+    $cuentasBancarias = $pdo->query("
+            SELECT cb.id, cb.nombre_banco, cb.numero_cuenta, cb.tipo_cuenta,
+                   m.codigo_iso, m.simbolo
+            FROM tesoreria.cuentas_bancarias cb
+            LEFT JOIN tesoreria.monedas m ON m.id = cb.moneda_id
+            WHERE cb.activa = TRUE
+            ORDER BY cb.nombre_banco ASC, cb.numero_cuenta ASC
+        ")->fetchAll(PDO::FETCH_ASSOC) ?: [];
+  } catch (Throwable $e) {
+  }
+
+  try {
+    // 6. Categorías y marcas para filtros del buscador de catálogo
+    $categorias = $pdo->query("
+            SELECT id, nombre FROM inventario.categoria_producto WHERE id > 0 AND estado = 'ACTIVO' ORDER BY nombre ASC
+        ")->fetchAll(PDO::FETCH_ASSOC) ?: [];
+
+    $marcas = $pdo->query("
+            SELECT id, nombre FROM inventario.marca WHERE id > 0 AND estado = 'ACTIVO' ORDER BY nombre ASC
+        ")->fetchAll(PDO::FETCH_ASSOC) ?: [];
+  } catch (Throwable $e) {
+  }
+
+  try {
+    // 7. Secuencias fiscales DGII activas (B01 y B02)
+    $secuenciasFiscales = $pdo->query("
             SELECT id, tipo_comprobante, secuencia_desde, secuencia_hasta, secuencia_actual,
                    TO_CHAR(fecha_vencimiento, 'DD/MM/YYYY') AS vencimiento_fmt
             FROM ventas.secuencias_fiscales_dgii
             WHERE estado = 'ACTIVO'
+              AND fecha_vencimiento >= CURRENT_DATE
               AND secuencia_actual <= secuencia_hasta
             ORDER BY id ASC
-        ");
-        $secuenciasFiscales = $stmtSec->fetchAll(PDO::FETCH_ASSOC) ?: [];
-    } catch (Throwable $e) {}
+        ")->fetchAll(PDO::FETCH_ASSOC) ?: [];
+  } catch (Throwable $e) {
+  }
 
-    try {
-        // 4. Catálogo de Productos y sus Presentaciones para agregar al carrito
-        $stmtProd = $pdo->query("
-            SELECT pm.id AS producto_maestro_id,
-                   pm.sku,
-                   COALESCE(
-                       NULLIF(NULLIF(TRIM(pm.nombre), ''), 'Producto sin nombre asignado'),
-                       (SELECT descripcion_presentacion FROM inventario.producto_codigos_barra WHERE producto_maestro_id = pm.id ORDER BY factor_multiplicador ASC LIMIT 1),
-                       pm.sku
-                   ) AS producto_nombre,
-                   pm.categoria_id,
-                   pm.marca_id,
-                   COALESCE(cp.nombre, 'General') AS categoria_nombre,
-                   COALESCE(m.nombre, 'Genérica') AS marca_nombre,
-                   pm.costo_promedio,
-                   pm.precio_base_unidad,
-                   COALESCE((
-                       SELECT imp.tasa_o_monto
-                       FROM inventario.producto_impuestos pi
-                       JOIN tesoreria.impuestos imp ON pi.impuesto_id = imp.id
-                       WHERE pi.producto_maestro_id = pm.id
-                         AND imp.siglas IN ('ITBIS_18', 'ITBIS_16', 'EXENTO')
-                       ORDER BY imp.id ASC
-                       LIMIT 1
-                   ), 18.00) AS porcentaje_itbis,
-                   pcb.id AS codigo_barra_id,
-                   COALESCE(pcb.codigo_barra, pm.sku) AS codigo_barra,
-                   COALESCE(pcb.descripcion_presentacion, 'Unidad Individual') AS descripcion_presentacion,
-                   COALESCE(pcb.factor_multiplicador, 1) AS factor_conversion,
-                   COALESCE(pcb.precio_venta_presentacion, pm.precio_base_unidad) AS precio_venta,
-                   GREATEST(
-                       COALESCE((
-                           SELECT SUM(s.stock_fisico_unidades - s.stock_comprometido)
-                           FROM inventario.inventario_stock s
-                           WHERE s.producto_maestro_id = pm.id
-                       ), 0),
-                       COALESCE((
-                           SELECT SUM(l.cantidad_actual)
-                           FROM inventario.lotes l
-                           WHERE l.producto_maestro_id = pm.id
-                       ), 0)
-                   ) AS stock_disponible
-            FROM inventario.productos_maestro pm
-            LEFT JOIN inventario.categoria_producto cp ON pm.categoria_id = cp.id
-            LEFT JOIN inventario.marca m ON pm.marca_id = m.id
-            LEFT JOIN inventario.producto_codigos_barra pcb ON pcb.producto_maestro_id = pm.id
-            WHERE pm.id > 0
-            ORDER BY pm.sku ASC, COALESCE(pcb.factor_multiplicador, 1) ASC
-        ");
-        $catalogoProductos = $stmtProd->fetchAll(PDO::FETCH_ASSOC) ?: [];
-    } catch (Throwable $e) {}
-
-    try {
-        // 5. Campañas promocionales activas para indicar etiquetas en productos
-        $stmtPromo = $pdo->query("
-            SELECT pc.id AS promocion_id,
-                   pc.nombre_promocion AS nombre_campana,
-                   pc.tipo_promocion AS tipo_regla,
-                   pd.condicion_producto_id,
-                   pd.condicion_categoria_id,
-                   pd.condicion_marca_id AS marca_id,
-                   pd.cantidad_requerida,
-                   pd.beneficio_porcentaje,
-                   pd.beneficio_monto_fijo
-            FROM promociones.promociones_campanas pc
-            INNER JOIN promociones.promociones_detalles pd ON pd.promocion_id = pc.id
-            WHERE pc.estado = 'ACTIVA'
-              AND CURRENT_DATE BETWEEN pc.fecha_inicio AND pc.fecha_fin
-            ORDER BY pc.id DESC
-        ");
-        $promocionesActivas = $stmtPromo->fetchAll(PDO::FETCH_ASSOC) ?: [];
-    } catch (Throwable $e) {}
-
-    try {
-        // 6. Cotizaciones pendientes para importar
-        $stmtCot = $pdo->query("
+  try {
+    // 8. Cotizaciones pendientes vigentes
+    $cotizacionesPend = $pdo->query("
             SELECT cot.id,
                    cot.numero_cotizacion,
                    cot.cliente_id,
@@ -147,88 +131,37 @@ if ($pdo) {
                    p.documento_identidad AS cliente_doc,
                    TO_CHAR(cot.fecha_emision, 'DD/MM/YYYY') AS fecha_emision_fmt,
                    TO_CHAR(cot.fecha_vencimiento, 'DD/MM/YYYY') AS fecha_vencimiento_fmt,
-                   cot.monto_subtotal,
-                   cot.monto_impuestos AS monto_itbis,
-                   cot.monto_impuestos,
-                   cot.monto_total,
-                   cot.observaciones
+                   cot.monto_total
             FROM ventas.cotizaciones cot
             INNER JOIN identidad.clientes c ON cot.cliente_id = c.persona_id
             INNER JOIN identidad.personas p ON c.persona_id = p.persona_id
             WHERE cot.estado = 'PENDIENTE'
+              AND cot.fecha_vencimiento >= CURRENT_DATE
             ORDER BY cot.fecha_emision DESC
-        ");
-        $cotizacionesPend = $stmtCot->fetchAll(PDO::FETCH_ASSOC) ?: [];
-    } catch (Throwable $e) {}
+        ")->fetchAll(PDO::FETCH_ASSOC) ?: [];
+  } catch (Throwable $e) {
+  }
 
-    try {
-        // 7. Zonas de delivery activas
-        $stmtZonas = $pdo->query("
+  try {
+    // 9. Zonas de delivery activas
+    $zonasDelivery = $pdo->query("
             SELECT id, nombre, tarifa_envio, tiempo_promedio_min
             FROM ventas.zonas_delivery
             WHERE activa = TRUE
             ORDER BY nombre ASC
-        ");
-        $zonasDelivery = $stmtZonas->fetchAll(PDO::FETCH_ASSOC) ?: [];
+        ")->fetchAll(PDO::FETCH_ASSOC) ?: [];
+  } catch (Throwable $e) {
+  }
 
-        // 8. Repartidores disponibles asignados por cada Zona (ventas.repartidor_zonas + identidad.repartidores)
-        $stmtRepZonas = $pdo->query("
-            SELECT rz.zona_id,
-                   rz.es_ruta_principal,
-                   r.empleado_id AS repartidor_id,
-                   e.codigo_empleado,
-                   p.nombre_razon_social AS nombre_completo,
-                   p.telefono_principal,
-                   r.tipo_vehiculo,
-                   COALESCE(r.placa_vehiculo, '') AS placa_vehiculo,
-                   r.estado_logistico,
-                   r.capacidad_pedidos
-            FROM ventas.repartidor_zonas rz
-            INNER JOIN identidad.repartidores r ON rz.repartidor_id = r.empleado_id
-            INNER JOIN identidad.empleados e    ON r.empleado_id = e.empleado_id
-            INNER JOIN identidad.personas p     ON e.persona_id = p.persona_id
-            WHERE e.estado_laboral = 'ACTIVO'
-              AND r.estado_logistico IN ('BASE', 'EN_RUTA_CON_ESPACIO')
-            ORDER BY rz.es_ruta_principal DESC,
-                     CASE WHEN r.estado_logistico = 'BASE' THEN 0 ELSE 1 END ASC,
-                     p.nombre_razon_social ASC
-        ");
-        $repartidoresPorZona = $stmtRepZonas->fetchAll(PDO::FETCH_ASSOC) ?: [];
-
-        // También todos los repartidores disponibles por si alguna zona aún no tiene asignación en repartidor_zonas
-        $stmtRepAll = $pdo->query("
-            SELECT r.empleado_id AS repartidor_id,
-                   e.codigo_empleado,
-                   p.nombre_razon_social AS nombre_completo,
-                   p.telefono_principal,
-                   r.tipo_vehiculo,
-                   COALESCE(r.placa_vehiculo, '') AS placa_vehiculo,
-                   r.estado_logistico,
-                   r.capacidad_pedidos
-            FROM identidad.repartidores r
-            INNER JOIN identidad.empleados e ON r.empleado_id = e.empleado_id
-            INNER JOIN identidad.personas p ON e.persona_id = p.persona_id
-            WHERE e.estado_laboral = 'ACTIVO'
-              AND r.estado_logistico IN ('BASE', 'EN_RUTA_CON_ESPACIO')
-            ORDER BY CASE WHEN r.estado_logistico = 'BASE' THEN 0 ELSE 1 END ASC,
-                     p.nombre_razon_social ASC
-        ");
-        $repartidoresDisp = $stmtRepAll->fetchAll(PDO::FETCH_ASSOC) ?: [];
-    } catch (Throwable $e) {}
-
-    try {
-        // 9. Historial reciente de facturas emitidas
-        $stmtFac = $pdo->query("
+  try {
+    // 10. Historial reciente de facturas emitidas
+    $facturasRecientes = $pdo->query("
             SELECT f.id,
                    f.numero_factura,
                    f.tipo_ncf,
                    COALESCE(f.ncf, 'S/C') AS ncf,
                    f.condicion_pago,
                    f.origen_venta,
-                   f.monto_subtotal,
-                   f.monto_descuento,
-                   f.monto_impuestos AS monto_itbis,
-                   f.monto_impuestos,
                    f.monto_total,
                    f.estado,
                    TO_CHAR(f.fecha_emision, 'DD/MM/YYYY HH12:MI AM') AS fecha_fmt,
@@ -238,15 +171,15 @@ if ($pdo) {
             LEFT JOIN identidad.clientes c ON f.cliente_id = c.persona_id
             LEFT JOIN identidad.personas p ON c.persona_id = p.persona_id
             ORDER BY f.fecha_emision DESC, f.id DESC
-            LIMIT 25
-        ");
-        $facturasRecientes = $stmtFac->fetchAll(PDO::FETCH_ASSOC) ?: [];
-    } catch (Throwable $e) {}
+            LIMIT 40
+        ")->fetchAll(PDO::FETCH_ASSOC) ?: [];
+  } catch (Throwable $e) {
+  }
 
-    try {
-        // 10. Sesión de caja activa del cajero logueado (Control de Caja)
-        $cajeroUsuarioId = $_SESSION['usuario']['usuario_id'] ?? null;
-        $stmtSc = $pdo->prepare("
+  try {
+    // 11. Sesión de caja asignada al cajero autenticado (Fase 5: Control de Caja)
+    $cajeroUsuarioId = $_SESSION['usuario']['usuario_id'] ?? null;
+    $stmtSc = $pdo->prepare("
             SELECT sc.id, sc.caja_id, sc.cajero_id, sc.monto_inicial_efectivo, sc.estado,
                    TO_CHAR(sc.fecha_apertura, 'DD/MM/YYYY HH12:MI AM') AS fecha_apertura_fmt,
                    cp.nombre_equipo, cp.ubicacion, p.nombre_razon_social AS cajero_nombre
@@ -259,43 +192,36 @@ if ($pdo) {
             ORDER BY sc.fecha_apertura DESC
             LIMIT 1
         ");
-        $stmtSc->execute([':usuario_id' => $cajeroUsuarioId]);
-        $sesionCajaActiva = $stmtSc->fetch(PDO::FETCH_ASSOC) ?: null;
-
-        if ($sesionCajaActiva) {
-            $sesionCajaId = $sesionCajaActiva['caja_id'];
-        }
-    } catch (Throwable $e) {
-        $sesionCajaActiva = null;
+    $stmtSc->execute([':usuario_id' => $cajeroUsuarioId]);
+    $sesionCajaActiva = $stmtSc->fetch(PDO::FETCH_ASSOC) ?: null;
+    if ($sesionCajaActiva) {
+      $sesionCajaId = $sesionCajaActiva['caja_id'];
     }
+  } catch (Throwable $e) {
+    $sesionCajaActiva = null;
+  }
 
-    try {
-        require_once __DIR__ . '/../../config/auditoria_helper.php';
-        $supervisoresAutorizados = ($pdo && function_exists('obtenerSupervisoresAutorizados')) ? obtenerSupervisoresAutorizados($pdo) : [];
-        // Cajas POS registradas para apertura de turno
-        $stmtCjDisp = $pdo->query("SELECT id, nombre_equipo, ubicacion, estado FROM ventas.cajas_pos ORDER BY id ASC");
-        $cajasPosDisponibles = $stmtCjDisp->fetchAll(PDO::FETCH_ASSOC) ?: [];
-    } catch (Throwable $e) {
-        $cajasPosDisponibles = [];
-    }
+  try {
+    $supervisoresAutorizados = obtenerSupervisoresAutorizados($pdo);
+  } catch (Throwable $e) {
+  }
 }
 
-// Mapa rápido de NCF disponible por tipo
-$ncfDisponibles = [
-    'B02' => null,
-    'B01' => null,
-];
+$estadoSesion = strtoupper((string) ($sesionCajaActiva['estado'] ?? ''));
+$puedeFacturar = ($sesionCajaActiva !== null && $estadoSesion === 'ABIERTA');
+$enCuadreCaja = ($sesionCajaActiva !== null && $estadoSesion === 'EN_CUADRE');
+
+$ncfDisponibles = ['B02' => null, 'B01' => null];
 foreach ($secuenciasFiscales as $sec) {
-    $tipo = strtoupper(trim($sec['tipo_comprobante']));
-    if (!isset($ncfDisponibles[$tipo]) || $ncfDisponibles[$tipo] === null) {
-        $ncfFormateado = $tipo . str_pad((string)$sec['secuencia_actual'], 8, '0', STR_PAD_LEFT);
-        $ncfDisponibles[$tipo] = [
-            'id'          => (int)$sec['id'],
-            'ncf_proximo' => $ncfFormateado,
-            'restantes'   => (int)$sec['secuencia_hasta'] - (int)$sec['secuencia_actual'] + 1,
-            'vencimiento' => $sec['vencimiento_fmt'],
-        ];
-    }
+  $tipo = strtoupper(trim($sec['tipo_comprobante']));
+  if (!isset($ncfDisponibles[$tipo]) || $ncfDisponibles[$tipo] === null) {
+    $ncfDisponibles[$tipo] = [
+      'id' => (int) $sec['id'],
+      'ncf_proximo' => $tipo . str_pad((string) $sec['secuencia_actual'], 8, '0', STR_PAD_LEFT),
+      'restantes' => (int) $sec['secuencia_hasta'] - (int) $sec['secuencia_actual'] + 1,
+      'vencimiento' => $sec['vencimiento_fmt'],
+    ];
+  }
 }
 ?>
 <!DOCTYPE html>
@@ -303,258 +229,73 @@ foreach ($secuenciasFiscales as $sec) {
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>House &amp; Ice • Facturación</title>
+  <title>House &amp; Ice • Facturación (POS)</title>
   <link rel="stylesheet" href="../styles.css?v=23" />
   <style>
     .btn-close {
-      background: none;
-      border: none;
-      font-size: 1.6rem;
-      line-height: 1;
-      color: #8a7b70;
-      cursor: pointer;
-      padding: 2px 8px;
-      border-radius: 6px;
-      transition: all 0.15s ease;
+      background: none; border: none; font-size: 1.55rem; line-height: 1;
+      color: #8a7b70; cursor: pointer; padding: 2px 8px; border-radius: 6px;
     }
-    .btn-close:hover {
-      color: #211813;
-      background: rgba(0, 0, 0, 0.06);
-    }
+    .btn-close:hover { color: #211813; background: rgba(0,0,0,0.06); }
 
-    /* =======================================================
-       ESTILOS PREMIUM • MODAL ARQUEO CIEGO (FIN DE TURNO)
-       ======================================================= */
-    .modal-arqueo-premium {
-      max-width: 680px !important;
-      border-radius: 14px !important;
-      box-shadow: 0 16px 40px rgba(33, 24, 19, 0.22) !important;
-      border: 1px solid #e0d5c5 !important;
-      overflow: hidden;
+    .pos-scanner-strip {
+      display: grid; grid-template-columns: 1.5fr 1fr auto; gap: 10px; align-items: end;
+      background: #fff; border: 1px solid #e7dcc8; border-radius: 10px;
+      padding: 12px 16px; margin-bottom: 14px;
     }
-
-    .arqueo-header-pills {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 8px;
-      align-items: center;
-      margin-top: 6px;
+    .pos-cupon-strip {
+      display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px;
+      background: #fdfaf4; border: 1px dashed #d8b888; border-radius: 8px;
+      padding: 10px 14px; margin-bottom: 14px;
     }
-
-    .arqueo-pill {
-      display: inline-flex;
-      align-items: center;
-      gap: 5px;
-      padding: 3px 10px;
-      border-radius: 20px;
-      font-size: 0.74rem;
-      font-weight: 700;
-      letter-spacing: 0.2px;
+    .pos-tax-pill {
+      display: inline-block; font-size: 0.72rem; font-weight: 700;
+      padding: 2px 7px; border-radius: 99px; background: #f3ece1; color: #5a3818; margin: 1px 2px;
     }
-
-    .arqueo-pill-sesion {
-      background: #fdf5ea;
-      color: #8c4c15;
-      border: 1px solid #e8caa0;
+    .pos-cashback-banner {
+      background: #edf7ed; border: 1px solid #b7dfb9; color: #1b5e20;
+      padding: 9px 14px; border-radius: 8px; font-size: 0.84rem; font-weight: 600;
+      margin-bottom: 12px; display: none;
     }
-
-    .arqueo-pill-terminal {
-      background: #f0ebe4;
-      color: #3d3229;
-      border: 1px solid #d4c7b8;
+    .pos-stock-alert-banner {
+      background: #ffebee; border: 1px solid #ef9a9a; color: #b71c1c;
+      padding: 9px 14px; border-radius: 8px; font-size: 0.84rem; font-weight: 600;
+      margin-bottom: 12px; display: none;
     }
-
-    .arqueo-pill-cajero {
-      background: #eef5ee;
-      color: #27672b;
-      border: 1px solid #c3dec4;
+    .split-pay-summary {
+      display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px;
+      background: #faf7f2; border: 1px solid #e7dcc8; border-radius: 10px; padding: 12px 14px; margin-bottom: 14px;
     }
-
-    .arqueo-notice-card {
-      display: flex;
-      align-items: flex-start;
-      gap: 12px;
-      background: linear-gradient(135deg, #fdf8ee 0%, #fffbf5 100%);
-      border: 1px solid #edd5b2;
-      border-left: 4px solid #b25e09;
-      border-radius: 10px;
-      padding: 12px 14px;
+    .split-pay-box { text-align: center; }
+    .split-pay-box small { display: block; font-size: 0.72rem; font-weight: 700; color: #8a7b70; text-transform: uppercase; }
+    .split-pay-box strong { font-size: 1.15rem; font-family: monospace; color: #211813; }
+    .split-subtipo-panel {
+      background: #fdfaf4; border: 1px solid #eadecd; border-radius: 8px;
+      padding: 12px; margin-top: 10px;
     }
-
-    .arqueo-notice-icon {
-      font-size: 1.4rem;
-      line-height: 1;
-    }
-
-    .arqueo-notice-title {
-      font-weight: 800;
-      color: #794a15;
-      font-size: 0.84rem;
-      margin-bottom: 2px;
-    }
-
-    .arqueo-notice-desc {
-      font-size: 0.77rem;
-      color: #855b2a;
-      line-height: 1.35;
-    }
-
-    .arqueo-section-card {
-      background: #ffffff;
-      border: 1px solid #e8decb;
-      border-radius: 10px;
-      padding: 14px;
-      box-shadow: 0 1px 4px rgba(33, 24, 19, 0.02);
-    }
-
-    .arqueo-section-head {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      margin-bottom: 10px;
-    }
-
-    .arqueo-section-label {
-      font-size: 0.78rem;
-      font-weight: 800;
-      color: #4a3c31;
-      text-transform: uppercase;
-      letter-spacing: 0.5px;
-      display: flex;
-      align-items: center;
-      gap: 6px;
-    }
-
-    .arqueo-total-badge {
-      background: #fdf5ea;
-      color: #8c4c15;
-      border: 1px solid #eccca2;
-      padding: 5px 12px;
-      border-radius: 20px;
-      font-weight: 900;
-      font-size: 1.05rem;
-      font-family: monospace;
-      box-shadow: 0 1px 3px rgba(140, 76, 21, 0.08);
-    }
-
-    .pos-denoms-container {
-      max-height: 235px;
-      overflow-y: auto;
-      border: 1px solid #ede4d6;
-      border-radius: 8px;
-      background: #faf7f2;
-      padding: 4px;
-    }
-
-    .pos-denoms-container::-webkit-scrollbar,
-    .arqueo-body-scroll::-webkit-scrollbar {
-      width: 6px;
-    }
-    .pos-denoms-container::-webkit-scrollbar-track,
-    .arqueo-body-scroll::-webkit-scrollbar-track {
-      background: #f3ede2;
-      border-radius: 4px;
-    }
-    .pos-denoms-container::-webkit-scrollbar-thumb,
-    .arqueo-body-scroll::-webkit-scrollbar-thumb {
-      background: #d8b888;
-      border-radius: 4px;
-    }
-    .pos-denoms-container::-webkit-scrollbar-thumb:hover,
-    .arqueo-body-scroll::-webkit-scrollbar-thumb:hover {
-      background: #b25e09;
-    }
-
-    .denom-item-row {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      background: #ffffff;
-      padding: 7px 12px;
-      margin-bottom: 3px;
-      border-radius: 6px;
-      border: 1px solid #f0e6d6;
-      transition: all 0.12s ease;
-    }
-
-    .denom-item-row:hover {
-      background: #fffcf8;
-      border-color: #d8b888;
-    }
-
-    .denom-item-row:last-child {
-      margin-bottom: 0;
-    }
-
-    .denom-badge-type {
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-      padding: 3px 8px;
-      border-radius: 6px;
-      font-weight: 700;
-      font-size: 0.82rem;
-      min-width: 135px;
-    }
-
-    .denom-type-billete {
-      background: #edf7ec;
-      color: #236528;
-      border: 1px solid #c7e5c6;
-    }
-
-    .denom-type-moneda {
-      background: #f2f3f5;
-      color: #4e555d;
-      border: 1px solid #dcdfe3;
-    }
-
-    .denom-qty-input {
-      width: 76px;
-      text-align: center;
-      padding: 5px 6px;
-      border: 1.5px solid #d4c7b8;
-      border-radius: 6px;
-      font-family: monospace;
-      font-size: 0.92rem;
-      font-weight: 800;
-      color: #211813;
-      background: #fff;
-      transition: all 0.15s ease;
-    }
-
-    .denom-qty-input:focus {
-      outline: none;
-      border-color: #8c4c15;
-      box-shadow: 0 0 0 3px rgba(140, 76, 21, 0.12);
-    }
-
-    .denom-subtotal-text {
-      font-family: monospace;
-      font-size: 0.88rem;
-      font-weight: 800;
-      width: 108px;
-      text-align: right;
-      color: #8c4c15;
-    }
-
-    .arqueo-input-control {
-      font-family: monospace;
-      font-weight: 700;
-      font-size: 0.95rem;
-      background: #fff;
-      border: 1.5px solid #d4c7b8;
-      border-radius: 6px;
-      padding: 8px 10px;
-      width: 100%;
-      box-sizing: border-box;
-      transition: all 0.15s ease;
-    }
-
-    .arqueo-input-control:focus {
-      outline: none;
-      border-color: #8c4c15;
-      box-shadow: 0 0 0 3px rgba(140, 76, 21, 0.12);
+    /* Estilos Modal Arqueo Ciego */
+    .modal-arqueo-premium { max-width: 680px !important; border-radius: 14px !important; overflow: hidden; }
+    .arqueo-header-pills { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 6px; }
+    .arqueo-pill { display: inline-flex; align-items: center; gap: 5px; padding: 3px 10px; border-radius: 20px; font-size: 0.74rem; font-weight: 700; }
+    .arqueo-pill-sesion { background: #fdf5ea; color: #8c4c15; border: 1px solid #e8caa0; }
+    .arqueo-pill-terminal { background: #f0ebe4; color: #3d3229; border: 1px solid #d4c7b8; }
+    .arqueo-pill-cajero { background: #eef5ee; color: #27672b; border: 1px solid #c3dec4; }
+    .arqueo-notice-card { display: flex; align-items: flex-start; gap: 12px; background: #fdf8ee; border: 1px solid #edd5b2; border-left: 4px solid #b25e09; border-radius: 10px; padding: 12px 14px; }
+    .arqueo-section-card { background: #fff; border: 1px solid #e8decb; border-radius: 10px; padding: 14px; }
+    .arqueo-section-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+    .arqueo-section-label { font-size: 0.78rem; font-weight: 800; color: #4a3c31; text-transform: uppercase; }
+    .arqueo-total-badge { background: #fdf5ea; color: #8c4c15; border: 1px solid #eccca2; padding: 5px 12px; border-radius: 20px; font-weight: 900; font-size: 1.05rem; font-family: monospace; }
+    .pos-denoms-container { max-height: 220px; overflow-y: auto; border: 1px solid #ede4d6; border-radius: 8px; background: #faf7f2; padding: 4px; }
+    .denom-item-row { display: flex; align-items: center; justify-content: space-between; background: #fff; padding: 6px 12px; margin-bottom: 3px; border-radius: 6px; border: 1px solid #f0e6d6; }
+    .denom-badge-type { display: inline-flex; align-items: center; gap: 6px; padding: 3px 8px; border-radius: 6px; font-weight: 700; font-size: 0.82rem; min-width: 135px; }
+    .denom-type-billete { background: #edf7ec; color: #236528; border: 1px solid #c7e5c6; }
+    .denom-type-moneda { background: #f2f3f5; color: #4e555d; border: 1px solid #dcdfe3; }
+    .denom-qty-input { width: 76px; text-align: center; padding: 5px 6px; border: 1.5px solid #d4c7b8; border-radius: 6px; font-family: monospace; font-size: 0.92rem; font-weight: 800; }
+    .denom-subtotal-text { font-family: monospace; font-size: 0.88rem; font-weight: 800; width: 108px; text-align: right; color: #8c4c15; }
+    .arqueo-input-control { font-family: monospace; font-weight: 700; font-size: 0.94rem; background: #fff; border: 1.5px solid #d4c7b8; border-radius: 6px; padding: 8px 10px; width: 100%; box-sizing: border-box; }
+    @media (max-width: 900px) {
+      .pos-scanner-strip { grid-template-columns: 1fr; }
+      .split-pay-summary { grid-template-columns: 1fr; }
     }
   </style>
 </head>
@@ -564,9 +305,7 @@ foreach ($secuenciasFiscales as $sec) {
   <header class="topbar">
     <div style="display: flex; align-items: center; gap: 10px;">
       <button type="button" class="mobile-toggle-btn" onclick="toggleMobileSidebar()" aria-label="Abrir Menú">
-        <span></span>
-        <span></span>
-        <span></span>
+        <span></span><span></span><span></span>
       </button>
       <a href="../../Login y Menu/menu.php" class="topbar-brand" style="text-decoration: none;">
         <span class="brand-title">HOUSE &amp; ICE</span>
@@ -583,16 +322,21 @@ foreach ($secuenciasFiscales as $sec) {
           <div class="user-sub-line">
             <span class="user-role-text"><?= htmlspecialchars($sesionRol) ?></span>
             <span class="user-bullet">•</span>
-            <?php if (!empty($sesionCajaActiva)): ?>
-              <span class="user-caja-pill open" title="Sesión #<?= $sesionCajaActiva['id'] ?> activa">
-                <span class="pill-dot green"></span>
-                <?= htmlspecialchars($sesionCajaActiva['nombre_equipo']) ?>
-              </span>
+            <?php if ($puedeFacturar): ?>
+                <span class="user-caja-pill open" title="Turno activo en <?= htmlspecialchars($sesionCajaActiva['nombre_equipo']) ?>">
+                  <span class="pill-dot green"></span>
+                  <?= htmlspecialchars($sesionCajaActiva['nombre_equipo']) ?>
+                </span>
+            <?php elseif ($enCuadreCaja): ?>
+                <span class="user-caja-pill" style="background: #fff3e0; color: #b25e09; border: 1px solid #ffe082;">
+                  <span class="pill-dot" style="background: #b25e09;"></span>
+                  En Arqueo (<?= htmlspecialchars($sesionCajaActiva['nombre_equipo']) ?>)
+                </span>
             <?php else: ?>
-              <span class="user-caja-pill" style="background: #fdf5ea; color: #b25e09; border: 1px solid #eccca2;" title="No tiene turno abierto en ninguna terminal física">
-                <span class="pill-dot" style="background: #b25e09;"></span>
-                Sin Caja Asignada
-              </span>
+                <span class="user-caja-pill" style="background: #fdf5ea; color: #b25e09; border: 1px solid #eccca2;">
+                  <span class="pill-dot" style="background: #b25e09;"></span>
+                  Sin Caja Asignada
+                </span>
             <?php endif; ?>
           </div>
         </div>
@@ -601,45 +345,46 @@ foreach ($secuenciasFiscales as $sec) {
   </header>
 
   <div class="app-container">
-    <!-- SIDEBAR UNIFICADO -->
     <?php include __DIR__ . '/../../sidebar.php'; ?>
 
-    <!-- CONTENIDO PRINCIPAL -->
     <main class="main-content">
 
       <!-- ENCABEZADO -->
       <div class="page-header">
         <div>
-          <h1 class="page-title">Facturación</h1>
-          <p class="page-subtitle">Emisión de comprobantes fiscales, control de carrito y registro de cobros en caja</p>
+          <h1 class="page-title">Facturación (Punto de Venta POS)</h1>
+          <p class="page-subtitle">Motor fiscal DGII, promociones automáticas, cupones, descarga FEFO y Split Universal de pagos</p>
         </div>
-        <div style="display: flex; align-items: center; gap: 10px;">
+        <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
           <button type="button" class="btn btn-outline" onclick="abrirModalHistorial()">
             🧾 Facturas Emitidas (<?= count($facturasRecientes) ?>)
           </button>
+          <?php if ($puedeFacturar): ?>
+              <button type="button" class="btn btn-outline" onclick="abrirModalCajaChicaFacturacion()" style="border-color: #d8b888; color: #794a15; background: #fffcf8; font-weight: 600;">
+                💵 Caja Chica
+              </button>
+          <?php endif; ?>
           <?php if (!empty($sesionCajaActiva)): ?>
-            <button type="button" class="btn btn-outline" onclick="abrirModalCajaChicaFacturacion()" style="border-color: #d8b888; color: #794a15; background: #fffcf8; font-weight: 600;">
-              💵 Caja Chica
-            </button>
-            <button type="button" class="btn btn-gold" onclick="abrirModalArqueoFacturacion()" style="background: #965318; border-color: #965318; color: #fff; font-weight: 600;">
-              🔒 Finalizar Turno
-            </button>
+              <button type="button" class="btn btn-gold" onclick="abrirModalArqueoFacturacion()" style="background: #965318; border-color: #965318; color: #fff; font-weight: 600;">
+                🔒 Finalizar Turno
+              </button>
           <?php endif; ?>
         </div>
       </div>
 
-      <?php if (empty($sesionCajaActiva)): ?>
-        <div style="background: #fff8eb; border: 1px solid #f0d8a8; color: #7a5216; padding: 12px 18px; border-radius: 8px; margin-bottom: 18px; display: flex; align-items: center; gap: 12px;">
-          <div style="font-size: 0.88rem;">
-            ⚠️ <strong>Turno No Iniciado / Sin Caja Asignada:</strong> No puedes facturar ni registrar cobros. Solicita a tu supervisor que te asigne una caja y fondo de apertura en <strong>Control de Caja</strong>.
+      <!-- AVISOS DE FASE 5 (CONTROL DE CAJA) -->
+      <?php if (!$puedeFacturar && !$enCuadreCaja): ?>
+          <div style="background: #fff8eb; border: 1px solid #f0d8a8; color: #7a5216; padding: 12px 18px; border-radius: 8px; margin-bottom: 16px; font-size: 0.88rem;">
+            ⚠️ <strong>Turno No Iniciado / Sin Caja Asignada:</strong> No puedes facturar ni registrar cobros. Solicita a tu supervisor que te asigne una terminal y fondo inicial en <strong>Control de Caja</strong>.
           </div>
-        </div>
+      <?php elseif ($enCuadreCaja): ?>
+          <div style="background: #fff3e0; border: 1px solid #ffe082; color: #b25e09; padding: 12px 18px; border-radius: 8px; margin-bottom: 16px; font-size: 0.88rem;">
+            ⏳ <strong>Terminal en Arqueo Ciego (EN_CUADRE):</strong> La facturación está bloqueada temporalmente. Presiona <strong>🔒 Finalizar Turno</strong> para concluir tu conteo físico.
+          </div>
       <?php endif; ?>
 
-      <!-- BLOQUE SUPERIOR: TARJETA IZQUIERDA (CLIENTE Y PAGO) + TARJETA DERECHA (TOTAL FACTURA) -->
+      <!-- BLOQUE SUPERIOR: CABECERA FISCAL/CLIENTE + TOTAL EN VIVO -->
       <div class="pos-top-grid">
-
-        <!-- TARJETA IZQUIERDA: IGUAL AL DISEÑO DE REFERENCIA -->
         <div class="pos-config-card">
           <div class="pos-config-row-clean">
             <!-- CLIENTE / RNC -->
@@ -647,32 +392,25 @@ foreach ($secuenciasFiscales as $sec) {
               <label for="selectCliente" class="form-label">CLIENTE / RNC:</label>
               <div class="pos-client-input-wrap">
                 <select id="selectCliente" class="form-control" onchange="alCambiarCliente()">
-                  <option value="CONSUMIDOR_FINAL"
-                          data-doc=""
-                          data-nombre="Consumidor Final"
-                          data-tipo-doc="CEDULA"
-                          data-credito="0"
-                          data-limite="0">
+                  <option value="CONSUMIDOR_FINAL" data-doc="" data-nombre="Consumidor Final" data-tipo-doc="CEDULA" data-credito="0" data-limite="0">
                     Consumidor Final (Mostrador)
                   </option>
-                  <?php foreach ($clientes as $cli): ?>
-                    <?php
-                      $docFmt = trim($cli['documento_identidad'] ?? '');
-                      $labelDoc = $docFmt !== '' ? ($cli['tipo_documento'] . ': ' . $docFmt) : 'Sin Doc.';
+                  <?php foreach ($clientes as $cli):
+                    $docFmt = trim($cli['documento_identidad'] ?? '');
+                    $labelDoc = $docFmt !== '' ? ($cli['tipo_documento'] . ': ' . $docFmt) : 'Sin Doc.';
+                    $esCred = ($cli['permite_credito'] === true || $cli['permite_credito'] === 't' || $cli['permite_credito'] == 1);
                     ?>
-                    <option value="<?= htmlspecialchars($cli['cliente_id']) ?>"
-                            data-doc="<?= htmlspecialchars($docFmt) ?>"
-                            data-nombre="<?= htmlspecialchars($cli['nombre_razon_social']) ?>"
-                            data-tipo-doc="<?= htmlspecialchars($cli['tipo_documento']) ?>"
-                            data-credito="<?= $cli['permite_credito'] ? '1' : '0' ?>"
-                            data-limite="<?= htmlspecialchars((string)$cli['limite_credito']) ?>">
-                      <?= htmlspecialchars($cli['nombre_razon_social']) ?> (<?= htmlspecialchars($labelDoc) ?>)
-                    </option>
+                      <option value="<?= htmlspecialchars($cli['cliente_id']) ?>"
+                              data-doc="<?= htmlspecialchars($docFmt) ?>"
+                              data-nombre="<?= htmlspecialchars($cli['nombre_razon_social']) ?>"
+                              data-tipo-doc="<?= htmlspecialchars($cli['tipo_documento']) ?>"
+                              data-credito="<?= $esCred ? '1' : '0' ?>"
+                              data-limite="<?= htmlspecialchars((string) $cli['limite_credito']) ?>">
+                        <?= htmlspecialchars($cli['nombre_razon_social']) ?> (<?= htmlspecialchars($labelDoc) ?>)<?= $esCred ? ' ★ Crédito' : '' ?>
+                      </option>
                   <?php endforeach; ?>
                 </select>
-                <button type="button" class="btn btn-beige pos-btn-add-client" onclick="abrirModalNuevoCliente()">
-                  + Cliente
-                </button>
+                <button type="button" class="btn btn-beige pos-btn-add-client" onclick="abrirModalNuevoCliente()">+ Cliente</button>
               </div>
             </div>
 
@@ -680,58 +418,36 @@ foreach ($secuenciasFiscales as $sec) {
             <div class="pos-field-group">
               <label for="selectTipoNcf" class="form-label">COMPROBANTE (NCF):</label>
               <select id="selectTipoNcf" class="form-control" onchange="actualizarInfoNcf()">
-                <option value="B02">
-                  B02 • Consumo Final<?= $ncfDisponibles['B02'] ? ' (' . $ncfDisponibles['B02']['ncf_proximo'] . ')' : '' ?>
-                </option>
-                <option value="B01">
-                  B01 • Crédito Fiscal<?= $ncfDisponibles['B01'] ? ' (' . $ncfDisponibles['B01']['ncf_proximo'] . ')' : '' ?>
-                </option>
-                <option value="CONSUMO_INTERNO">
-                  Consumo Interno
-                </option>
+                <option value="B02">B02 • Consumo Final<?= $ncfDisponibles['B02'] ? ' (' . $ncfDisponibles['B02']['ncf_proximo'] . ')' : ' [Sin bloque]' ?></option>
+                <option value="B01">B01 • Crédito Fiscal<?= $ncfDisponibles['B01'] ? ' (' . $ncfDisponibles['B01']['ncf_proximo'] . ')' : ' [Sin bloque]' ?></option>
+                <option value="CONSUMO_INTERNO">Consumo Interno (Sin NCF)</option>
               </select>
             </div>
 
-            <!-- CONDICIÓN DE PAGO -->
+            <!-- CONDICIÓN DE VENTA Y MONEDA -->
             <div class="pos-field-group">
-              <label for="selectMetodoPago" class="form-label">CONDICIÓN DE PAGO:</label>
-              <select id="selectMetodoPago" class="form-control" onchange="alCambiarCondicionPago()">
-                <?php if (empty($metodosPago)): ?>
-                  <option value="EFECTIVO_DEFAULT" data-condicion="CONTADO" data-req-ref="0">Efectivo de Mostrador</option>
-                <?php else: ?>
-                  <?php foreach ($metodosPago as $mp): ?>
-                    <option value="<?= (int)$mp['id'] ?>"
-                            data-condicion="CONTADO"
-                            data-codigo="<?= htmlspecialchars($mp['codigo']) ?>"
-                            data-req-ref="<?= $mp['requiere_referencia'] ? '1' : '0' ?>">
-                      <?= htmlspecialchars($mp['descripcion']) ?>
-                    </option>
+              <label for="selectCondicionVenta" class="form-label">CONDICIÓN DE VENTA:</label>
+              <div style="display: flex; gap: 6px;">
+                <select id="selectCondicionVenta" class="form-control" onchange="alCambiarCondicionVenta()">
+                  <option value="CONTADO">Contado (Split Universal)</option>
+                  <option value="CREDITO">Crédito Comercial (CxC 30d)</option>
+                </select>
+                <select id="selectMoneda" class="form-control" style="max-width: 105px;" onchange="alCambiarMoneda()">
+                  <?php foreach ($monedas as $mon): ?>
+                      <option value="<?= (int) $mon['id'] ?>"
+                              data-iso="<?= htmlspecialchars($mon['codigo_iso']) ?>"
+                              data-simbolo="<?= htmlspecialchars($mon['simbolo']) ?>"
+                              data-tasa="<?= htmlspecialchars((string) $mon['tasa_cambio_referencia']) ?>">
+                        <?= htmlspecialchars($mon['codigo_iso']) ?>
+                      </option>
                   <?php endforeach; ?>
-                <?php endif; ?>
-                <option value="CREDITO_CXC" data-condicion="CREDITO" data-req-ref="0">
-                  Crédito Comercial (CxC)
-                </option>
-              </select>
-            </div>
-          </div>
-
-          <!-- FILA COMPACTA SOLO SI EL MÉTODO DE PAGO EXIGE NÚMERO DE REFERENCIA / VOUCHER -->
-          <div id="bloqueReferenciaPago" style="display: none; margin-top: 10px; padding-top: 10px; border-top: 1px dashed var(--border-light);">
-            <div style="display: flex; align-items: center; gap: 12px;">
-              <label for="inputReferenciaPago" class="form-label" style="margin: 0; white-space: nowrap;">N° REFERENCIA / VOUCHER *:</label>
-              <input
-                type="text"
-                id="inputReferenciaPago"
-                class="form-control"
-                placeholder="Ingresa el número de aprobación o referencia bancaria..."
-                maxlength="60"
-                style="max-width: 340px;"
-              />
+                </select>
+              </div>
             </div>
           </div>
         </div>
 
-        <!-- TARJETA DERECHA: TOTAL FACTURA -->
+        <!-- TARJETA DERECHA: TOTAL FACTURA CON DESGLOSE DINÁMICO DE IMPUESTOS -->
         <div class="pos-total-card">
           <div class="pos-total-header-row">
             <span class="pos-total-label">TOTAL FACTURA</span>
@@ -739,31 +455,58 @@ foreach ($secuenciasFiscales as $sec) {
           </div>
 
           <div class="pos-total-amount" id="displayTotalFactura">RD$ 0.00</div>
-
           <div class="pos-total-divider"></div>
 
-          <div class="pos-total-breakdown">
-            <span>Neto: <strong id="displaySubtotalNeto">RD$ 0.00</strong></span>
+          <div class="pos-total-breakdown" style="flex-wrap: wrap; gap: 8px;">
+            <span>Bruto: <strong id="displaySubtotalBruto">RD$ 0.00</strong></span>
             <span id="spanDescuentoResumen" style="display: none; color: #2e7d52;">
               Desc.: <strong id="displayDescuentoTotal">-RD$ 0.00</strong>
             </span>
-            <span>ITBIS (18%): <strong id="displayItbisTotal">RD$ 0.00</strong></span>
+            <span id="spanDeliveryResumen" style="display: none; color: #794a15;">
+              Envío: <strong id="displayTarifaDelivery">+RD$ 0.00</strong>
+            </span>
+            <span>Impuestos: <strong id="displayImpuestosTotal">RD$ 0.00</strong></span>
+          </div>
+          <div id="wrapPillsImpuestos" style="margin-top: 6px;"></div>
+        </div>
+      </div>
+
+      <!-- BARRA DE ESCÁNER + ALMACÉN POS + ACCIONES -->
+      <div class="pos-scanner-strip">
+        <div class="form-group" style="margin-bottom: 0;">
+          <label for="inputScannerPos" class="form-label">ESCÁNER RÁPIDO (CÓDIGO DE BARRAS O SKU)</label>
+          <div style="display: flex; gap: 6px;">
+            <input type="text" id="inputScannerPos" class="form-control"
+                   placeholder="Escanea botella, six-pack o caja y presiona Enter..."
+                   autocomplete="off"
+                   onkeydown="if(event.key==='Enter'){ event.preventDefault(); escanearCodigoPos(); }" />
+            <button type="button" class="btn btn-secondary" onclick="escanearCodigoPos()">Agregar</button>
           </div>
         </div>
 
+        <div class="form-group" style="margin-bottom: 0;">
+          <label for="selectAlmacenPos" class="form-label">ALMACÉN DE DESPACHO (FEFO)</label>
+          <select id="selectAlmacenPos" class="form-control" onchange="recalcularCarritoServidor()">
+            <?php foreach ($almacenes as $alm): ?>
+                <option value="<?= (int) $alm['id'] ?>"><?= htmlspecialchars($alm['nombre']) ?></option>
+            <?php endforeach; ?>
+          </select>
+        </div>
+
+        <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+          <button type="button" class="btn btn-gold" onclick="abrirModalCatalogo()">
+            🔍 Catálogo y Presentaciones
+          </button>
+        </div>
       </div>
 
-      <!-- BARRA DE ACCIONES -->
+      <!-- BARRA DE ACCIONES OPERATIVAS -->
       <div class="pos-action-bar">
         <div class="pos-action-left">
-          <button type="button" class="btn btn-gold" onclick="abrirModalCatalogo()">
-            + Agregar Producto
-          </button>
-
           <button type="button" class="btn btn-outline-card" onclick="abrirModalCotizaciones()">
-            Importar Cotización
+            📄 Importar Cotización
             <?php if (count($cotizacionesPend) > 0): ?>
-              <span class="pos-inline-count"><?= count($cotizacionesPend) ?></span>
+                <span class="pos-inline-count"><?= count($cotizacionesPend) ?></span>
             <?php endif; ?>
           </button>
 
@@ -776,43 +519,54 @@ foreach ($secuenciasFiscales as $sec) {
           <button type="button" class="btn btn-outline-card" id="btnLimpiarCarrito" onclick="limpiarCarritoConConfirmacion()" style="display: none;">
             Vaciar Carrito
           </button>
-          <?php if (empty($sesionCajaActiva)): ?>
-            <button type="button" class="btn btn-dark-save" id="btnGuardarFactura" disabled style="opacity: 0.55; cursor: not-allowed; background: #6c757d; border-color: #6c757d;" title="Solicita a tu supervisor abrir tu turno en Control de Caja">
-              🔒 Sin Caja Asignada
-            </button>
+          <?php if (!$puedeFacturar): ?>
+              <button type="button" class="btn btn-dark-save" id="btnGuardarFactura" disabled style="opacity: 0.55; cursor: not-allowed; background: #6c757d; border-color: #6c757d;">
+                🔒 <?= $enCuadreCaja ? 'Caja en Arqueo' : 'Sin Caja Asignada' ?>
+              </button>
           <?php else: ?>
-            <button type="button" class="btn btn-dark-save" id="btnGuardarFactura" onclick="procesarGuardadoFactura()">
-              Guardar Factura
-            </button>
+              <button type="button" class="btn btn-dark-save" id="btnGuardarFactura" onclick="abrirModalCobro()">
+                💳 Cobrar / Emitir Factura
+              </button>
           <?php endif; ?>
         </div>
       </div>
 
-      <!-- RESUMEN ACTIVO CUANDO LA FACTURA ES UN PEDIDO DELIVERY -->
+      <!-- BARRA DE CUPÓN PROMOCIONAL (REBAJA BASE ANTES DE IMPUESTOS) -->
+      <div class="pos-cupon-strip">
+        <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+          <strong style="font-size: 0.84rem; color: #794a15;">🎟️ Cupón Promocional (antes de impuestos):</strong>
+          <input type="text" id="inputCodigoCupon" class="form-control" style="width: 190px; height: 34px; text-transform: uppercase; font-family: monospace; font-weight: 700;" placeholder="Ej. LQR-A1B2C3"
+                 onkeydown="if(event.key==='Enter'){ event.preventDefault(); aplicarCuponPos(); }" />
+          <button type="button" class="btn-sm btn-gold" onclick="aplicarCuponPos()">Aplicar Cupón</button>
+          <button type="button" class="btn-sm btn-outline" id="btnQuitarCupon" style="display: none;" onclick="quitarCuponPos()">Quitar</button>
+        </div>
+        <div id="estadoCuponTexto" style="font-size: 0.82rem; color: #7a6b5d;">
+          Si el cliente presenta una <strong>Nota de Crédito B04</strong>, se aplica como medio de pago en el modal de Cobro.
+        </div>
+      </div>
+
+      <!-- BANNERS DINÁMICOS (DELIVERY, COTIZACIÓN, CASHBACK, ALERTAS STOCK) -->
       <div id="bannerPedidoDeliveryActivo" class="pos-delivery-summary-bar" style="display: none;">
         <div class="pos-delivery-summary-info">
           <span class="pos-delivery-badge-icon">🛵</span>
           <div>
-            <div style="font-weight: 700; color: var(--text-dark); font-size: 0.88rem;">
-              Factura configurada como Pedido a Domicilio (Delivery)
-            </div>
+            <div style="font-weight: 700; color: var(--text-dark); font-size: 0.88rem;">Pedido a Domicilio (Delivery)</div>
             <div id="textoResumenDelivery" style="font-size: 0.8rem; color: var(--text-body); margin-top: 2px;"></div>
           </div>
         </div>
         <div style="display: flex; align-items: center; gap: 8px;">
-          <button type="button" class="btn-sm btn-outline" onclick="abrirModalPedidoDelivery()">Editar Pedido</button>
+          <button type="button" class="btn-sm btn-outline" onclick="abrirModalPedidoDelivery()">Editar</button>
           <button type="button" class="btn-sm btn-danger" onclick="quitarConfiguracionDelivery()">Cambiar a Mostrador</button>
         </div>
       </div>
 
-      <!-- RESUMEN SI HAY UNA COTIZACIÓN IMPORTADA ACTIVA -->
       <div id="bannerCotizacionActiva" class="pos-quote-banner" style="display: none;">
-        <div>
-          <strong>📄 Cotización Importada:</strong>
-          <span id="textoCotizacionActiva"></span>
-        </div>
+        <div><strong>📄 Cotización Importada:</strong> <span id="textoCotizacionActiva"></span></div>
         <button type="button" class="btn-sm btn-outline" onclick="desvincularCotizacion()">Quitar Vínculo</button>
       </div>
+
+      <div id="bannerCashbackPreview" class="pos-cashback-banner"></div>
+      <div id="bannerAlertasStock" class="pos-stock-alert-banner"></div>
 
       <!-- TABLA PRINCIPAL: DETALLE DE PARTIDAS EN CARRITO -->
       <div class="table-card pos-cart-card">
@@ -827,19 +581,20 @@ foreach ($secuenciasFiscales as $sec) {
           <table class="data-table pos-cart-table">
             <thead>
               <tr>
-                <th style="width: 13%;">SKU</th>
-                <th style="width: 30%;">PRODUCTO</th>
+                <th style="width: 12%;">SKU</th>
+                <th style="width: 28%;">PRODUCTO / PROMOCIÓN</th>
                 <th class="text-center" style="width: 14%;">CANTIDAD</th>
-                <th class="text-right" style="width: 12%;">PRECIO UNITARIO</th>
-                <th class="text-right" style="width: 15%;">DESCUENTO</th>
-                <th class="text-right" style="width: 10%;">SUBTOTAL</th>
-                <th class="text-right" style="width: 6%;">ACCIONES</th>
+                <th class="text-right" style="width: 11%;">PRECIO UNIT.</th>
+                <th class="text-right" style="width: 13%;">DESCUENTO</th>
+                <th class="text-right" style="width: 10%;">IMPUESTOS</th>
+                <th class="text-right" style="width: 8%;">TOTAL</th>
+                <th class="text-right" style="width: 4%;"></th>
               </tr>
             </thead>
             <tbody id="tbodyCarrito">
-              <tr id="filaCarritoVacio">
-                <td colspan="7" class="text-center" style="padding: 34px 20px; color: var(--text-muted);">
-                  No hay productos en el carrito. Haz clic en <strong>+ Agregar Producto</strong> para comenzar a facturar.
+              <tr>
+                <td colspan="8" class="text-center" style="padding: 34px 20px; color: var(--text-muted);">
+                  Escanea un producto o presiona <strong>🔍 Catálogo y Presentaciones</strong> para comenzar a facturar.
                 </td>
               </tr>
             </tbody>
@@ -848,7 +603,7 @@ foreach ($secuenciasFiscales as $sec) {
 
         <div class="table-card-footer">
           <span id="footerResumenPartidas">0 líneas registradas en la factura actual</span>
-          <span>House &amp; Ice • Facturación y Punto de Venta</span>
+          <span>House &amp; Ice • Motor Fiscal DGII y FEFO en Vivo</span>
         </div>
       </div>
 
@@ -856,71 +611,337 @@ foreach ($secuenciasFiscales as $sec) {
   </div>
 
   <!-- ==================================================================== -->
-  <!-- MODAL 1: VENTANA DE DATOS DEL PEDIDO A DOMICILIO (DELIVERY)          -->
+  <!-- MODAL 1: COBRO CON SPLIT UNIVERSAL DE PAGOS (CONTADO / CRÉDITO)      -->
+  <!-- ==================================================================== -->
+  <div id="modalCobroSplit" class="modal-overlay">
+    <div class="modal-box modal-xl" style="max-width: 780px;">
+      <div class="modal-header">
+        <div>
+          <h3 class="modal-title" id="tituloModalCobro">Cobro y Emisión de Factura</h3>
+          <p class="modal-subtitle" id="subtituloModalCobro">Split Universal de Pagos (Efectivo, Tarjeta, Transferencia, Cheque y Saldo a Favor B04)</p>
+        </div>
+        <button type="button" class="btn-close" onclick="cerrarModal('modalCobroSplit')">&times;</button>
+      </div>
+
+      <div class="modal-body" style="max-height: 74vh; overflow-y: auto;">
+        <!-- VERIFICACIÓN DE MAYORÍA DE EDAD (ALCOHOL A CONSUMIDOR FINAL) -->
+        <div id="bloqueVerificacionEdad" style="display: none; background: #fff3e0; border: 1px solid #ffb74d; border-radius: 8px; padding: 10px 14px; margin-bottom: 12px;">
+          <label style="display: flex; align-items: center; gap: 10px; cursor: pointer; font-weight: 700; color: #7a4200; font-size: 0.86rem;">
+            <input type="checkbox" id="chkConfirmoMayoriaEdad" style="width: 18px; height: 18px; accent-color: #a66e2e;" />
+            <span>🔞 Confirmo que el comprador presentó identificación o aparenta mayoría de edad (&ge; 18 años) para compra de bebidas alcohólicas.</span>
+          </label>
+        </div>
+
+        <!-- RESUMEN FINANCIERO -->
+        <div class="split-pay-summary">
+          <div class="split-pay-box">
+            <small>Total a Cobrar</small>
+            <strong id="splitTotalFactura">RD$ 0.00</strong>
+          </div>
+          <div class="split-pay-box">
+            <small>Cubierto / Aplicado</small>
+            <strong id="splitTotalCubierto" style="color: #2e7d32;">RD$ 0.00</strong>
+          </div>
+          <div class="split-pay-box">
+            <small id="splitLblPendienteCambio">Saldo Pendiente</small>
+            <strong id="splitPendienteCambio" style="color: #c62828;">RD$ 0.00</strong>
+          </div>
+        </div>
+
+        <!-- SECCIÓN CONTADO: CONSTRUCTOR DE PAGOS MIXTOS -->
+        <div id="panelCobroContado">
+          <div style="background: #fff; border: 1px solid #e7dcc8; border-radius: 10px; padding: 14px; margin-bottom: 14px;">
+            <div class="form-row-2" style="align-items: end;">
+              <div class="form-group" style="margin-bottom: 0;">
+                <label for="splitMetodoPago" class="form-label">MÉTODO DE PAGO *</label>
+                <select id="splitMetodoPago" class="form-control" onchange="alCambiarMetodoSplit()">
+                  <?php foreach ($metodosPago as $mp): ?>
+                      <option value="<?= (int) $mp['id'] ?>" data-codigo="<?= htmlspecialchars(strtoupper($mp['codigo'])) ?>">
+                        <?= htmlspecialchars($mp['descripcion']) ?> (<?= htmlspecialchars($mp['codigo']) ?>)
+                      </option>
+                  <?php endforeach; ?>
+                </select>
+              </div>
+              <div class="form-group" style="margin-bottom: 0;">
+                <label for="splitMontoPago" class="form-label">MONTO A RECIBIR / APLICAR *</label>
+                <div style="display: flex; gap: 6px;">
+                  <input type="number" step="0.01" min="0.01" id="splitMontoPago" class="form-control" style="font-family: monospace; font-weight: 800; font-size: 1.05rem;" />
+                  <button type="button" class="btn btn-gold" onclick="agregarPagoSplit()" style="white-space: nowrap;">+ Agregar Pago</button>
+                </div>
+              </div>
+            </div>
+
+            <!-- SUBTIPO 1: TARJETA -->
+            <div id="subtipoTarjeta" class="split-subtipo-panel" style="display: none;">
+              <div style="font-size: 0.78rem; font-weight: 800; color: #794a15; margin-bottom: 8px;">💳 Datos de Verifone (tesoreria.pago_tarjeta)</div>
+              <div class="form-row-3">
+                <div class="form-group" style="margin-bottom: 0;">
+                  <label class="form-label">Tipo *</label>
+                  <select id="tjTipo" class="form-control">
+                    <option value="DEBITO">DÉBITO</option>
+                    <option value="CREDITO">CRÉDITO</option>
+                  </select>
+                </div>
+                <div class="form-group" style="margin-bottom: 0;">
+                  <label class="form-label">Marca *</label>
+                  <select id="tjMarca" class="form-control">
+                    <option value="VISA">VISA</option>
+                    <option value="MASTERCARD">MASTERCARD</option>
+                    <option value="AMEX">AMEX</option>
+                    <option value="OTRA">OTRA</option>
+                  </select>
+                </div>
+                <div class="form-group" style="margin-bottom: 0;">
+                  <label class="form-label">Últimos 4 Dígitos *</label>
+                  <input type="text" id="tjUlt4" class="form-control" maxlength="4" placeholder="1234" oninput="this.value=this.value.replace(/\D/g,'').slice(0,4);" />
+                </div>
+              </div>
+              <div class="form-row-2" style="margin-top: 8px;">
+                <div class="form-group" style="margin-bottom: 0;">
+                  <label class="form-label">N° Autorización *</label>
+                  <input type="text" id="tjAutorizacion" class="form-control" maxlength="50" placeholder="Ej. 849201" />
+                </div>
+                <div class="form-group" style="margin-bottom: 0;">
+                  <label class="form-label">N° Lote (Opcional)</label>
+                  <input type="text" id="tjLote" class="form-control" maxlength="30" placeholder="Ej. 0042" />
+                </div>
+              </div>
+            </div>
+
+            <!-- SUBTIPO 2: TRANSFERENCIA -->
+            <div id="subtipoTransferencia" class="split-subtipo-panel" style="display: none;">
+              <div style="font-size: 0.78rem; font-weight: 800; color: #794a15; margin-bottom: 8px;">🏦 Transferencia Bancaria (no entra al efectivo del Arqueo Ciego)</div>
+              <div class="form-row-2">
+                <div class="form-group" style="margin-bottom: 0;">
+                  <label class="form-label">Banco de Origen *</label>
+                  <input type="text" id="trBancoOrigen" class="form-control" maxlength="60" placeholder="Ej. Banco Popular / BHD" />
+                </div>
+                <div class="form-group" style="margin-bottom: 0;">
+                  <label class="form-label">Cuenta Bancaria Receptora *</label>
+                  <select id="trCuentaId" class="form-control">
+                    <option value="">-- Seleccionar Cuenta --</option>
+                    <?php foreach ($cuentasBancarias as $cb): ?>
+                        <option value="<?= (int) $cb['id'] ?>">
+                          <?= htmlspecialchars($cb['nombre_banco'] . ' • ' . $cb['numero_cuenta'] . ' (' . ($cb['codigo_iso'] ?: 'DOP') . ')') ?>
+                        </option>
+                    <?php endforeach; ?>
+                  </select>
+                </div>
+              </div>
+              <div class="form-row-3" style="margin-top: 8px;">
+                <div class="form-group" style="margin-bottom: 0;">
+                  <label class="form-label">N° Referencia *</label>
+                  <input type="text" id="trReferencia" class="form-control" maxlength="100" placeholder="Ej. TRF-998812" />
+                </div>
+                <div class="form-group" style="margin-bottom: 0;">
+                  <label class="form-label">Fecha *</label>
+                  <input type="date" id="trFecha" class="form-control" value="<?= date('Y-m-d') ?>" />
+                </div>
+                <div class="form-group" style="margin-bottom: 0;">
+                  <label class="form-label">Titular (Opcional)</label>
+                  <input type="text" id="trTitular" class="form-control" maxlength="120" />
+                </div>
+              </div>
+            </div>
+
+            <!-- SUBTIPO 3: CHEQUE -->
+            <div id="subtipoCheque" class="split-subtipo-panel" style="display: none;">
+              <div style="font-size: 0.78rem; font-weight: 800; color: #794a15; margin-bottom: 8px;">📝 Datos del Cheque (tesoreria.pago_cheque)</div>
+              <div class="form-row-3">
+                <div class="form-group" style="margin-bottom: 0;">
+                  <label class="form-label">N° Cheque *</label>
+                  <input type="text" id="chNumero" class="form-control" maxlength="30" />
+                </div>
+                <div class="form-group" style="margin-bottom: 0;">
+                  <label class="form-label">Banco Emisor *</label>
+                  <input type="text" id="chBanco" class="form-control" maxlength="60" />
+                </div>
+                <div class="form-group" style="margin-bottom: 0;">
+                  <label class="form-label">Fecha Emisión *</label>
+                  <input type="date" id="chFecha" class="form-control" value="<?= date('Y-m-d') ?>" />
+                </div>
+              </div>
+              <div class="form-row-2" style="margin-top: 8px;">
+                <div class="form-group" style="margin-bottom: 0;">
+                  <label class="form-label">Titular del Cheque *</label>
+                  <input type="text" id="chTitular" class="form-control" maxlength="120" />
+                </div>
+                <div class="form-group" style="margin-bottom: 0;">
+                  <label class="form-label">Cuenta Destino (Opcional)</label>
+                  <select id="chCuentaId" class="form-control">
+                    <option value="">-- En custodia / Sin depositar --</option>
+                    <?php foreach ($cuentasBancarias as $cb): ?>
+                        <option value="<?= (int) $cb['id'] ?>"><?= htmlspecialchars($cb['nombre_banco'] . ' • ' . $cb['numero_cuenta']) ?></option>
+                    <?php endforeach; ?>
+                  </select>
+                </div>
+              </div>
+            </div>
+
+            <!-- SUBTIPO 4: SALDO A FAVOR (NOTA DE CRÉDITO B04 VIGENTE 15 DÍAS) -->
+            <div id="subtipoSaldoFavor" class="split-subtipo-panel" style="display: none;">
+              <div style="font-size: 0.78rem; font-weight: 800; color: #794a15; margin-bottom: 8px;">♻️ Nota de Crédito B04 • Saldo a Favor (Medio de Pago, vigencia 15 días)</div>
+              <div style="display: flex; gap: 8px; align-items: center;">
+                <input type="text" id="sfCodigoCredito" class="form-control" placeholder="Escanea o digita Código de Crédito o NCF B04..." style="text-transform: uppercase; font-family: monospace; font-weight: 700;" />
+                <button type="button" class="btn btn-secondary" onclick="validarCreditoB04EnCobro()" style="white-space: nowrap;">Verificar Saldo</button>
+              </div>
+              <div id="sfInfoResultado" style="font-size: 0.8rem; margin-top: 6px; color: #5a3818;"></div>
+            </div>
+          </div>
+
+          <!-- LISTA DE PAGOS AGREGADOS AL SPLIT -->
+          <div class="carrito-reglas-wrapper">
+            <table class="carrito-reglas-table">
+              <thead>
+                <tr>
+                  <th>Método</th>
+                  <th>Referencia / Detalle</th>
+                  <th style="text-align: right;">Recibido</th>
+                  <th style="text-align: right;">Aplicado</th>
+                  <th style="text-align: right;">Devuelta</th>
+                  <th style="text-align: right;">Acción</th>
+                </tr>
+              </thead>
+              <tbody id="tbodyPagosSplit">
+                <tr><td colspan="6" style="text-align: center; padding: 14px; color: #888;">Agrega uno o varios pagos arriba para cubrir el total de la factura.</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- SECCIÓN CRÉDITO COMERCIAL -->
+        <div id="panelCobroCredito" style="display: none; background: #eef5ff; border: 1px solid #bbdefb; border-radius: 10px; padding: 16px; color: #0d47a1;">
+          <div style="font-weight: 800; font-size: 0.96rem; margin-bottom: 6px;">📋 Facturación a Crédito Comercial (Cuentas por Cobrar)</div>
+          <div id="textoResumenCredito" style="font-size: 0.86rem; line-height: 1.5;"></div>
+        </div>
+      </div>
+
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" onclick="cerrarModal('modalCobroSplit')">Cancelar</button>
+        <button type="button" class="btn btn-gold" id="btnConfirmarEmisionFinal" onclick="confirmarYGuardarFactura()">
+          ✅ Confirmar y Emitir Factura
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================================================================== -->
+  <!-- MODAL 2: BUSCADOR FILTRADO DE CATÁLOGO Y PRESENTACIONES              -->
+  <!-- ==================================================================== -->
+  <div id="modalCatalogoProductos" class="modal-overlay">
+    <div class="modal-box modal-xl">
+      <div class="modal-header">
+        <div>
+          <h3 class="modal-title">Catálogo de Productos y Presentaciones</h3>
+          <p class="modal-subtitle" id="subtituloCatalogoPos">Stock disponible en el almacén POS seleccionado</p>
+        </div>
+        <button type="button" class="btn-close" onclick="cerrarModal('modalCatalogoProductos')">&times;</button>
+      </div>
+
+      <div class="modal-body">
+        <div style="display: grid; grid-template-columns: 2fr 1fr 1fr; gap: 10px; margin-bottom: 10px;">
+          <div class="form-group" style="margin-bottom: 0;">
+            <label for="catFiltroTexto" class="form-label">Nombre, SKU, Código de Barras o Empaque</label>
+            <input type="text" id="catFiltroTexto" class="form-control" placeholder="Ej. Brugal, Presidente, Six-Pack..." oninput="programarBusquedaCatalogoPos()" />
+          </div>
+          <div class="form-group" style="margin-bottom: 0;">
+            <label for="catFiltroCategoria" class="form-label">Categoría</label>
+            <select id="catFiltroCategoria" class="form-control" onchange="buscarEnCatalogoPos()">
+              <option value="0">Todas las categorías</option>
+              <?php foreach ($categorias as $cat): ?>
+                  <option value="<?= (int) $cat['id'] ?>"><?= htmlspecialchars($cat['nombre']) ?></option>
+              <?php endforeach; ?>
+            </select>
+          </div>
+          <div class="form-group" style="margin-bottom: 0;">
+            <label for="catFiltroMarca" class="form-label">Marca</label>
+            <select id="catFiltroMarca" class="form-control" onchange="buscarEnCatalogoPos()">
+              <option value="0">Todas las marcas</option>
+              <?php foreach ($marcas as $mar): ?>
+                  <option value="<?= (int) $mar['id'] ?>"><?= htmlspecialchars($mar['nombre']) ?></option>
+              <?php endforeach; ?>
+            </select>
+          </div>
+        </div>
+
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+          <label style="display: inline-flex; align-items: center; gap: 6px; font-size: 0.84rem; cursor: pointer;">
+            <input type="checkbox" id="catFiltroSoloStock" checked onchange="buscarEnCatalogoPos()" style="width: 15px; height: 15px; accent-color: #a66e2e;" />
+            <span>Mostrar solo productos con stock disponible en este almacén</span>
+          </label>
+          <span class="badge-count" id="catContadorResultados">0 productos</span>
+        </div>
+
+        <div class="carrito-reglas-wrapper" style="max-height: 380px; overflow-y: auto;">
+          <table class="carrito-reglas-table">
+            <thead>
+              <tr>
+                <th style="width: 26%;">Producto / SKU</th>
+                <th style="width: 18%;">Categoría / Marca</th>
+                <th style="width: 12%; text-align: center;">Stock Disp.</th>
+                <th>Presentaciones (clic para añadir al carrito)</th>
+              </tr>
+            </thead>
+            <tbody id="catTablaResultados"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" onclick="cerrarModal('modalCatalogoProductos')">Cerrar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================================================================== -->
+  <!-- MODAL 3: PEDIDO A DOMICILIO (DELIVERY CON TRIPLE FILTRO EN VIVO)     -->
   <!-- ==================================================================== -->
   <div id="modalPedidoDelivery" class="modal-overlay">
     <div class="modal-box" style="max-width: 640px;">
       <div class="modal-header">
         <div>
           <h3 class="modal-title">Datos del Pedido a Domicilio (Delivery)</h3>
-          <p class="modal-subtitle">Selecciona la zona de entrega, el repartidor disponible asignado a esa zona y la dirección del cliente</p>
+          <p class="modal-subtitle">Triple Filtro: Zona asignada + Turno horario activo + Capacidad disponible</p>
         </div>
-        <button type="button" class="btn-close" onclick="cerrarModalConConfirmacion('modalPedidoDelivery')" aria-label="Cerrar">&times;</button>
+        <button type="button" class="btn-close" onclick="cerrarModal('modalPedidoDelivery')">&times;</button>
       </div>
 
       <form id="formPedidoDelivery" onsubmit="confirmarPedidoDeliveryModal(event)">
         <div class="modal-body">
-
-          <!-- 1. ZONA DE ENTREGA -->
           <div class="form-group">
-            <label for="selectZonaDelivery" class="form-label">ZONA DE ENTREGA *:</label>
-            <select id="selectZonaDelivery" class="form-control" required onchange="filtrarRepartidoresPorZonaModal()">
-              <option value="" data-nombre="" data-tarifa="0" data-tiempo="0">-- Seleccione la Zona del Pedido --</option>
+            <label for="selectZonaDelivery" class="form-label">ZONA DE ENTREGA (SUMA TARIFA A LA FACTURA) *:</label>
+            <select id="selectZonaDelivery" class="form-control" required onchange="cargarRepartidoresZonaTripleFiltro()">
+              <option value="" data-nombre="" data-tarifa="0">-- Seleccione la Zona --</option>
               <?php foreach ($zonasDelivery as $z): ?>
-                <option value="<?= (int)$z['id'] ?>"
-                        data-nombre="<?= htmlspecialchars($z['nombre']) ?>"
-                        data-tarifa="<?= htmlspecialchars((string)$z['tarifa_envio']) ?>"
-                        data-tiempo="<?= (int)$z['tiempo_promedio_min'] ?>">
-                  <?= htmlspecialchars($z['nombre']) ?> • Tarifa: RD$ <?= number_format((float)$z['tarifa_envio'], 2) ?> (~<?= (int)$z['tiempo_promedio_min'] ?> min)
-                </option>
+                  <option value="<?= (int) $z['id'] ?>"
+                          data-nombre="<?= htmlspecialchars($z['nombre']) ?>"
+                          data-tarifa="<?= htmlspecialchars((string) $z['tarifa_envio']) ?>">
+                    <?= htmlspecialchars($z['nombre']) ?> • Tarifa: RD$ <?= number_format((float) $z['tarifa_envio'], 2) ?> (~<?= (int) $z['tiempo_promedio_min'] ?> min)
+                  </option>
               <?php endforeach; ?>
             </select>
           </div>
 
-          <!-- 2. REPARTIDORES DISPONIBLES DE ESA ZONA -->
           <div class="form-group">
             <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px;">
-              <label class="form-label" style="margin: 0;">REPARTIDOR DISPONIBLE EN LA ZONA *:</label>
-              <span id="badgeCountRepZona" class="badge-count" style="font-size: 0.72rem; padding: 2px 8px;">Seleccione una zona</span>
+              <label class="form-label" style="margin: 0;">REPARTIDORES EVALUADOS POR TRIPLE FILTRO *:</label>
+              <span id="badgeCountRepZona" class="badge-count" style="font-size: 0.72rem;">Seleccione una zona</span>
             </div>
-
             <input type="hidden" id="inputRepartidorSeleccionado" value="" />
-
             <div id="listaRepartidoresZonaModal" class="pos-rep-cards-container">
-              <div class="pos-rep-empty-msg">
-                Selecciona primero una <strong>Zona de Entrega</strong> arriba para ver los repartidores disponibles asignados a esa zona.
-              </div>
+              <div class="pos-rep-empty-msg">Selecciona una zona arriba para evaluar repartidores en turno y con capacidad libre.</div>
             </div>
           </div>
 
-          <!-- 3. DIRECCIÓN DE ENTREGA -->
           <div class="form-group" style="margin-bottom: 0;">
             <label for="inputDireccionDelivery" class="form-label">DIRECCIÓN EXACTA DEL PEDIDO *:</label>
-            <textarea
-              id="inputDireccionDelivery"
-              class="form-control"
-              rows="3"
-              required
-              placeholder="Ej. Calle Principal #42, Residencial Las Palmas, Edif. B Apto. 302 (Próximo a la plaza comercial)..."
-              maxlength="250"
-              style="resize: vertical; min-height: 74px; padding-top: 10px;"
-            ></textarea>
+            <textarea id="inputDireccionDelivery" class="form-control" rows="3" required maxlength="250"
+                      placeholder="Calle, número, residencial, apartamento y referencia..."></textarea>
           </div>
-
         </div>
 
         <div class="modal-footer">
-          <button type="button" class="btn btn-secondary" onclick="cerrarModalConConfirmacion('modalPedidoDelivery')">Cancelar</button>
+          <button type="button" class="btn btn-secondary" onclick="cerrarModal('modalPedidoDelivery')">Cancelar</button>
           <button type="submit" class="btn btn-gold">Confirmar Pedido Delivery</button>
         </div>
       </form>
@@ -928,169 +949,50 @@ foreach ($secuenciasFiscales as $sec) {
   </div>
 
   <!-- ==================================================================== -->
-  <!-- MODAL 2: CATÁLOGO DE PRODUCTOS PARA AGREGAR AL CARRITO               -->
-  <!-- ==================================================================== -->
-  <div id="modalCatalogoProductos" class="modal-overlay">
-    <div class="modal-box" style="max-width: 820px;">
-      <div class="modal-header">
-        <div>
-          <h3 class="modal-title">Seleccionar Producto o Presentación</h3>
-          <p class="modal-subtitle">Busca por nombre, SKU, marca o código de barra y agrégalo al carrito</p>
-        </div>
-        <button type="button" class="btn-close" onclick="cerrarModalConConfirmacion('modalCatalogoProductos')" aria-label="Cerrar">&times;</button>
-      </div>
-
-      <div class="modal-body">
-        <div style="display: flex; gap: 10px; margin-bottom: 14px;">
-          <div class="search-box" style="width: 100%;">
-            <span class="search-icon">🔍</span>
-            <input
-              type="text"
-              id="buscadorModalCatalogo"
-              placeholder="Buscar licor, cerveza, vino, SKU o código EAN..."
-              oninput="filtrarCatalogoModal()"
-              autocomplete="off"
-            />
-          </div>
-        </div>
-
-        <div class="table-wrapper" style="max-height: 360px; overflow-y: auto; border: 1px solid var(--border-light); border-radius: var(--radius-sm);">
-          <table class="data-table">
-            <thead style="position: sticky; top: 0; z-index: 2; background: var(--bg-table-header);">
-              <tr>
-                <th>SKU / Código</th>
-                <th>Producto y Presentación</th>
-                <th class="text-center">Factor</th>
-                <th class="text-center">Stock</th>
-                <th class="text-right">Precio Unitario</th>
-                <th class="text-right">Acción</th>
-              </tr>
-            </thead>
-            <tbody id="tbodyCatalogoModal">
-              <?php if (empty($catalogoProductos)): ?>
-                <tr>
-                  <td colspan="6" class="text-center" style="padding: 28px; color: var(--text-muted);">
-                    No hay productos registrados en el catálogo. Regístralos primero desde el Maestro de Productos.
-                  </td>
-                </tr>
-              <?php else: ?>
-                <?php foreach ($catalogoProductos as $idx => $prod): ?>
-                  <?php
-                    $searchStr = strtolower(
-                        ($prod['sku'] ?? '') . ' ' .
-                        ($prod['producto_nombre'] ?? '') . ' ' .
-                        ($prod['descripcion_presentacion'] ?? '') . ' ' .
-                        ($prod['codigo_barra'] ?? '') . ' ' .
-                        ($prod['marca_nombre'] ?? '') . ' ' .
-                        ($prod['categoria_nombre'] ?? '')
-                    );
-                    $factor = max(1, (int)$prod['factor_conversion']);
-                    $stockUnidades = (int)$prod['stock_disponible'];
-                  ?>
-                  <tr class="fila-catalogo-modal" data-search="<?= htmlspecialchars($searchStr) ?>">
-                    <td>
-                      <div style="font-family: var(--font-mono); font-weight: 700; color: var(--accent-gold); font-size: 0.85rem;">
-                        <?= htmlspecialchars($prod['sku']) ?>
-                      </div>
-                      <?php if (!empty($prod['codigo_barra']) && $prod['codigo_barra'] !== $prod['sku']): ?>
-                        <div style="font-size: 0.72rem; color: var(--text-muted); font-family: var(--font-mono);">
-                          <?= htmlspecialchars($prod['codigo_barra']) ?>
-                        </div>
-                      <?php endif; ?>
-                    </td>
-                    <td>
-                      <div style="font-weight: 600; color: var(--text-dark);">
-                        <?= htmlspecialchars($prod['producto_nombre']) ?>
-                      </div>
-                      <div style="font-size: 0.77rem; color: var(--text-muted);">
-                        <?= htmlspecialchars($prod['descripcion_presentacion']) ?> • <?= htmlspecialchars($prod['marca_nombre']) ?>
-                      </div>
-                    </td>
-                    <td class="text-center">
-                      <span class="badge-count" style="font-size: 0.74rem;">x<?= $factor ?> <?= $factor === 1 ? 'Und.' : 'Unds.' ?></span>
-                    </td>
-                    <td class="text-center">
-                      <?php if ($stockUnidades > 0): ?>
-                        <span class="status-badge active"><?= $stockUnidades ?> disp.</span>
-                      <?php else: ?>
-                        <span class="status-badge inactive">Sin stock</span>
-                      <?php endif; ?>
-                    </td>
-                    <td class="text-right" style="font-family: var(--font-mono); font-weight: 700; color: var(--text-dark);">
-                      RD$ <?= number_format((float)$prod['precio_venta'], 2) ?>
-                    </td>
-                    <td class="text-right">
-                      <button
-                        type="button"
-                        class="btn-sm btn-gold"
-                        onclick="agregarItemDesdeCatalogo(<?= (int)$idx ?>)">
-                        + Agregar
-                      </button>
-                    </td>
-                  </tr>
-                <?php endforeach; ?>
-              <?php endif; ?>
-            </tbody>
-          </table>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <!-- ==================================================================== -->
-  <!-- MODAL 3: IMPORTAR COTIZACIÓN PENDIENTE                               -->
+  <!-- MODAL 4: IMPORTAR COTIZACIÓN PENDIENTE                               -->
   <!-- ==================================================================== -->
   <div id="modalImportarCotizacion" class="modal-overlay">
     <div class="modal-box" style="max-width: 720px;">
       <div class="modal-header">
         <div>
           <h3 class="modal-title">Importar Cotización Pendiente</h3>
-          <p class="modal-subtitle">Selecciona una cotización vigente para cargar su cliente y productos al carrito</p>
+          <p class="modal-subtitle">Valida vigencia y existencias actuales antes de cargar al carrito</p>
         </div>
-        <button type="button" class="btn-close" onclick="cerrarModalConConfirmacion('modalImportarCotizacion')" aria-label="Cerrar">&times;</button>
+        <button type="button" class="btn-close" onclick="cerrarModal('modalImportarCotizacion')">&times;</button>
       </div>
-
       <div class="modal-body">
-        <div class="table-wrapper" style="max-height: 340px; overflow-y: auto; border: 1px solid var(--border-light); border-radius: var(--radius-sm);">
+        <div class="table-wrapper" style="max-height: 340px; overflow-y: auto;">
           <table class="data-table">
             <thead>
               <tr>
                 <th>N° Cotización</th>
                 <th>Cliente</th>
                 <th>Emisión / Vence</th>
-                <th class="text-right">Monto Total</th>
+                <th class="text-right">Total</th>
                 <th class="text-right">Acción</th>
               </tr>
             </thead>
             <tbody>
               <?php if (empty($cotizacionesPend)): ?>
-                <tr>
-                  <td colspan="5" class="text-center" style="padding: 28px; color: var(--text-muted);">
-                    No hay cotizaciones pendientes por facturar en este momento.
-                  </td>
-                </tr>
+                  <tr><td colspan="5" class="text-center" style="padding: 28px; color: var(--text-muted);">No hay cotizaciones vigentes pendientes.</td></tr>
               <?php else: ?>
-                <?php foreach ($cotizacionesPend as $cot): ?>
-                  <tr>
-                    <td><strong style="font-family: var(--font-mono); color: var(--accent-gold);"><?= htmlspecialchars($cot['numero_cotizacion']) ?></strong></td>
-                    <td>
-                      <div style="font-weight: 600; color: var(--text-dark);"><?= htmlspecialchars($cot['cliente_nombre']) ?></div>
-                      <div style="font-size: 0.74rem; color: var(--text-muted); font-family: var(--font-mono);"><?= htmlspecialchars($cot['cliente_doc']) ?></div>
-                    </td>
-                    <td style="font-size: 0.78rem; color: var(--text-body);">
-                      <div>Emitida: <?= htmlspecialchars($cot['fecha_emision_fmt']) ?></div>
-                      <div style="color: var(--text-muted);">Vence: <?= htmlspecialchars($cot['fecha_vencimiento_fmt']) ?></div>
-                    </td>
-                    <td class="text-right" style="font-family: var(--font-mono); font-weight: 700;">
-                      RD$ <?= number_format((float)$cot['monto_total'], 2) ?>
-                    </td>
-                    <td class="text-right">
-                      <button type="button" class="btn-sm btn-gold" onclick="cargarCotizacionEnCarrito(<?= (int)$cot['id'] ?>)">
-                        Cargar al Carrito
-                      </button>
-                    </td>
-                  </tr>
-                <?php endforeach; ?>
+                  <?php foreach ($cotizacionesPend as $cot): ?>
+                      <tr>
+                        <td><strong style="font-family: monospace; color: var(--accent-gold);"><?= htmlspecialchars($cot['numero_cotizacion']) ?></strong></td>
+                        <td>
+                          <div style="font-weight: 600;"><?= htmlspecialchars($cot['cliente_nombre']) ?></div>
+                          <div style="font-size: 0.74rem; color: #8a7b70;"><?= htmlspecialchars($cot['cliente_doc']) ?></div>
+                        </td>
+                        <td style="font-size: 0.78rem;">
+                          <div>Emitida: <?= htmlspecialchars($cot['fecha_emision_fmt']) ?></div>
+                          <div>Vence: <?= htmlspecialchars($cot['fecha_vencimiento_fmt']) ?></div>
+                        </td>
+                        <td class="text-right" style="font-family: monospace; font-weight: 700;">RD$ <?= number_format((float) $cot['monto_total'], 2) ?></td>
+                        <td class="text-right">
+                          <button type="button" class="btn-sm btn-gold" onclick="cargarCotizacionEnCarrito(<?= (int) $cot['id'] ?>)">Cargar</button>
+                        </td>
+                      </tr>
+                  <?php endforeach; ?>
               <?php endif; ?>
             </tbody>
           </table>
@@ -1100,75 +1002,49 @@ foreach ($secuenciasFiscales as $sec) {
   </div>
 
   <!-- ==================================================================== -->
-  <!-- MODAL 4: REGISTRO RÁPIDO DE NUEVO CLIENTE (+ CLIENTE)                -->
+  <!-- MODAL 5: REGISTRO RÁPIDO DE CLIENTE (+ CLIENTE)                      -->
   <!-- ==================================================================== -->
   <div id="modalNuevoClienteRapido" class="modal-overlay">
     <div class="modal-box" style="max-width: 540px;">
       <div class="modal-header">
         <div>
           <h3 class="modal-title">Registrar Nuevo Cliente</h3>
-          <p class="modal-subtitle">Crea un cliente rápidamente y selecciónalo de inmediato en la factura actual</p>
+          <p class="modal-subtitle">Alta rápida vinculada a identidad.personas (&ge; 18 años en persona física)</p>
         </div>
-        <button type="button" class="btn-close" onclick="cerrarModalConConfirmacion('modalNuevoClienteRapido')" aria-label="Cerrar">&times;</button>
+        <button type="button" class="btn-close" onclick="cerrarModal('modalNuevoClienteRapido')">&times;</button>
       </div>
-
       <form id="formClienteRapido" onsubmit="guardarClienteRapido(event)">
         <div class="modal-body">
           <div class="form-row-2">
             <div class="form-group">
               <label for="cliTipoDoc" class="form-label">Tipo de Documento *</label>
-              <select id="cliTipoDoc" name="tipo_documento" class="form-control" onchange="aplicarMascaraDocClienteRapido()">
-                <option value="RNC">RNC (Empresas / Jurídico)</option>
+              <select id="cliTipoDoc" class="form-control" onchange="aplicarMascaraDocClienteRapido()">
+                <option value="RNC">RNC (Jurídico)</option>
                 <option value="CEDULA" selected>Cédula de Identidad</option>
                 <option value="PASAPORTE">Pasaporte</option>
               </select>
             </div>
-
             <div class="form-group">
               <label for="cliDocumento" class="form-label">Número de Documento *</label>
-              <input
-                type="text"
-                id="cliDocumento"
-                name="documento_identidad"
-                class="form-control"
-                required
-                placeholder="000-0000000-0"
-                maxlength="13"
-                oninput="aplicarMascaraDocClienteRapido()"
-              />
+              <input type="text" id="cliDocumento" class="form-control" required placeholder="001-1234567-8" maxlength="13" oninput="aplicarMascaraDocClienteRapido()" />
             </div>
           </div>
-
           <div class="form-group">
             <label for="cliNombre" class="form-label">Nombre Completo o Razón Social *</label>
-            <input
-              type="text"
-              id="cliNombre"
-              name="nombre_razon_social"
-              class="form-control"
-              required
-              placeholder="Ej. Grupo Hotelero del Norte SRL"
-              maxlength="150"
-            />
+            <input type="text" id="cliNombre" class="form-control" required maxlength="150" placeholder="Ej. Grupo Hotelero del Norte SRL" />
           </div>
-
-          <div class="form-row-2">
+          <div class="form-row-3">
             <div class="form-group">
-              <label for="cliTelefono" class="form-label">Teléfono de Contacto</label>
-              <input
-                type="text"
-                id="cliTelefono"
-                name="telefono_principal"
-                class="form-control"
-                placeholder="(809) 555-0101"
-                maxlength="14"
-                oninput="formatearTelefonoRapido(this)"
-              />
+              <label for="cliTelefono" class="form-label">Teléfono</label>
+              <input type="text" id="cliTelefono" class="form-control" placeholder="(809) 555-0101" maxlength="14" oninput="formatearTelefonoRapido(this)" />
             </div>
-
+            <div class="form-group">
+              <label for="cliFechaNac" class="form-label">F. Nacimiento (&ge;18)</label>
+              <input type="date" id="cliFechaNac" class="form-control" />
+            </div>
             <div class="form-group">
               <label for="cliCategoria" class="form-label">Categoría</label>
-              <select id="cliCategoria" name="categoria_cliente" class="form-control">
+              <select id="cliCategoria" class="form-control">
                 <option value="REGULAR">Regular</option>
                 <option value="VIP">VIP</option>
                 <option value="MAYORISTA">Mayorista</option>
@@ -1176,9 +1052,8 @@ foreach ($secuenciasFiscales as $sec) {
             </div>
           </div>
         </div>
-
         <div class="modal-footer">
-          <button type="button" class="btn btn-secondary" onclick="cerrarModalConConfirmacion('modalNuevoClienteRapido')">Cancelar</button>
+          <button type="button" class="btn btn-secondary" onclick="cerrarModal('modalNuevoClienteRapido')">Cancelar</button>
           <button type="submit" class="btn btn-gold" id="btnSubmitClienteRapido">Guardar y Seleccionar</button>
         </div>
       </form>
@@ -1186,63 +1061,66 @@ foreach ($secuenciasFiscales as $sec) {
   </div>
 
   <!-- ==================================================================== -->
-  <!-- MODAL 5: HISTORIAL RECIENTE DE FACTURAS EMITIDAS                     -->
+  <!-- MODAL 6: HISTORIAL DE FACTURAS EMITIDAS (+ DETALLE Y ANULACIÓN PIN)  -->
   <!-- ==================================================================== -->
   <div id="modalHistorialFacturas" class="modal-overlay">
-    <div class="modal-box" style="max-width: 840px;">
+    <div class="modal-box modal-xl">
       <div class="modal-header">
         <div>
           <h3 class="modal-title">Facturas Emitidas Recientemente</h3>
-          <p class="modal-subtitle">Consulta rápida de comprobantes facturados en el punto de venta</p>
+          <p class="modal-subtitle">Consulta de detalle de pagos/cupones y anulación auditada con PIN de supervisor</p>
         </div>
-        <button type="button" class="btn-close" onclick="cerrarModalConConfirmacion('modalHistorialFacturas')" aria-label="Cerrar">&times;</button>
+        <button type="button" class="btn-close" onclick="cerrarModal('modalHistorialFacturas')">&times;</button>
       </div>
-
       <div class="modal-body">
-        <div class="table-wrapper" style="max-height: 380px; overflow-y: auto; border: 1px solid var(--border-light); border-radius: var(--radius-sm);">
+        <div class="table-wrapper" style="max-height: 400px; overflow-y: auto;">
           <table class="data-table">
             <thead>
               <tr>
                 <th>N° Factura</th>
                 <th>NCF</th>
                 <th>Cliente</th>
-                <th>Condición / Modalidad</th>
+                <th>Condición / Origen</th>
                 <th>Fecha</th>
                 <th class="text-right">Total</th>
                 <th class="text-center">Estado</th>
+                <th class="text-right">Acciones</th>
               </tr>
             </thead>
             <tbody>
               <?php if (empty($facturasRecientes)): ?>
-                <tr>
-                  <td colspan="7" class="text-center" style="padding: 28px; color: var(--text-muted);">Aún no se han emitido facturas.</td>
-                </tr>
+                  <tr><td colspan="8" class="text-center" style="padding: 28px; color: var(--text-muted);">Aún no se han emitido facturas.</td></tr>
               <?php else: ?>
-                <?php foreach ($facturasRecientes as $f): ?>
-                  <tr>
-                    <td><strong style="font-family: var(--font-mono); color: var(--accent-gold);"><?= htmlspecialchars($f['numero_factura']) ?></strong></td>
-                    <td><span class="badge-count" style="font-size: 0.74rem;"><?= htmlspecialchars($f['ncf']) ?></span></td>
-                    <td>
-                      <div style="font-weight: 600; color: var(--text-dark);"><?= htmlspecialchars($f['cliente_nombre']) ?></div>
-                      <?php if (!empty($f['cliente_doc'])): ?>
-                        <div style="font-size: 0.72rem; color: var(--text-muted); font-family: var(--font-mono);"><?= htmlspecialchars($f['cliente_doc']) ?></div>
-                      <?php endif; ?>
-                    </td>
-                    <td style="font-size: 0.78rem;">
-                      <strong><?= htmlspecialchars($f['condicion_pago']) ?></strong>
-                      <div style="color: var(--text-muted);"><?= htmlspecialchars($f['origen_venta']) ?></div>
-                    </td>
-                    <td style="font-size: 0.77rem; color: var(--text-muted); font-family: var(--font-mono);">
-                      <?= htmlspecialchars($f['fecha_fmt']) ?>
-                    </td>
-                    <td class="text-right" style="font-family: var(--font-mono); font-weight: 700; color: var(--accent-gold);">
-                      RD$ <?= number_format((float)$f['monto_total'], 2) ?>
-                    </td>
-                    <td class="text-center">
-                      <span class="status-badge active"><?= htmlspecialchars($f['estado']) ?></span>
-                    </td>
-                  </tr>
-                <?php endforeach; ?>
+                  <?php foreach ($facturasRecientes as $f):
+                    $estF = strtoupper((string) $f['estado']);
+                    $puedeAnular = !in_array($estF, ['ANULADA', 'EN_TRANSITO'], true);
+                    ?>
+                      <tr>
+                        <td><strong style="font-family: monospace; color: var(--accent-gold);"><?= htmlspecialchars($f['numero_factura']) ?></strong></td>
+                        <td><span class="badge-count" style="font-size: 0.74rem;"><?= htmlspecialchars($f['ncf']) ?></span></td>
+                        <td>
+                          <div style="font-weight: 600;"><?= htmlspecialchars($f['cliente_nombre']) ?></div>
+                          <?php if (!empty($f['cliente_doc'])): ?>
+                              <div style="font-size: 0.72rem; color: #8a7b70;"><?= htmlspecialchars($f['cliente_doc']) ?></div>
+                          <?php endif; ?>
+                        </td>
+                        <td style="font-size: 0.78rem;">
+                          <strong><?= htmlspecialchars($f['condicion_pago']) ?></strong>
+                          <div style="color: #8a7b70;"><?= htmlspecialchars($f['origen_venta']) ?></div>
+                        </td>
+                        <td style="font-size: 0.77rem; font-family: monospace;"><?= htmlspecialchars($f['fecha_fmt']) ?></td>
+                        <td class="text-right" style="font-family: monospace; font-weight: 700;">RD$ <?= number_format((float) $f['monto_total'], 2) ?></td>
+                        <td class="text-center">
+                          <span class="status-badge <?= $estF === 'ANULADA' ? 'inactive' : 'active' ?>"><?= htmlspecialchars($estF) ?></span>
+                        </td>
+                        <td class="text-right" style="white-space: nowrap;">
+                          <button type="button" class="btn-sm btn-outline" onclick="verDetalleFactura(<?= (int) $f['id'] ?>)">Ver</button>
+                          <?php if ($puedeAnular): ?>
+                              <button type="button" class="btn-sm btn-danger" onclick="abrirModalAnularFactura(<?= (int) $f['id'] ?>, '<?= htmlspecialchars($f['numero_factura'], ENT_QUOTES) ?>')">Anular</button>
+                          <?php endif; ?>
+                        </td>
+                      </tr>
+                  <?php endforeach; ?>
               <?php endif; ?>
             </tbody>
           </table>
@@ -1251,28 +1129,80 @@ foreach ($secuenciasFiscales as $sec) {
     </div>
   </div>
 
+  <!-- MODAL 6B: DETALLE DE FACTURA -->
+  <div id="modalDetalleFactura" class="modal-overlay" style="z-index: 1200;">
+    <div class="modal-box modal-lg">
+      <div class="modal-header">
+        <h3 class="modal-title" id="detFacTitulo">Detalle de Factura</h3>
+        <button type="button" class="btn-close" onclick="cerrarModal('modalDetalleFactura')">&times;</button>
+      </div>
+      <div class="modal-body" id="detFacBody" style="max-height: 70vh; overflow-y: auto;"></div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" onclick="cerrarModal('modalDetalleFactura')">Cerrar</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL 6C: ANULAR FACTURA CON PIN DE SUPERVISOR -->
+  <div id="modalAnularFactura" class="modal-overlay" style="z-index: 1250;">
+    <div class="modal-box" style="max-width: 480px;">
+      <div class="modal-header">
+        <h3 class="modal-title">Anular Factura (Requiere PIN)</h3>
+        <button type="button" class="btn-close" onclick="cerrarModal('modalAnularFactura')">&times;</button>
+      </div>
+      <form id="formAnularFactura" onsubmit="confirmarAnulacionFactura(event)">
+        <input type="hidden" id="anularFacturaId" value="" />
+        <div class="modal-body">
+          <div style="background: #ffebee; border: 1px solid #ef9a9a; color: #b71c1c; padding: 10px 12px; border-radius: 8px; font-size: 0.84rem; margin-bottom: 12px;">
+            Vas a anular <strong id="anularFacturaNumero"></strong>. Se devolverán las botellas a sus lotes originales y se reversarán caja/CxC/cupones.
+          </div>
+          <div class="form-group">
+            <label for="anularJustificacion" class="form-label">Motivo de Anulación *</label>
+            <input type="text" id="anularJustificacion" class="form-control" required minlength="5" maxlength="255" placeholder="Ej. Error en selección de cliente B01" />
+          </div>
+          <div class="form-group">
+            <label for="anularSupervisorId" class="form-label">Supervisor que Autoriza *</label>
+            <select id="anularSupervisorId" class="form-control" required>
+              <option value="">-- Seleccionar Supervisor --</option>
+              <?php foreach ($supervisoresAutorizados as $sup): ?>
+                  <option value="<?= htmlspecialchars($sup['usuario_id']) ?>">
+                    <?= htmlspecialchars($sup['nombre_completo'] . ' (' . $sup['username'] . ')') ?>
+                  </option>
+              <?php endforeach; ?>
+            </select>
+          </div>
+          <div class="form-group" style="margin-bottom: 0;">
+            <label for="anularPin" class="form-label">PIN de Supervisor *</label>
+            <input type="password" id="anularPin" class="form-control" required inputmode="numeric" maxlength="6" placeholder="••••••"
+                   style="font-family: monospace; letter-spacing: 4px; font-weight: 700;"
+                   oninput="this.value=this.value.replace(/[^0-9]/g,'').slice(0,6);" />
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" onclick="cerrarModal('modalAnularFactura')">Cancelar</button>
+          <button type="submit" class="btn btn-danger" id="btnConfirmarAnulacion">Confirmar Anulación</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
   <!-- ==================================================================== -->
-  <!-- MODAL 6: ARQUEO CIEGO EN FACTURACIÓN (CIERRE DE TURNO)               -->
+  <!-- MODAL 7: ARQUEO CIEGO (FIN DE TURNO — FASE 5 CONTROL DE CAJA)        -->
   <!-- ==================================================================== -->
   <div id="modalArqueoCiegoFacturacion" class="modal-overlay">
     <div class="modal-box modal-arqueo-premium">
       <div class="modal-header" style="border-bottom: 1px solid #ede3d5; padding: 16px 22px; background: #faf7f2;">
         <div>
-          <div style="display: flex; align-items: center; gap: 8px;">
-            <span style="font-size: 1.25rem;">🔒</span>
-            <h3 class="modal-title" style="margin: 0; font-size: 1.15rem; color: #211813; font-weight: 800;">Arqueo Ciego de Caja (Fin de Turno)</h3>
-          </div>
+          <h3 class="modal-title" style="margin: 0;">🔒 Arqueo Ciego de Caja (Fin de Turno)</h3>
           <div class="arqueo-header-pills">
             <?php if (!empty($sesionCajaActiva)): ?>
-              <span class="arqueo-pill arqueo-pill-sesion">📌 Sesión #<?= $sesionCajaActiva['id'] ?></span>
-              <span class="arqueo-pill arqueo-pill-terminal">🖥️ <?= htmlspecialchars($sesionCajaActiva['nombre_equipo']) ?></span>
-              <span class="arqueo-pill arqueo-pill-cajero">👤 Cajero: <?= htmlspecialchars($sesionCajaActiva['cajero_nombre']) ?></span>
-            <?php else: ?>
-              <span class="arqueo-pill arqueo-pill-sesion">Declaración de efectivo y comprobantes físicos</span>
+                <span class="arqueo-pill arqueo-pill-sesion">📌 Sesión #<?= (int) $sesionCajaActiva['id'] ?></span>
+                <span class="arqueo-pill arqueo-pill-terminal">🖥️ <?= htmlspecialchars($sesionCajaActiva['nombre_equipo']) ?></span>
+                <span class="arqueo-pill arqueo-pill-cajero">👤 <?= htmlspecialchars($sesionCajaActiva['cajero_nombre']) ?></span>
             <?php endif; ?>
           </div>
         </div>
-        <button type="button" class="btn-close" onclick="cerrarModalConConfirmacion('modalArqueoCiegoFacturacion')" aria-label="Cerrar">&times;</button>
+        <button type="button" class="btn-close" onclick="cerrarModal('modalArqueoCiegoFacturacion')">&times;</button>
       </div>
 
       <form id="formArqueoFacturacion" onsubmit="enviarArqueoFacturacion(event)">
@@ -1280,84 +1210,58 @@ foreach ($secuenciasFiscales as $sec) {
         <input type="hidden" name="sesion_id" value="<?= $sesionCajaActiva['id'] ?? '' ?>" />
         <input type="hidden" id="pos_arq_efectivo_declarado" name="efectivo_declarado" value="0.00" />
 
-        <div class="modal-body arqueo-body-scroll" style="display: flex; flex-direction: column; gap: 14px; max-height: 68vh; overflow-y: auto; padding: 18px 22px;">
-          
-          <!-- AVISO DE POLÍTICA DE ARQUEO CIEGO -->
+        <div class="modal-body" style="display: flex; flex-direction: column; gap: 14px; max-height: 68vh; overflow-y: auto;">
           <div class="arqueo-notice-card">
-            <span class="arqueo-notice-icon">🛡️</span>
-            <div>
-              <div class="arqueo-notice-title">Regla Oficial de Arqueo Ciego</div>
-              <div class="arqueo-notice-desc">
-                Declare únicamente el conteo físico de billetes, monedas y vouchers que tiene en su gaveta. Por seguridad de auditoría, el sistema mantiene los saldos contables ocultos hasta procesar el cierre.
-              </div>
+            <span>🛡️</span>
+            <div style="font-size: 0.78rem; color: #794a15;">
+              <strong>Regla Oficial de Arqueo Ciego:</strong> Declare únicamente el conteo físico de billetes, monedas y vouchers en gaveta. El sistema compara contra los saldos contables al procesar el cierre.
             </div>
           </div>
 
-          <!-- SECCIÓN 1: BILLETES Y MONEDAS -->
           <div class="arqueo-section-card">
             <div class="arqueo-section-head">
               <span class="arqueo-section-label">💵 Conteo de Efectivo Físico (DOP)</span>
-              <div style="display: flex; align-items: center; gap: 8px;">
-                <span style="font-size: 0.74rem; font-weight: 700; color: #8a7b70; text-transform: uppercase;">Total Contado:</span>
-                <span class="arqueo-total-badge" id="posTotalEfectivoLbl">RD$ 0.00</span>
-              </div>
+              <span class="arqueo-total-badge" id="posTotalEfectivoLbl">RD$ 0.00</span>
             </div>
-
-            <div id="posDenominacionesWrap" class="pos-denoms-container">
-              <!-- Se puebla dinámicamente con JavaScript -->
-            </div>
+            <div id="posDenominacionesWrap" class="pos-denoms-container"></div>
           </div>
 
-          <!-- SECCIÓN 2: VOUCHERS / TARJETAS -->
           <div class="arqueo-section-card">
-            <div class="arqueo-section-head" style="margin-bottom: 8px;">
-              <span class="arqueo-section-label">💳 Comprobantes de Tarjetas y Vouchers POS</span>
-              <span style="font-size: 0.72rem; color: #8a7b70;">(Verifone / Terminal de pago)</span>
-            </div>
             <div class="form-row-2" style="margin-bottom: 0;">
               <div class="form-group" style="margin-bottom: 0;">
-                <label class="form-label" for="pos_tarjeta_declarada" style="font-size: 0.74rem; font-weight: 700;">TOTAL EN VOUCHERS (RD$) *</label>
-                <input type="number" step="0.01" min="0" id="pos_tarjeta_declarada" name="tarjeta_declarada" class="arqueo-input-control" value="0.00" placeholder="0.00" required />
+                <label class="form-label" for="pos_tarjeta_declarada">TOTAL EN VOUCHERS (RD$) *</label>
+                <input type="number" step="0.01" min="0" id="pos_tarjeta_declarada" name="tarjeta_declarada" class="arqueo-input-control" value="0.00" required />
               </div>
               <div class="form-group" style="margin-bottom: 0;">
-                <label class="form-label" for="pos_cantidad_vouchers" style="font-size: 0.74rem; font-weight: 700;">CANTIDAD DE VOUCHERS FÍSICOS *</label>
-                <input type="number" min="0" step="1" id="pos_cantidad_vouchers" name="cantidad_vouchers" class="arqueo-input-control" value="0" placeholder="0" required />
+                <label class="form-label" for="pos_cantidad_vouchers">CANTIDAD DE VOUCHERS *</label>
+                <input type="number" min="0" step="1" id="pos_cantidad_vouchers" name="cantidad_vouchers" class="arqueo-input-control" value="0" required />
               </div>
             </div>
           </div>
 
-          <!-- SECCIÓN 3: CUSTODIA Y FONDO PRÓXIMO TURNO -->
           <div class="arqueo-section-card">
-            <div class="arqueo-section-head" style="margin-bottom: 8px;">
-              <span class="arqueo-section-label">🏦 Custodia y Menudo para el Próximo Turno</span>
-            </div>
             <div class="form-row-2" style="margin-bottom: 0;">
               <div class="form-group" style="margin-bottom: 0;">
-                <label class="form-label" for="pos_monto_retenido" style="font-size: 0.74rem; font-weight: 700;">FONDO DEJADO EN GAVETA (RD$)</label>
-                <input type="number" step="0.01" min="0" id="pos_monto_retenido" name="monto_retenido_fondo" class="arqueo-input-control" value="<?= htmlspecialchars((string)($sesionCajaActiva['monto_inicial_efectivo'] ?? '2500.00')) ?>" />
-                <small style="color: #8a7b70; font-size: 0.7rem; margin-top: 3px; display: block;">Menudo que permanece en gaveta para el próximo cajero.</small>
+                <label class="form-label" for="pos_monto_retenido">FONDO DEJADO EN GAVETA (RD$)</label>
+                <input type="number" step="0.01" min="0" id="pos_monto_retenido" name="monto_retenido_fondo" class="arqueo-input-control" value="<?= htmlspecialchars((string) ($sesionCajaActiva['monto_inicial_efectivo'] ?? '2500.00')) ?>" />
               </div>
               <div class="form-group" style="margin-bottom: 0;">
-                <label class="form-label" for="pos_estado_deposito" style="font-size: 0.74rem; font-weight: 700;">DESTINO DE LA REMESA</label>
+                <label class="form-label" for="pos_estado_deposito">DESTINO DEL EFECTIVO</label>
                 <select id="pos_estado_deposito" name="estado_deposito" class="arqueo-input-control" style="font-family: inherit;">
-                  <option value="PENDIENTE">🔒 PENDIENTE (En Bóveda Local / A depositar mañana)</option>
-                  <option value="DEPOSITADO">🏦 DEPOSITADO (Envío directo a Banco)</option>
-                  <option value="RETENIDO">📦 RETENIDO (En Caja Registradora)</option>
+                  <option value="PENDIENTE">PENDIENTE (En Bóveda Local)</option>
+                  <option value="DEPOSITADO">DEPOSITADO (A Banco)</option>
+                  <option value="RETENIDO">RETENIDO (100% en Gaveta)</option>
                 </select>
-                <small style="color: #8a7b70; font-size: 0.7rem; margin-top: 3px; display: block;">Por defecto queda en custodia en la bóveda de la tienda.</small>
               </div>
             </div>
           </div>
 
-          <!-- CAJA DE VEREDICTO DE AUDITORÍA -->
-          <div id="posVeredictoBox" style="display: none; padding: 14px 18px; border-radius: 10px; font-weight: 700; text-align: center; font-size: 0.92rem; box-shadow: 0 2px 8px rgba(0,0,0,0.06);"></div>
+          <div id="posVeredictoBox" style="display: none; padding: 14px; border-radius: 10px; font-weight: 700; text-align: center;"></div>
         </div>
 
-        <div class="modal-footer" style="padding: 14px 22px; background: #faf7f2; border-top: 1px solid #ede3d5; display: flex; justify-content: flex-end; align-items: center; gap: 12px;">
-          <button type="button" class="btn btn-secondary" onclick="cerrarModalConConfirmacion('modalArqueoCiegoFacturacion')" style="padding: 9px 18px; font-weight: 600;">
-            Volver a Facturar
-          </button>
-          <button type="submit" id="posBtnSubmitArqueo" class="btn btn-gold" style="background: linear-gradient(135deg, #8c4c15 0%, #6e3a0f 100%); border: none; padding: 9px 22px; font-weight: 700; font-size: 0.92rem; border-radius: 8px; box-shadow: 0 3px 10px rgba(110, 58, 15, 0.25); color: #fff;">
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" onclick="cerrarModal('modalArqueoCiegoFacturacion')">Volver</button>
+          <button type="submit" id="posBtnSubmitArqueo" class="btn btn-gold" style="background: #8c4c15; border-color: #8c4c15; color: #fff;">
             🔒 Finalizar Turno y Cuadrar
           </button>
         </div>
@@ -1366,342 +1270,64 @@ foreach ($secuenciasFiscales as $sec) {
   </div>
 
   <!-- ==================================================================== -->
-  <!-- MODAL 7: MOVIMIENTO DE CAJA CHICA EN FACTURACIÓN (CON PIN)          -->
+  <!-- MODAL 8: CAJA CHICA EN FACTURACIÓN (CON PIN DE SUPERVISOR)           -->
   <!-- ==================================================================== -->
   <div id="modalCajaChicaFacturacion" class="modal-overlay">
-    <div class="modal-box" style="max-width: 480px; border-radius: 12px; border: 1px solid #e0d5c5; box-shadow: 0 16px 40px rgba(33, 24, 19, 0.22); overflow: hidden;">
-      <div class="modal-header" style="border-bottom: 1px solid #ede3d5; padding: 16px 20px; background: #faf7f2;">
+    <div class="modal-box" style="max-width: 480px;">
+      <div class="modal-header">
         <div>
-          <div style="display: flex; align-items: center; gap: 8px;">
-            <span style="font-size: 1.25rem;">💵</span>
-            <h3 class="modal-title" style="margin: 0; font-size: 1.1rem; color: #211813; font-weight: 800;">Movimiento de Caja Chica</h3>
-          </div>
-          <p class="modal-subtitle" style="margin-top: 4px; font-size: 0.78rem;">
-            <?= !empty($sesionCajaActiva) ? 'Sesión #' . $sesionCajaActiva['id'] . ' • ' . htmlspecialchars($sesionCajaActiva['nombre_equipo']) : 'Registro de gasto o refuerzo menor' ?>
-          </p>
+          <h3 class="modal-title">💵 Movimiento de Caja Chica</h3>
+          <p class="modal-subtitle"><?= !empty($sesionCajaActiva) ? 'Sesión #' . (int) $sesionCajaActiva['id'] . ' • ' . htmlspecialchars($sesionCajaActiva['nombre_equipo']) : '' ?></p>
         </div>
-        <button type="button" class="btn-close" onclick="cerrarModalConConfirmacion('modalCajaChicaFacturacion')" aria-label="Cerrar">&times;</button>
+        <button type="button" class="btn-close" onclick="cerrarModal('modalCajaChicaFacturacion')">&times;</button>
       </div>
-
       <form id="formCajaChicaFacturacion" onsubmit="enviarCajaChicaFacturacion(event)">
         <input type="hidden" name="sesion_id" value="<?= $sesionCajaActiva['id'] ?? '' ?>" />
-
-        <div class="modal-body" style="display: flex; flex-direction: column; gap: 14px; padding: 18px 20px;">
+        <div class="modal-body" style="display: flex; flex-direction: column; gap: 12px;">
           <div class="form-group" style="margin: 0;">
-            <label class="form-label" for="pos_mov_tipo" style="font-size: 0.76rem; font-weight: 700;">TIPO DE MOVIMIENTO *</label>
-            <select id="pos_mov_tipo" name="tipo_movimiento" class="arqueo-input-control" style="font-family: inherit;" required>
-              <option value="EGRESO">📤 EGRESO (Salida: Compra de hielo, agua, insumos)</option>
-              <option value="INGRESO">📥 INGRESO (Entrada: Fianza de consignación, refuerzo)</option>
+            <label class="form-label" for="pos_mov_tipo">TIPO DE MOVIMIENTO *</label>
+            <select id="pos_mov_tipo" name="tipo_movimiento" class="form-control" required>
+              <option value="EGRESO">EGRESO (Compra de hielo, insumos)</option>
+              <option value="INGRESO">INGRESO (Refuerzo de menudo)</option>
             </select>
           </div>
-
           <div class="form-group" style="margin: 0;">
-            <label class="form-label" for="pos_mov_monto" style="font-size: 0.76rem; font-weight: 700;">MONTO (RD$) *</label>
-            <input
-              type="number"
-              step="0.01"
-              min="0.01"
-              id="pos_mov_monto"
-              name="monto"
-              class="arqueo-input-control"
-              placeholder="0.00"
-              style="font-size: 1.15rem; font-weight: 800; color: #965318;"
-              required
-            />
+            <label class="form-label" for="pos_mov_monto">MONTO (RD$) *</label>
+            <input type="number" step="0.01" min="0.01" id="pos_mov_monto" name="monto" class="form-control" required style="font-family: monospace; font-weight: 800;" />
           </div>
-
           <div class="form-group" style="margin: 0;">
-            <label class="form-label" for="pos_mov_concepto" style="font-size: 0.76rem; font-weight: 700;">CONCEPTO O JUSTIFICACIÓN *</label>
-            <input
-              type="text"
-              id="pos_mov_concepto"
-              name="concepto"
-              class="arqueo-input-control"
-              style="font-family: inherit; font-size: 0.88rem;"
-              placeholder="Ej. Compra urgente de 10 fundas de hielo"
-              required
-            />
+            <label class="form-label" for="pos_mov_concepto">CONCEPTO / JUSTIFICACIÓN *</label>
+            <input type="text" id="pos_mov_concepto" name="concepto" class="form-control" required placeholder="Ej. Compra de 10 fundas de hielo" />
           </div>
-
-          <div class="form-group" style="margin: 0; background: #fff8e1; border: 1.5px dashed #ffe082; padding: 14px; border-radius: 8px;">
-            <div style="font-weight: 700; color: #794a15; margin-bottom: 8px; font-size: 0.84rem;">
-              🔐 AUTORIZACIÓN DEL SUPERVISOR EN TURNO
+          <div style="background: #fff8e1; border: 1.5px dashed #ffe082; padding: 12px; border-radius: 8px;">
+            <div style="font-weight: 700; color: #794a15; margin-bottom: 8px; font-size: 0.82rem;">🔐 AUTORIZACIÓN DEL SUPERVISOR</div>
+            <div class="form-group" style="margin-bottom: 8px;">
+              <label class="form-label" for="pos_mov_usuario_supervisor">USUARIO DEL SUPERVISOR *</label>
+              <input type="text" id="pos_mov_usuario_supervisor" name="usuario_supervisor" class="form-control" required autocomplete="off" placeholder="Ej. admin" />
             </div>
-
-            <!-- DIGITAR USUARIO DEL SUPERVISOR -->
-            <div style="margin-bottom: 10px;">
-              <label class="form-label" for="pos_mov_usuario_supervisor" style="color: #794a15; font-size: 0.76rem; font-weight: 700;">USUARIO DEL SUPERVISOR *</label>
-              <input
-                type="text"
-                id="pos_mov_usuario_supervisor"
-                name="usuario_supervisor"
-                class="arqueo-input-control"
-                placeholder="Ej. admin o usuario del supervisor"
-                autocomplete="off"
-                required
-                style="font-size: 0.88rem; background: #fff; font-weight: 600;"
-              />
-              <small style="color: #8a7b70; font-size: 0.72rem; display: block; margin-top: 2px;">El supervisor debe digitar su nombre de usuario.</small>
-            </div>
-
-            <!-- PIN DE AUTORIZACIÓN -->
-            <div>
-              <label class="form-label" for="pos_mov_pin" style="color: #794a15; font-size: 0.76rem; font-weight: 700;">PIN DE SEGURIDAD DEL SUPERVISOR *</label>
-              <input
-                type="password"
-                maxlength="6"
-                id="pos_mov_pin"
-                name="pin_supervisor"
-                class="arqueo-input-control"
-                placeholder="••••"
-                style="text-align: center; font-size: 1.35rem; letter-spacing: 6px; background: #fff;"
-                required
-              />
-              <small style="color: #8a7b70; font-size: 0.72rem; margin-top: 4px; display: block;">El supervisor seleccionado debe digitar su PIN para validar esta transacción de caja.</small>
+            <div class="form-group" style="margin: 0;">
+              <label class="form-label" for="pos_mov_pin">PIN DE SEGURIDAD *</label>
+              <input type="password" maxlength="6" id="pos_mov_pin" name="pin_supervisor" class="form-control" required placeholder="••••"
+                     style="text-align: center; font-size: 1.25rem; letter-spacing: 5px;"
+                     oninput="this.value=this.value.replace(/[^0-9]/g,'').slice(0,6);" />
             </div>
           </div>
         </div>
-
-        <div class="modal-footer" style="padding: 14px 20px; background: #faf7f2; border-top: 1px solid #ede3d5; display: flex; justify-content: flex-end; gap: 10px;">
-          <button type="button" class="btn btn-secondary" onclick="cerrarModalConConfirmacion('modalCajaChicaFacturacion')" style="padding: 8px 16px;">
-            Cancelar
-          </button>
-          <button type="submit" id="posBtnSubmitCajaChica" class="btn btn-gold" style="background: #965318; border-color: #965318; font-weight: 700; padding: 8px 20px;">
-            Registrar con PIN
-          </button>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary" onclick="cerrarModal('modalCajaChicaFacturacion')">Cancelar</button>
+          <button type="submit" id="posBtnSubmitCajaChica" class="btn btn-gold">Registrar con PIN</button>
         </div>
       </form>
     </div>
   </div>
 
-  <!-- NOTIFICACIÓN TOAST -->
   <div id="toast" class="toast"></div>
 
-  <!-- DATOS INICIALES PARA JS -->
   <script>
-    window.POS_TIENE_CAJA_ACTIVA  = <?= !empty($sesionCajaActiva) ? 'true' : 'false' ?>;
-    window.POS_CATALOGO           = <?= json_encode($catalogoProductos, JSON_UNESCAPED_UNICODE) ?>;
-    window.POS_NCF_INFO           = <?= json_encode($ncfDisponibles, JSON_UNESCAPED_UNICODE) ?>;
-    window.POS_PROMOCIONES        = <?= json_encode($promocionesActivas, JSON_UNESCAPED_UNICODE) ?>;
-    window.POS_REPARTIDORES_ZONAS = <?= json_encode($repartidoresPorZona, JSON_UNESCAPED_UNICODE) ?>;
-    window.POS_REPARTIDORES_TODOS = <?= json_encode($repartidoresDisp, JSON_UNESCAPED_UNICODE) ?>;
-    function abrirModalCajaChicaFacturacion() {
-      const form = document.getElementById('formCajaChicaFacturacion');
-      if (form) form.reset();
-      const modal = document.getElementById('modalCajaChicaFacturacion');
-      if (modal) modal.classList.add('active');
-    }
-
-    async function enviarCajaChicaFacturacion(e) {
-      e.preventDefault();
-      const form = document.getElementById('formCajaChicaFacturacion');
-      const fd = new FormData(form);
-      fd.append('accion', 'movimiento_caja_chica');
-      const btn = document.getElementById('posBtnSubmitCajaChica');
-      btn.disabled = true;
-      btn.textContent = 'Autorizando...';
-
-      try {
-        const resp = await fetch('../ControlCaja/procesar_caja.php', {
-          method: 'POST',
-          body: fd
-        });
-        const data = await resp.json();
-        if (data.status !== 'success' && !data.success) {
-          if (typeof mostrarToast === 'function') {
-            mostrarToast('Error: ' + (data.message || data.mensaje), 'error');
-          }
-          btn.disabled = false;
-          btn.textContent = 'Registrar con PIN';
-          return;
-        }
-
-        if (typeof mostrarToast === 'function') {
-          mostrarToast('✅ ' + (data.message || data.mensaje || 'Movimiento registrado exitosamente.'), 'exito');
-        }
-        cerrarModalConConfirmacion('modalCajaChicaFacturacion');
-        btn.disabled = false;
-        btn.textContent = 'Registrar con PIN';
-      } catch (err) {
-        if (typeof mostrarToast === 'function') {
-          mostrarToast('Error de conexión al registrar movimiento: ' + err.message, 'error');
-        }
-        btn.disabled = false;
-        btn.textContent = 'Registrar con PIN';
-      }
-    }
+    window.POS_PUEDE_FACTURAR = <?= $puedeFacturar ? 'true' : 'false' ?>;
+    window.POS_NCF_INFO       = <?= json_encode($ncfDisponibles, JSON_UNESCAPED_UNICODE) ?>;
+    window.POS_METODOS_PAGO   = <?= json_encode($metodosPago, JSON_UNESCAPED_UNICODE) ?>;
   </script>
   <script src="facturacion.js?v=<?= time() ?>"></script>
-  <script>
-    // Cierre inmediato de cualquier modal sin confirmación ni mensajes nativos
-    window.cerrarModalConConfirmacion = function(modalId) {
-      const modal = document.getElementById(modalId);
-      if (modal) modal.classList.remove('open', 'active');
-    };
-    const DENOMINACIONES_DOP_POS = [
-      { valor: 2000, tipo: 'Billete' },
-      { valor: 1000, tipo: 'Billete' },
-      { valor: 500,  tipo: 'Billete' },
-      { valor: 200,  tipo: 'Billete' },
-      { valor: 100,  tipo: 'Billete' },
-      { valor: 50,   tipo: 'Billete' },
-      { valor: 25,   tipo: 'Moneda' },
-      { valor: 10,   tipo: 'Moneda' },
-      { valor: 5,    tipo: 'Moneda' },
-      { valor: 1,    tipo: 'Moneda' }
-    ];
-
-    function renderizarDenominacionesFacturacion() {
-      const wrap = document.getElementById('posDenominacionesWrap');
-      if (!wrap) return;
-      wrap.innerHTML = '';
-      DENOMINACIONES_DOP_POS.forEach(d => {
-        const esMoneda = d.tipo === 'Moneda';
-        const icon = esMoneda ? '🪙' : '💵';
-        const badgeClass = esMoneda ? 'denom-type-moneda' : 'denom-type-billete';
-        
-        const row = document.createElement('div');
-        row.className = 'denom-item-row';
-        row.innerHTML = `
-          <div class="denom-badge-type ${badgeClass}">
-            <span style="font-size: 1.05rem;">${icon}</span>
-            <span>RD$ ${d.valor.toLocaleString()}</span>
-            <span style="font-size: 0.68rem; font-weight: 700; opacity: 0.7; text-transform: uppercase;">${d.tipo}</span>
-          </div>
-          <div style="display: flex; align-items: center; gap: 10px;">
-            <span style="font-size: 0.74rem; font-weight: 700; color: #8a7b70;">Cant:</span>
-            <input type="number" min="0" step="1" value="0" data-denominacion="${d.valor}" 
-                   class="denom-qty-input"
-                   placeholder="0"
-                   onkeydown="if(['e','E','+','-','.'].includes(event.key)) event.preventDefault();"
-                   oninput="recalcularEfectivoFacturacion()" />
-            <span class="denom-subtotal-text subtotal-dop">RD$ 0.00</span>
-          </div>
-        `;
-        wrap.appendChild(row);
-      });
-    }
-
-    function recalcularEfectivoFacturacion() {
-      let total = 0;
-      const inputs = document.querySelectorAll('#posDenominacionesWrap input[data-denominacion]');
-      inputs.forEach(inp => {
-        const cant = parseInt(inp.value) || 0;
-        const val = parseFloat(inp.getAttribute('data-denominacion')) || 0;
-        const sub = cant * val;
-        total += sub;
-        const subSpan = inp.parentElement.querySelector('.subtotal-dop');
-        if (subSpan) subSpan.textContent = 'RD$ ' + sub.toLocaleString('es-DO', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-      });
-      const lbl = document.getElementById('posTotalEfectivoLbl');
-      if (lbl) lbl.textContent = 'RD$ ' + total.toLocaleString('es-DO', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-      const hiddenInp = document.getElementById('pos_arq_efectivo_declarado');
-      if (hiddenInp) hiddenInp.value = total.toFixed(2);
-    }
-
-    function abrirModalArqueoFacturacion() {
-      renderizarDenominacionesFacturacion();
-      recalcularEfectivoFacturacion();
-      const modal = document.getElementById('modalArqueoCiegoFacturacion');
-      if (modal) modal.classList.add('active');
-    }
-
-    async function enviarArqueoFacturacion(e) {
-      e.preventDefault();
-      const form = document.getElementById('formArqueoFacturacion');
-      const fd = new FormData(form);
-      fd.set('accion', 'procesar_arqueo');
-      const btn = document.getElementById('posBtnSubmitArqueo');
-      btn.disabled = true;
-      btn.textContent = 'Calculando auditoría...';
-
-      try {
-        const resp = await fetch('../ControlCaja/procesar_caja.php', {
-          method: 'POST',
-          body: fd
-        });
-        const data = await resp.json();
-        if (!data.success && data.status !== 'success') {
-          alert('Error: ' + (data.message || data.mensaje || 'Error al procesar arqueo.'));
-          btn.disabled = false;
-          btn.textContent = 'Finalizar Turno y Cuadrar';
-          return;
-        }
-
-        const vBox = document.getElementById('posVeredictoBox');
-        vBox.style.display = 'block';
-        let dif = parseFloat(data.diferencia ?? data.descuadre_efectivo ?? 0) || 0;
-        if (dif === 0) {
-          vBox.style.background = '#e8f5e9';
-          vBox.style.color = '#2e7d32';
-          vBox.innerHTML = '✅ CUADRE EXACTO: El conteo físico coincide perfectamente con el sistema.';
-        } else if (dif < 0) {
-          vBox.style.background = '#ffebee';
-          vBox.style.color = '#c62828';
-          vBox.innerHTML = `⚠️ FALTANTE DETECTADO: Faltan RD$ ${Math.abs(dif).toLocaleString('es-DO', {minimumFractionDigits: 2})} en caja. Se ha registrado en auditoría.`;
-        } else {
-          vBox.style.background = '#fff8e1';
-          vBox.style.color = '#b25e09';
-          vBox.innerHTML = `⚠️ SOBRANTE DETECTADO: Sobran RD$ ${dif.toLocaleString('es-DO', {minimumFractionDigits: 2})} en caja.`;
-        }
-
-        setTimeout(() => {
-          window.location.reload();
-        }, 1600);
-
-      } catch (err) {
-        alert('Error de conexión al procesar el arqueo: ' + err.message);
-        btn.disabled = false;
-        btn.textContent = 'Finalizar Turno y Cuadrar';
-      }
-    }
-
-
-    function abrirModalCajaChicaFacturacion() {
-      const form = document.getElementById('formCajaChicaFacturacion');
-      if (form) form.reset();
-      const modal = document.getElementById('modalCajaChicaFacturacion');
-      if (modal) modal.classList.add('active');
-    }
-
-    async function enviarCajaChicaFacturacion(e) {
-      e.preventDefault();
-      const form = document.getElementById('formCajaChicaFacturacion');
-      const fd = new FormData(form);
-      fd.append('accion', 'movimiento_caja_chica');
-      const btn = document.getElementById('posBtnSubmitCajaChica');
-      btn.disabled = true;
-      btn.textContent = 'Autorizando...';
-
-      try {
-        const resp = await fetch('../ControlCaja/procesar_caja.php', {
-          method: 'POST',
-          body: fd
-        });
-        const data = await resp.json();
-        if (data.status !== 'success' && !data.success) {
-          if (typeof mostrarToast === 'function') {
-            mostrarToast('Error: ' + (data.message || data.mensaje), 'error');
-          }
-          btn.disabled = false;
-          btn.textContent = 'Registrar con PIN';
-          return;
-        }
-
-        if (typeof mostrarToast === 'function') {
-          mostrarToast('✅ ' + (data.message || data.mensaje || 'Movimiento registrado exitosamente.'), 'exito');
-        }
-        cerrarModalConConfirmacion('modalCajaChicaFacturacion');
-        btn.disabled = false;
-        btn.textContent = 'Registrar con PIN';
-      } catch (err) {
-        if (typeof mostrarToast === 'function') {
-          mostrarToast('Error de conexión al registrar movimiento: ' + err.message, 'error');
-        }
-        btn.disabled = false;
-        btn.textContent = 'Registrar con PIN';
-      }
-    }
-  </script>
 </body>
 </html>

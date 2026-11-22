@@ -9,7 +9,8 @@
  */
 
 if (!function_exists('calcularInicialesEmpleado')) {
-    function calcularInicialesEmpleado(string $nombre): string {
+    function calcularInicialesEmpleado(string $nombre): string
+    {
         $partes = preg_split('/\s+/', trim($nombre), -1, PREG_SPLIT_NO_EMPTY);
         if (empty($partes)) {
             return 'US';
@@ -29,7 +30,7 @@ if (PHP_SAPI !== 'cli') {
         @ini_set('session.cookie_httponly', '1');
         @session_set_cookie_params([
             'lifetime' => 0,
-            'path'     => '/',
+            'path' => '/',
             'httponly' => true,
             'samesite' => 'Strict'
         ]);
@@ -86,13 +87,13 @@ if (PHP_SAPI !== 'cli') {
             $empRow = $stmtSesEmp->fetch(PDO::FETCH_ASSOC);
 
             if ($empRow && strtoupper($empRow['estado'] ?? '') === 'ACTIVO') {
-                $nombreReal  = trim($empRow['nombre_razon_social'] ?? '') ?: $empRow['username'];
-                $rolReal     = !empty($empRow['roles_nombres'])
-                               ? $empRow['roles_nombres']
-                               : (!empty($empRow['cargo']) ? $empRow['cargo'] : 'Empleado');
-                $rolesUpper  = json_decode($empRow['roles_upper_json'] ?? '[]', true) ?: [];
+                $nombreReal = trim($empRow['nombre_razon_social'] ?? '') ?: $empRow['username'];
+                $rolReal = !empty($empRow['roles_nombres'])
+                    ? $empRow['roles_nombres']
+                    : (!empty($empRow['cargo']) ? $empRow['cargo'] : 'Empleado');
+                $rolesUpper = json_decode($empRow['roles_upper_json'] ?? '[]', true) ?: [];
                 $permisosArr = json_decode($empRow['permisos_json'] ?? '[]', true) ?: [];
-                $esAdmin     = in_array('ADMINISTRADOR', $rolesUpper, true) || strtolower($empRow['username'] ?? '') === 'admin';
+                $esAdmin = in_array('ADMINISTRADOR', $rolesUpper, true) || strtolower($empRow['username'] ?? '') === 'admin';
                 $esSupervisor = false;
                 foreach ($rolesUpper as $rUp) {
                     if (strpos($rUp, 'SUPERVISOR') !== false) {
@@ -102,31 +103,32 @@ if (PHP_SAPI !== 'cli') {
                 }
 
                 $_SESSION['usuario']['nombre_completo'] = $nombreReal;
-                $_SESSION['usuario']['rol']             = $rolReal;
-                $_SESSION['usuario']['roles_upper']     = $rolesUpper;
-                $_SESSION['usuario']['permisos']        = $permisosArr;
-                $_SESSION['usuario']['es_admin']        = $esAdmin;
-                $_SESSION['usuario']['es_supervisor']   = $esSupervisor;
-                $_SESSION['usuario']['cargo']           = $empRow['cargo'] ?? '';
+                $_SESSION['usuario']['rol'] = $rolReal;
+                $_SESSION['usuario']['roles_upper'] = $rolesUpper;
+                $_SESSION['usuario']['permisos'] = $permisosArr;
+                $_SESSION['usuario']['es_admin'] = $esAdmin;
+                $_SESSION['usuario']['es_supervisor'] = $esSupervisor;
+                $_SESSION['usuario']['cargo'] = $empRow['cargo'] ?? '';
                 $_SESSION['usuario']['codigo_empleado'] = $empRow['codigo_empleado'] ?? '';
-                $_SESSION['usuario']['email']           = $empRow['email'] ?? '';
+                $_SESSION['usuario']['email'] = $empRow['email'] ?? '';
                 $_SESSION['usuario']['avatar_initials'] = calcularInicialesEmpleado($nombreReal);
             } else {
                 unset($_SESSION['usuario']);
             }
-        } catch (Throwable $e) {}
+        } catch (Throwable $e) {
+        }
     }
 
     $paginaActual = basename($_SERVER['PHP_SELF'] ?? '');
     $paginasPublicas = ['login.php', 'procesar_login.php', 'logout.php', 'test_conexion.php'];
     $esPeticionGetNormal = (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'GET') &&
-                           !isset($_GET['documento']) &&
-                           !isset($_GET['nombre']) &&
-                           !isset($_GET['codigo']) &&
-                           !isset($_GET['sku']) &&
-                           !isset($_GET['numero_lote']) &&
-                           !isset($_GET['accion']) &&
-                           empty($_SERVER['HTTP_X_REQUESTED_WITH']);
+        !isset($_GET['documento']) &&
+        !isset($_GET['nombre']) &&
+        !isset($_GET['codigo']) &&
+        !isset($_GET['sku']) &&
+        !isset($_GET['numero_lote']) &&
+        !isset($_GET['accion']) &&
+        empty($_SERVER['HTTP_X_REQUESTED_WITH']);
 
     if (empty($_SESSION['usuario']['usuario_id']) && !in_array($paginaActual, $paginasPublicas, true)) {
         if ($esPeticionGetNormal) {
@@ -135,8 +137,8 @@ if (PHP_SAPI !== 'cli') {
         } else {
             header('Content-Type: application/json; charset=utf-8');
             echo json_encode([
-                'status'  => 'error',
-                'ok'      => false,
+                'status' => 'error',
+                'ok' => false,
                 'message' => 'Sesión no iniciada. Por favor inicie sesión.',
                 'mensaje' => 'Sesión no iniciada. Por favor inicie sesión.'
             ]);
@@ -160,22 +162,22 @@ if (PHP_SAPI !== 'cli') {
     }
 }
 
-$sesionUsuario        = $_SESSION['usuario'] ?? [];
+$sesionUsuario = $_SESSION['usuario'] ?? [];
 $sesionNombreCompleto = $sesionUsuario['nombre_completo'] ?? 'Usuario';
-$sesionRol            = $sesionUsuario['rol'] ?? ($sesionUsuario['cargo'] ?? 'Empleado');
-$sesionCargo          = $sesionUsuario['cargo'] ?? '';
+$sesionRol = $sesionUsuario['rol'] ?? ($sesionUsuario['cargo'] ?? 'Empleado');
+$sesionCargo = $sesionUsuario['cargo'] ?? '';
 $sesionAvatarInitials = $sesionUsuario['avatar_initials'] ?? calcularInicialesEmpleado($sesionNombreCompleto);
-$sesionEsAdmin        = !empty($sesionUsuario['es_admin']) || stripos($sesionRol, 'Administrador') !== false;
-$sesionEsSupervisor   = !empty($sesionUsuario['es_supervisor']) || stripos($sesionRol, 'Supervisor') !== false;
-$sesionPermisos       = is_array($sesionUsuario['permisos'] ?? null) ? $sesionUsuario['permisos'] : [];
+$sesionEsAdmin = !empty($sesionUsuario['es_admin']) || stripos($sesionRol, 'Administrador') !== false;
+$sesionEsSupervisor = !empty($sesionUsuario['es_supervisor']) || stripos($sesionRol, 'Supervisor') !== false;
+$sesionPermisos = is_array($sesionUsuario['permisos'] ?? null) ? $sesionUsuario['permisos'] : [];
 
 // ============================================================================
 // Detección dinámica de la Caja POS asignada al cajero/usuario logueado
 // ============================================================================
-$sesionCajaActiva   = null;
-$sesionTieneCaja    = false;
-$sesionCajaNombre   = 'Sin Caja Asignada';
-$sesionCajaId       = null;
+$sesionCajaActiva = null;
+$sesionTieneCaja = false;
+$sesionCajaNombre = 'Sin Caja Asignada';
+$sesionCajaId = null;
 
 if (isset($pdo) && $pdo && !empty($sesionUsuario['usuario_id'])) {
     try {
@@ -194,8 +196,8 @@ if (isset($pdo) && $pdo && !empty($sesionUsuario['usuario_id'])) {
 
         if ($rowCjActiva) {
             $sesionCajaActiva = $rowCjActiva;
-            $sesionTieneCaja  = true;
-            $sesionCajaId     = intval($rowCjActiva['caja_id']);
+            $sesionTieneCaja = true;
+            $sesionCajaId = intval($rowCjActiva['caja_id']);
             $sesionCajaNombre = $rowCjActiva['nombre_equipo'];
         }
     } catch (Throwable $e) {
@@ -207,7 +209,8 @@ if (isset($pdo) && $pdo && !empty($sesionUsuario['usuario_id'])) {
 $cajaId = $sesionCajaId ?: 1;
 
 if (!function_exists('renderizarPillCajaTopbar')) {
-    function renderizarPillCajaTopbar(): string {
+    function renderizarPillCajaTopbar(): string
+    {
         global $sesionTieneCaja, $sesionCajaNombre, $sesionCajaActiva;
         if (!empty($sesionTieneCaja)) {
             $nombre = htmlspecialchars($sesionCajaNombre);
@@ -220,7 +223,8 @@ if (!function_exists('renderizarPillCajaTopbar')) {
 }
 
 if (!function_exists('usuarioTienePermiso')) {
-    function usuarioTienePermiso(string $clave): bool {
+    function usuarioTienePermiso(string $clave): bool
+    {
         global $sesionEsAdmin, $sesionPermisos;
         if ($sesionEsAdmin) {
             return true;
@@ -230,50 +234,84 @@ if (!function_exists('usuarioTienePermiso')) {
 }
 
 if (!function_exists('usuarioEsAdministrador')) {
-    function usuarioEsAdministrador(): bool {
+    function usuarioEsAdministrador(): bool
+    {
         global $sesionEsAdmin;
-        return (bool)$sesionEsAdmin;
+        return (bool) $sesionEsAdmin;
     }
 }
 
 // Permisos exclusivos del Administrador: Métodos de Pago, Monedas, Impuestos y Retenciones Fiscales
 if (!function_exists('usuarioPuedeAccederMetodosPago')) {
-    function usuarioPuedeAccederMetodosPago(): bool {
+    function usuarioPuedeAccederMetodosPago(): bool
+    {
         return usuarioEsAdministrador() || usuarioTienePermiso('GESTIONAR_METODOS_PAGO');
     }
 }
 
 if (!function_exists('usuarioPuedeAccederMonedas')) {
-    function usuarioPuedeAccederMonedas(): bool {
+    function usuarioPuedeAccederMonedas(): bool
+    {
         return usuarioEsAdministrador() || usuarioTienePermiso('GESTIONAR_MONEDAS');
     }
 }
 
 if (!function_exists('usuarioPuedeAccederImpuestos')) {
-    function usuarioPuedeAccederImpuestos(): bool {
+    function usuarioPuedeAccederImpuestos(): bool
+    {
         return usuarioEsAdministrador() || usuarioTienePermiso('GESTIONAR_IMPUESTOS');
     }
 }
 
 if (!function_exists('usuarioPuedeAccederRetenciones')) {
-    function usuarioPuedeAccederRetenciones(): bool {
+    function usuarioPuedeAccederRetenciones(): bool
+    {
         return usuarioEsAdministrador() || usuarioTienePermiso('GESTIONAR_RETENCIONES');
     }
 }
 
 // Secuencias Fiscales DGII: Administrador y Supervisor
 if (!function_exists('usuarioPuedeAccederSecuenciasFiscales')) {
-    function usuarioPuedeAccederSecuenciasFiscales(): bool {
+    function usuarioPuedeAccederSecuenciasFiscales(): bool
+    {
         global $sesionEsSupervisor;
         return usuarioEsAdministrador() || $sesionEsSupervisor || usuarioTienePermiso('GESTIONAR_SECUENCIAS_FISCALES');
     }
 }
 
 // Control de Caja: Exclusivo para Administrador y Supervisor (no cajero)
-if (!function_exists('usuarioPuedeAccederControlCaja')) {
-    function usuarioPuedeAccederControlCaja(): bool {
-        global $sesionEsAdmin, $sesionEsSupervisor;
-        return $sesionEsAdmin || $sesionEsSupervisor || usuarioTienePermiso('GESTIONAR_CONTROL_CAJA') || usuarioTienePermiso('SUPERVISOR_CAJA');
+
+
+
+
+// ============================================================================
+// MATRIZ CENTRALIZADA DE ACCESO POR MÓDULO (RBAC)
+// ============================================================================
+
+if (!function_exists('requerirAccesoModulo')) {
+    /**
+     * Bloquea el acceso tanto en vistas PHP (redirige a menu.php) como en
+     * controladores AJAX/JSON (HTTP 403).
+     */
+    function requerirAccesoModulo(bool $permitido, bool $esAjax = false, string $mensaje = 'Acceso restringido: no posees permisos para este módulo.'): void
+    {
+        if ($permitido) {
+            return;
+        }
+        if ($esAjax) {
+            http_response_code(403);
+            header('Content-Type: application/json; charset=utf-8');
+            echo json_encode([
+                'ok' => false,
+                'success' => false,
+                'status' => 'error',
+                'mensaje' => $mensaje,
+                'message' => $mensaje,
+            ], JSON_UNESCAPED_UNICODE);
+            exit;
+        }
+        header('Location: /Liquor_Store/Login%20y%20Menu/menu.php?error=' . urlencode($mensaje));
+        exit;
     }
 }
 
@@ -296,5 +334,195 @@ if (!function_exists('usuarioPuedeAccederCompras')) {
     function usuarioPuedeAccederCompras(): bool {
         global $sesionEsAdmin;
         return (bool)$sesionEsAdmin || usuarioTienePermiso('CREAR_ORDEN_COMPRA') || usuarioTienePermiso('REGISTRAR_RECEPCION_COMPRA') || usuarioTienePermiso('GESTIONAR_PROVEEDORES') || usuarioTienePermiso('GESTIONAR_CXP');
+    }
+}
+
+// --- VENTAS Y CAJA ---
+if (!function_exists('usuarioPuedeAccederControlCaja')) {
+    // Cajero entra SOLO para abrir su turno con PIN de supervisor; Supervisor/Admin ven todo
+    function usuarioPuedeAccederControlCaja(): bool
+    {
+        global $sesionEsSupervisor;
+        return usuarioEsAdministrador()
+            || $sesionEsSupervisor
+            || usuarioTienePermiso('HACER_CUADRE')
+            || usuarioTienePermiso('ABRIR_Y_CERRAR_CAJA');
+    }
+}
+
+if (!function_exists('usuarioPuedeAuditarCaja')) {
+    // Ver efectivo esperado, descuadres, desglose y asignar turnos a otros cajeros
+    function usuarioPuedeAuditarCaja(): bool
+    {
+        global $sesionEsSupervisor;
+        return usuarioEsAdministrador() || $sesionEsSupervisor || usuarioTienePermiso('HACER_CUADRE');
+    }
+}
+
+if (!function_exists('usuarioPuedeAccederFacturacion')) {
+    function usuarioPuedeAccederFacturacion(): bool
+    {
+        global $sesionEsSupervisor;
+        return usuarioEsAdministrador() || $sesionEsSupervisor || usuarioTienePermiso('CREAR_FACTURA');
+    }
+}
+
+if (!function_exists('usuarioPuedeAccederCotizaciones')) {
+    function usuarioPuedeAccederCotizaciones(): bool
+    {
+        global $sesionEsSupervisor;
+        return usuarioEsAdministrador() || $sesionEsSupervisor || usuarioTienePermiso('CREAR_COTIZACION');
+    }
+}
+
+if (!function_exists('usuarioPuedeAccederDevoluciones')) {
+    function usuarioPuedeAccederDevoluciones(): bool
+    {
+        global $sesionEsSupervisor;
+        return usuarioEsAdministrador() || $sesionEsSupervisor || usuarioTienePermiso('AUTORIZAR_DEVOLUCIONES');
+    }
+}
+
+if (!function_exists('usuarioPuedeAccederConsignaciones')) {
+    function usuarioPuedeAccederConsignaciones(): bool
+    {
+        global $sesionEsSupervisor;
+        return usuarioEsAdministrador() || $sesionEsSupervisor || usuarioTienePermiso('GESTIONAR_CONSIGNACIONES');
+    }
+}
+
+if (!function_exists('usuarioPuedeAccederCxc')) {
+    function usuarioPuedeAccederCxc(): bool
+    {
+        global $sesionEsSupervisor;
+        return usuarioEsAdministrador()
+            || $sesionEsSupervisor
+            || usuarioTienePermiso('REGISTRAR_CXC')
+            || usuarioTienePermiso('GESTIONAR_CXC')
+            || usuarioTienePermiso('EMITIR_NOTA_DEBITO');
+    }
+}
+
+if (!function_exists('usuarioPuedeAccederDelivery')) {
+    function usuarioPuedeAccederDelivery(): bool
+    {
+        global $sesionEsSupervisor;
+        return usuarioEsAdministrador()
+            || $sesionEsSupervisor
+            || usuarioTienePermiso('VER_PEDIDOS_ASIGNADOS')
+            || usuarioTienePermiso('ACTUALIZAR_ESTADO_DELIVERY');
+    }
+}
+
+// --- INVENTARIO Y CATÁLOGO (El Cajero tiene VER_PRODUCTOS solo para POS, NO mantenimiento) ---
+if (!function_exists('usuarioPuedeGestionarProductos')) {
+    function usuarioPuedeGestionarProductos(): bool
+    {
+        return usuarioEsAdministrador()
+            || usuarioTienePermiso('GESTIONAR_ALTAS_MAESTRAS')
+            || usuarioTienePermiso('CREAR_ORDEN_COMPRA')
+            || usuarioTienePermiso('GESTIONAR_LOTES_FEFO');
+    }
+}
+
+if (!function_exists('usuarioPuedeAccederMovimientosInventario')) {
+    function usuarioPuedeAccederMovimientosInventario(): bool
+    {
+        global $sesionEsSupervisor;
+        return usuarioEsAdministrador() || $sesionEsSupervisor || usuarioTienePermiso('REGISTRAR_MERMAS');
+    }
+}
+
+if (!function_exists('usuarioPuedeAccederTraslados')) {
+    function usuarioPuedeAccederTraslados(): bool
+    {
+        global $sesionEsSupervisor;
+        return usuarioEsAdministrador() || $sesionEsSupervisor || usuarioTienePermiso('REALIZAR_TRASLADOS');
+    }
+}
+
+if (!function_exists('usuarioPuedeAccederLotes')) {
+    function usuarioPuedeAccederLotes(): bool
+    {
+        global $sesionEsSupervisor;
+        return usuarioEsAdministrador() || $sesionEsSupervisor || usuarioTienePermiso('GESTIONAR_LOTES_FEFO');
+    }
+}
+
+// --- COMPRAS, PROMOCIONES, TESORERÍA Y SEGURIDAD ---
+if (!function_exists('usuarioPuedeAccederCompras')) {
+    function usuarioPuedeAccederCompras(): bool
+    {
+        return usuarioEsAdministrador()
+            || usuarioTienePermiso('CREAR_ORDEN_COMPRA')
+            || usuarioTienePermiso('REGISTRAR_RECEPCION_COMPRA')
+            || usuarioTienePermiso('GESTIONAR_CXP');
+    }
+}
+
+if (!function_exists('usuarioPuedeAccederPromociones')) {
+    function usuarioPuedeAccederPromociones(): bool
+    {
+        return usuarioEsAdministrador() || usuarioTienePermiso('CONFIGURAR_PROMOCIONES');
+    }
+}
+
+if (!function_exists('usuarioPuedeAccederBancos')) {
+    function usuarioPuedeAccederBancos(): bool
+    {
+        return usuarioEsAdministrador()
+            || usuarioTienePermiso('REGISTRAR_MOVIMIENTOS_BANCARIOS')
+            || usuarioTienePermiso('VER_REPORTES_FINANCIEROS');
+    }
+}
+
+if (!function_exists('usuarioPuedeAccederClientes')) {
+    function usuarioPuedeAccederClientes(): bool
+    {
+        global $sesionEsSupervisor;
+        return usuarioEsAdministrador()
+            || $sesionEsSupervisor
+            || usuarioTienePermiso('CREAR_FACTURA')
+            || usuarioTienePermiso('GESTIONAR_CXC')
+            || usuarioTienePermiso('GESTIONAR_ALTAS_MAESTRAS');
+    }
+}
+
+if (!function_exists('usuarioPuedeAccederProveedores')) {
+    function usuarioPuedeAccederProveedores(): bool
+    {
+        return usuarioEsAdministrador()
+            || usuarioTienePermiso('GESTIONAR_PROVEEDORES')
+            || usuarioTienePermiso('CREAR_ORDEN_COMPRA')
+            || usuarioTienePermiso('GESTIONAR_ALTAS_MAESTRAS');
+    }
+}
+
+if (!function_exists('usuarioPuedeAccederPersonal')) {
+    function usuarioPuedeAccederPersonal(): bool
+    {
+        return usuarioEsAdministrador() || usuarioTienePermiso('GESTIONAR_ALTAS_MAESTRAS');
+    }
+}
+
+if (!function_exists('usuarioPuedeAccederSeguridad')) {
+    function usuarioPuedeAccederSeguridad(): bool
+    {
+        return usuarioEsAdministrador() || usuarioTienePermiso('GESTIONAR_USUARIOS_Y_ROLES');
+    }
+}
+
+if (!function_exists('usuarioPuedeAccederAuditoria')) {
+    function usuarioPuedeAccederAuditoria(): bool
+    {
+        return usuarioEsAdministrador() || usuarioTienePermiso('VER_AUDITORIA_FORENSE');
+    }
+}
+
+// Mantenimientos de infraestructura física (Cajas POS, Almacenes, Zonas Delivery) -> Solo Admin
+if (!function_exists('usuarioPuedeAccederConfigInfraestructura')) {
+    function usuarioPuedeAccederConfigInfraestructura(): bool
+    {
+        return usuarioEsAdministrador();
     }
 }
