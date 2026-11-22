@@ -99,15 +99,30 @@ function recalcularTotalEfectivoDeclarado() {
 /**
  * MODAL 1: APERTURA Y ASIGNACIÓN DE CAJA
  */
-function abrirModalApertura(cajaId = null) {
+function abrirModalApertura(cajaId = null, nombreCaja = '', ubicacion = '') {
   const modal = document.getElementById('modalAperturaTurno');
   if (!modal) return;
 
-  document.getElementById('formAperturaTurno')?.reset();
-  const selCaja = document.getElementById('apertura_caja_id');
-  if (selCaja && cajaId) {
-    selCaja.value = String(cajaId);
+  const form = document.getElementById('formAperturaTurno');
+  if (form) form.reset();
+
+  const hiddenCaja = document.getElementById('apertura_caja_id');
+  if (hiddenCaja && cajaId) {
+    hiddenCaja.value = String(cajaId);
   }
+
+  const lblNombre = document.getElementById('lblModalCajaNombre');
+  if (lblNombre) {
+    lblNombre.textContent = nombreCaja ? `Caja #${cajaId} - ${nombreCaja}` : `Caja #${cajaId || ''}`;
+  }
+
+  const lblUbicacion = document.getElementById('lblModalCajaUbicacion');
+  if (lblUbicacion) {
+    lblUbicacion.textContent = ubicacion || 'Mostrador Principal';
+  }
+
+  const errBox = modal.querySelector('.modal-error-box');
+  if (errBox) errBox.style.display = 'none';
 
   modal.style.display = 'flex';
 }

@@ -579,11 +579,9 @@ function renderizarCarrito() {
 
     let celdaDescuentoHtml = '';
     if (descMonto > 0) {
-      const badgeBeneficio = evalPromo.beneficio_texto ? ` (${escaparHtml(evalPromo.beneficio_texto)})` : '';
       celdaDescuentoHtml = `
         <div class="pos-discount-cell">
-          <span class="pos-discount-amount">-${formatearMoneda(descMonto)}${badgeBeneficio}</span>
-          <div class="pos-discount-restante">Restante: <strong>${formatearMoneda(subtotalLinea)}</strong></div>
+          <span class="pos-discount-amount">-${formatearMoneda(descMonto)}</span>
         </div>
       `;
     } else if (evalPromo.faltan_unidades > 0) {

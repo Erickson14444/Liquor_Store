@@ -652,7 +652,7 @@ if (!function_exists('obtenerInicialesCajero')) {
                 <!-- ACCIONES INFERIORES -->
                 <div class="pos-card-actions">
                   <?php if ($cp['estado'] === 'CERRADA' || empty($cp['sesion_activa_id'])): ?>
-                    <button type="button" class="btn btn-gold btn-sm" style="width: 100%; justify-content: center; font-weight: 700; padding: 9px 14px;" onclick="abrirModalApertura(<?= $cp['id'] ?>)">
+                    <button type="button" class="btn btn-gold btn-sm" style="width: 100%; justify-content: center; font-weight: 700; padding: 9px 14px;" onclick="abrirModalApertura(<?= $cp['id'] ?>, '<?= htmlspecialchars(addslashes($cp['nombre_equipo']), ENT_QUOTES) ?>', '<?= htmlspecialchars(addslashes($cp['ubicacion'] ?: 'Mostrador Principal'), ENT_QUOTES) ?>')">
                       🔓 Asignar Cajero y Abrir
                     </button>
                   <?php elseif ($esAbierta): ?>
@@ -783,26 +783,26 @@ if (!function_exists('obtenerInicialesCajero')) {
       </div>
 
       <form id="formAperturaTurno" onsubmit="guardarAperturaTurno(event)">
+        <input type="hidden" id="apertura_caja_id" name="caja_id" value="" required />
+
         <div class="modal-body" style="display: flex; flex-direction: column; gap: 14px;">
           
-          <!-- SELECCIONAR CAJA REGISTRADORA -->
-          <div class="form-group">
-            <label class="form-label" for="apertura_caja_id">TERMINAL POS (CAJA FÍSICA) *</label>
-            <select id="apertura_caja_id" name="caja_id" class="form-control" required>
-              <option value="">-- Seleccione la Caja --</option>
-              <?php foreach ($cajasPos as $cp): ?>
-                <?php if ($cp['estado'] === 'CERRADA' || empty($cp['sesion_activa_id'])): ?>
-                  <option value="<?= $cp['id'] ?>">
-                    Caja #<?= $cp['id'] ?> - <?= htmlspecialchars($cp['nombre_equipo']) ?> (Disponible)
-                  </option>
-                <?php endif; ?>
-              <?php endforeach; ?>
-            </select>
-            <small style="color: #8a7b70; font-size: 0.74rem;">Solo se muestran las cajas que no tienen turno activo actualmente.</small>
+          <!-- TERMINAL POS SELECCIONADA DIRECTAMENTE -->
+          <div style="background: #fbf7f0; border: 1px solid #ebdccb; border-radius: 10px; padding: 12px 14px; display: flex; align-items: center; justify-content: space-between;">
+            <div style="display: flex; align-items: center; gap: 10px;">
+              <span style="font-size: 1.4rem;">💻</span>
+              <div>
+                <div style="font-size: 0.68rem; font-weight: 700; color: #8a7b70; text-transform: uppercase; letter-spacing: 0.4px;">Terminal a Iniciar</div>
+                <div id="lblModalCajaNombre" style="font-size: 1.05rem; font-weight: 800; color: #211813;">Caja POS</div>
+              </div>
+            </div>
+            <span id="lblModalCajaUbicacion" style="font-size: 0.74rem; font-weight: 700; color: #794a15; background: #f3e5d3; padding: 3px 9px; border-radius: 99px;">
+              Mostrador Principal
+            </span>
           </div>
 
           <!-- SELECCIONAR CAJERO -->
-          <div class="form-group">
+          <div class="form-group" style="margin: 0;">
             <label class="form-label" for="apertura_cajero_id">EMPLEADO / CAJERO ASIGNADO *</label>
             <select id="apertura_cajero_id" name="cajero_id" class="form-control" required <?= empty($empleadosCajeros) ? 'disabled' : '' ?>>
               <?php if (empty($empleadosCajeros)): ?>
@@ -816,11 +816,11 @@ if (!function_exists('obtenerInicialesCajero')) {
                 <?php endforeach; ?>
               <?php endif; ?>
             </select>
-            <small style="color: #8a7b70; font-size: 0.74rem;">Solo se listan cajeros que no tienen una caja asignada actualmente.</small>
+            <small style="color: #8a7b70; font-size: 0.74rem; display: block; margin-top: 4px;">Solo se listan cajeros que no tienen una caja asignada actualmente.</small>
           </div>
 
           <!-- FONDO INICIAL (MENUDO) -->
-          <div class="form-group">
+          <div class="form-group" style="margin: 0;">
             <label class="form-label" for="apertura_monto_inicial">FONDO INICIAL EN EFECTIVO (MENUDO RD$) *</label>
             <input
               type="number"
@@ -834,14 +834,14 @@ if (!function_exists('obtenerInicialesCajero')) {
               value="2500.00"
               required
             />
-            <small style="color: #8a7b70; font-size: 0.74rem;">Efectivo entregado al cajero para dar cambio a los clientes.</small>
+            <small style="color: #8a7b70; font-size: 0.74rem; display: block; margin-top: 4px;">Efectivo entregado al cajero para dar cambio a los clientes.</small>
           </div>
 
         </div>
 
         <div class="modal-footer" style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 14px;">
           <button type="button" class="btn btn-beige" onclick="cerrarModalApertura()">Cancelar</button>
-          <button type="submit" id="btnSubmitApertura" class="btn btn-gold">Abrir Turno</button>
+          <button type="submit" id="btnSubmitApertura" class="btn btn-gold" <?= empty($empleadosCajeros) ? 'disabled' : '' ?>>Abrir Turno</button>
         </div>
       </form>
     </div>
