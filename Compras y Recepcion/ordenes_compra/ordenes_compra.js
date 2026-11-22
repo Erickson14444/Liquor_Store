@@ -12,6 +12,120 @@ const MAPA_ORDEN_PRODUCTOS = new Map();
 const MAPA_CATALOGO_CACHE = new Map();
 let timerDebounceBusqueda = null;
 
+/**
+ * Muestra un modal de mensaje o confirmación centrado, compacto y con el estilo visual institucional de House & Ice
+ */
+function mostrarMensajeModal(opciones = {}) {
+    const {
+        tipo = 'info', // 'exito', 'error', 'advertencia', 'pregunta', 'info'
+        titulo = '',
+        mensaje = '',
+        detalle = '',
+        esConfirmacion = false,
+        textoBoton = 'Aceptar',
+        textoCancelar = 'Cancelar',
+        alConfirmar = null,
+        alCerrar = null
+    } = opciones;
+
+    let modal = document.getElementById('modalMensajeSistema');
+    if (!modal) {
+        modal = document.createElement('div');
+        modal.id = 'modalMensajeSistema';
+        modal.className = 'modal-overlay';
+        modal.style.cssText = 'display: none; position: fixed; inset: 0; z-index: 99999; align-items: center; justify-content: center; background: rgba(20, 14, 9, 0.65); backdrop-filter: blur(4px);';
+        modal.innerHTML = `
+            <div class="modal-box" style="max-width: 390px; width: 90%; background: #ffffff; border-radius: 14px; border: 1.5px solid #d4c1a7; box-shadow: 0 18px 45px rgba(28, 18, 12, 0.35); padding: 0; overflow: hidden; animation: modalPop 0.22s ease-out; margin: auto; text-align: center;">
+                <div id="msgModalIconoCont" style="padding-top: 22px;"></div>
+                <div style="padding: 6px 22px 18px;">
+                    <h3 id="msgModalTitulo" style="margin: 0 0 8px 0; font-family: Georgia, serif; font-size: 1.18rem; color: #211813; font-weight: 700;"></h3>
+                    <div id="msgModalTexto" style="font-size: 0.9rem; color: #554436; line-height: 1.5;"></div>
+                    <div id="msgModalDetalle" style="margin-top: 10px; font-size: 0.82rem; color: #735d48; background: #faf5ee; border: 1px solid #ebdcc5; border-radius: 6px; padding: 7px 10px; display: none;"></div>
+                </div>
+                <div id="msgModalFooter" style="background: #fbf8f3; border-top: 1px solid #ebdcc5; padding: 12px 20px; display: flex; justify-content: center; gap: 10px;">
+                    <button type="button" class="btn btn-secondary" id="msgModalBtnCancel" style="display: none; padding: 8px 18px; font-weight: 600; border-radius: 6px; font-size: 0.9rem;">
+                        Cancelar
+                    </button>
+                    <button type="button" class="btn btn-gold" id="msgModalBtnOk" style="min-width: 110px; padding: 8px 22px; font-weight: 700; border-radius: 6px; font-size: 0.9rem; box-shadow: 0 2px 6px rgba(166,110,46,0.25);">
+                        Aceptar
+                    </button>
+                </div>
+            </div>
+        `;
+        document.body.appendChild(modal);
+
+        if (!document.getElementById('styleModalPop')) {
+            const st = document.createElement('style');
+            st.id = 'styleModalPop';
+            st.innerHTML = `
+                @keyframes modalPop {
+                    from { opacity: 0; transform: scale(0.92) translateY(6px); }
+                    to { opacity: 1; transform: scale(1) translateY(0); }
+                }
+            `;
+            document.head.appendChild(st);
+        }
+    }
+
+    const iconoCont = document.getElementById('msgModalIconoCont');
+    let tituloPorDefecto = 'Notificación';
+    if (tipo === 'exito') {
+        iconoCont.innerHTML = `<div style="width: 52px; height: 52px; border-radius: 50%; background: #eaf5ea; border: 2px solid #82c785; color: #2e7d32; display: flex; align-items: center; justify-content: center; font-size: 26px; font-weight: bold; margin: 0 auto;">✓</div>`;
+        tituloPorDefecto = '¡Operación Exitosa!';
+    } else if (tipo === 'error') {
+        iconoCont.innerHTML = `<div style="width: 52px; height: 52px; border-radius: 50%; background: #fdeeee; border: 2px solid #f59e9e; color: #c62828; display: flex; align-items: center; justify-content: center; font-size: 24px; font-weight: bold; margin: 0 auto;">✕</div>`;
+        tituloPorDefecto = 'Atención';
+    } else if (tipo === 'advertencia' || tipo === 'pregunta') {
+        iconoCont.innerHTML = `<div style="width: 52px; height: 52px; border-radius: 50%; background: #fff8e6; border: 2px solid #f5cf7a; color: #b78103; display: flex; align-items: center; justify-content: center; font-size: 24px; font-weight: bold; margin: 0 auto;">⚠️</div>`;
+        tituloPorDefecto = esConfirmacion ? 'Confirmación' : 'Información Requerida';
+    } else {
+        iconoCont.innerHTML = `<div style="width: 52px; height: 52px; border-radius: 50%; background: #f5f0e8; border: 2px solid #d4c0a5; color: #7f5e39; display: flex; align-items: center; justify-content: center; font-size: 24px; font-weight: bold; margin: 0 auto;">ℹ️</div>`;
+        tituloPorDefecto = 'Aviso del Sistema';
+    }
+
+    document.getElementById('msgModalTitulo').textContent = titulo || tituloPorDefecto;
+    document.getElementById('msgModalTexto').innerHTML = (mensaje || '').replace(/\n/g, '<br>');
+
+    const detalleDiv = document.getElementById('msgModalDetalle');
+    if (detalle && detalle.trim() !== '') {
+        detalleDiv.innerHTML = detalle.replace(/\n/g, '<br>');
+        detalleDiv.style.display = 'block';
+    } else {
+        detalleDiv.style.display = 'none';
+        detalleDiv.innerHTML = '';
+    }
+
+    const btnOk = document.getElementById('msgModalBtnOk');
+    const btnCancel = document.getElementById('msgModalBtnCancel');
+
+    btnOk.textContent = textoBoton || (esConfirmacion ? 'Confirmar' : 'Aceptar');
+
+    if (esConfirmacion) {
+        btnCancel.style.display = 'inline-block';
+        btnCancel.textContent = textoCancelar || 'Cancelar';
+        btnCancel.onclick = function() {
+            modal.style.display = 'none';
+        };
+        btnOk.onclick = function() {
+            modal.style.display = 'none';
+            if (typeof alConfirmar === 'function') {
+                alConfirmar();
+            }
+        };
+    } else {
+        btnCancel.style.display = 'none';
+        btnOk.onclick = function() {
+            modal.style.display = 'none';
+            if (typeof alCerrar === 'function') {
+                alCerrar();
+            }
+        };
+    }
+
+    modal.style.display = 'flex';
+    btnOk.focus();
+}
+
 document.addEventListener('DOMContentLoaded', function () {
     // Precargar cache con catálogo inicial
     if (Array.isArray(CATALOGO_PRODUCTOS)) {
@@ -401,16 +515,28 @@ async function guardarNuevaOrden(event) {
     const fechaEsperada = document.getElementById('nuevaOrdenFechaEsperada').value;
 
     if (!proveedorId) {
-        alert('Por favor seleccione un proveedor.');
+        mostrarMensajeModal({
+            tipo: 'advertencia',
+            titulo: 'Proveedor Requerido',
+            mensaje: 'Por favor seleccione un proveedor para emitir la orden.'
+        });
         return;
     }
     if (!numeroOrden) {
-        alert('El número de orden es obligatorio.');
+        mostrarMensajeModal({
+            tipo: 'advertencia',
+            titulo: 'Número de Orden Requerido',
+            mensaje: 'El número de orden es obligatorio.'
+        });
         return;
     }
 
     if (MAPA_ORDEN_PRODUCTOS.size === 0) {
-        alert('Debe agregar al menos un producto a la orden usando la barra de búsqueda superior.');
+        mostrarMensajeModal({
+            tipo: 'advertencia',
+            titulo: 'Catálogo Vacío',
+            mensaje: 'Debe agregar al menos un producto a la orden usando la barra de búsqueda o el catálogo.'
+        });
         const inputBuscar = document.getElementById('inputBuscarCatalogo');
         if (inputBuscar) inputBuscar.focus();
         return;
@@ -419,11 +545,19 @@ async function guardarNuevaOrden(event) {
     const detalles = [];
     for (const [prodId, item] of MAPA_ORDEN_PRODUCTOS.entries()) {
         if (isNaN(item.cantidad) || item.cantidad <= 0) {
-            alert(`El producto '${item.nombre}' tiene una cantidad no válida. Debe ser mayor a 0.`);
+            mostrarMensajeModal({
+                tipo: 'advertencia',
+                titulo: 'Cantidad No Válida',
+                mensaje: `El producto '<strong>${item.nombre}</strong>' tiene una cantidad no válida. Debe ser mayor a 0.`
+            });
             return;
         }
         if (isNaN(item.costo) || item.costo <= 0) {
-            alert(`El producto '${item.nombre}' tiene un costo pactado no válido. Debe ser mayor a 0.`);
+            mostrarMensajeModal({
+                tipo: 'advertencia',
+                titulo: 'Costo No Válido',
+                mensaje: `El producto '<strong>${item.nombre}</strong>' tiene un costo unitario no válido. Debe ser mayor a 0.`
+            });
             return;
         }
 
@@ -434,50 +568,80 @@ async function guardarNuevaOrden(event) {
         });
     }
 
-    if (!confirm(`¿Confirma emitir la Orden de Compra ${numeroOrden} con ${detalles.length} producto(s)?`)) {
-        return;
-    }
-
-    if (btnGuardar) {
-        btnGuardar.disabled = true;
-        btnGuardar.textContent = 'Guardando orden...';
-    }
-
-    try {
-        const payload = {
-            accion: 'crear_orden',
-            proveedor_id: proveedorId,
-            numero_orden: numeroOrden,
-            fecha_esperada: fechaEsperada || null,
-            detalles: detalles
-        };
-
-        const resp = await fetch('procesar_ordenes_compra.php', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify(payload)
-        });
-
-        const data = await resp.json();
-
-        if (data && data.ok) {
-            alert('✅ ' + (data.mensaje || 'Orden de compra creada exitosamente.'));
-            cerrarModalNuevaOrden();
-            window.location.reload();
-        } else {
-            alert('❌ Error al crear la orden: ' + (data.mensaje || 'Error desconocido del servidor.'));
-        }
-    } catch (e) {
-        console.error('Error en fetch:', e);
-        alert('❌ Error de comunicación con el servidor: ' + e.message);
-    } finally {
+    const procederGuardado = async () => {
         if (btnGuardar) {
-            btnGuardar.disabled = false;
-            btnGuardar.textContent = '💾 Crear y Emitir Orden';
+            btnGuardar.disabled = true;
+            btnGuardar.textContent = 'Guardando orden...';
         }
-    }
+
+        try {
+            const payload = {
+                accion: 'crear_orden',
+                proveedor_id: proveedorId,
+                numero_orden: numeroOrden,
+                fecha_esperada: fechaEsperada || null,
+                detalles: detalles
+            };
+
+            const resp = await fetch('procesar_ordenes_compra.php', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(payload)
+            });
+
+            const data = await resp.json();
+
+            if (data && data.ok) {
+                let detalleMsg = '';
+                if (data.correo && data.correo.ok) {
+                    detalleMsg = '📧 Correo enviado exitosamente al proveedor.';
+                } else if (data.correo && data.correo.correo_destinatario) {
+                    detalleMsg = 'ℹ️ Nota: Para que el correo salga automáticamente al proveedor, activa tu cuenta en config/correo_config.php';
+                }
+
+                cerrarModalNuevaOrden();
+                mostrarMensajeModal({
+                    tipo: 'exito',
+                    titulo: '¡Orden de Compra Creada!',
+                    mensaje: `Orden <strong>${numeroOrden}</strong> emitida exitosamente.`,
+                    detalle: detalleMsg,
+                    alCerrar: () => {
+                        window.location.reload();
+                    }
+                });
+            } else {
+                mostrarMensajeModal({
+                    tipo: 'error',
+                    titulo: 'Error al Crear la Orden',
+                    mensaje: data.mensaje || 'Error desconocido del servidor.'
+                });
+            }
+        } catch (e) {
+            console.error('Error en fetch:', e);
+            mostrarMensajeModal({
+                tipo: 'error',
+                titulo: 'Error de Comunicación',
+                mensaje: 'No se pudo comunicar con el servidor: ' + e.message
+            });
+        } finally {
+            if (btnGuardar) {
+                btnGuardar.disabled = false;
+                btnGuardar.textContent = '💾 Crear y Emitir Orden';
+            }
+        }
+    };
+
+    mostrarMensajeModal({
+        tipo: 'pregunta',
+        esConfirmacion: true,
+        titulo: 'Confirmar Emisión',
+        mensaje: `¿Confirma emitir la Orden de Compra <strong>${numeroOrden}</strong> con <strong>${detalles.length} producto(s)</strong>?`,
+        textoBoton: 'Sí, Emitir Orden',
+        textoCancelar: 'Cancelar',
+        alConfirmar: procederGuardado
+    });
 }
 
 /**
@@ -692,19 +856,16 @@ async function abrirModalDetalle(ordenId) {
             `;
         }
 
-        // Botón de recepción directa en el footer
+        // Acciones disponibles en el footer del detalle
         if (footer) {
-            let botonRecibirHtml = '';
-            if (['PENDIENTE', 'RECIBIDA_PARCIAL'].includes(ord.estado)) {
-                botonRecibirHtml = `
-                    <a href="../recepciones/recepciones.php?orden_id=${ord.id}" class="btn btn-gold" style="text-decoration: none;">
-                        📥 Recibir Mercancía Ahora
-                    </a>
-                `;
-            }
             footer.innerHTML = `
                 <button type="button" class="btn btn-secondary" onclick="cerrarModalDetalle()">Cerrar</button>
-                ${botonRecibirHtml}
+                <a href="compra/ver_pdf_orden.php?id=${ord.id}" target="_blank" class="btn btn-secondary" style="text-decoration: none; display: inline-flex; align-items: center; gap: 4px; border-color: #a66e2e; color: #a66e2e; font-weight: 600;" title="Ver o descargar documento PDF oficial">
+                    📄 Ver Documento PDF
+                </a>
+                <button type="button" class="btn btn-gold" onclick="enviarCorreoOrden(${ord.id}, this)" title="Enviar orden por correo al proveedor">
+                    📧 Enviar Correo al Proveedor
+                </button>
             `;
         }
 
@@ -722,5 +883,47 @@ function cerrarModalDetalle() {
     const modal = document.getElementById('modalDetalleOrden');
     if (modal) {
         modal.classList.remove('open');
+    }
+}
+
+/**
+ * Envía la Orden de Compra por correo al proveedor
+ */
+async function enviarCorreoOrden(ordenId, btn) {
+    if (!ordenId) return;
+
+    if (btn) {
+        btn.disabled = true;
+        btn.textContent = 'Enviando correo...';
+    }
+
+    try {
+        const resp = await fetch(`procesar_ordenes_compra.php?accion=enviar_correo_orden&orden_id=${ordenId}`);
+        const data = await resp.json();
+
+        if (data && data.ok) {
+            mostrarMensajeModal({
+                tipo: 'exito',
+                titulo: '¡Correo Despachado!',
+                mensaje: data.mensaje || 'Correo enviado exitosamente al proveedor.'
+            });
+        } else {
+            mostrarMensajeModal({
+                tipo: 'advertencia',
+                titulo: 'Aviso de Correo',
+                mensaje: data.mensaje || 'No se pudo enviar el correo. Verifique la configuración en config/correo_config.php'
+            });
+        }
+    } catch (e) {
+        mostrarMensajeModal({
+            tipo: 'error',
+            titulo: 'Error de Envío',
+            mensaje: 'Error al conectar con el servidor: ' + e.message
+        });
+    } finally {
+        if (btn) {
+            btn.disabled = false;
+            btn.textContent = '📧 Enviar Correo al Proveedor';
+        }
     }
 }

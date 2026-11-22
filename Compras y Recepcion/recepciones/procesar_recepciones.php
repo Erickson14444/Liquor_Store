@@ -20,7 +20,11 @@ if (empty($_SESSION['usuario']['usuario_id'])) {
     exit;
 }
 
-$accion = $_REQUEST['accion'] ?? '';
+// Soporte universal para GET, POST form-data y POST JSON (php://input)
+$rawInput = file_get_contents('php://input');
+$jsonBody = !empty($rawInput) ? json_decode($rawInput, true) : null;
+$datos = is_array($jsonBody) ? array_merge($_GET, $jsonBody) : array_merge($_GET, $_POST);
+$accion = trim((string)($datos['accion'] ?? $_REQUEST['accion'] ?? ''));
 
 try {
     switch ($accion) {
@@ -200,7 +204,7 @@ try {
                 throw new Exception("No cuenta con permisos autorizados (REGISTRAR_RECEPCION_COMPRA) para ingresar recepciones.");
             }
 
-            $input = json_decode(file_get_contents('php://input'), true) ?: $_POST;
+            $input = is_array($jsonBody) ? $jsonBody : $_POST;
 
             $ordenId          = (int)($input['orden_compra_id'] ?? 0);
             $numFactura       = trim($input['numero_factura_proveedor'] ?? '');

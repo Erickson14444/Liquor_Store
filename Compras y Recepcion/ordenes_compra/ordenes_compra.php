@@ -172,7 +172,7 @@ $badgesEstado = [
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>House &amp; Ice • Órdenes de Compra</title>
-    <link rel="stylesheet" href="../styles.css?v=35" />
+    <link rel="stylesheet" href="../styles.css?v=45" />
     <style>
         .badge-estado {
             display: inline-flex;
@@ -210,17 +210,17 @@ $badgesEstado = [
             background: #f6efe4 !important;
             color: #5a3e24 !important;
             font-weight: 700 !important;
-            font-size: 0.72rem !important;
+            font-size: 0.70rem !important;
             letter-spacing: 0.3px !important;
             text-transform: uppercase !important;
-            padding: 9px 8px !important;
+            padding: 6px 8px !important;
             border-bottom: 1px solid #e4d5be !important;
             position: sticky !important;
             top: 0 !important;
             z-index: 5 !important;
         }
         .table-compacta-orden td {
-            padding: 6px 8px !important;
+            padding: 4px 6px !important;
             border-bottom: 1px solid #f0e8db !important;
             vertical-align: middle !important;
         }
@@ -382,7 +382,7 @@ $badgesEstado = [
                                 <th class="text-right">Monto Estimado</th>
                                 <th class="text-center">Estado</th>
                                 <th class="text-center">Avance Recibido</th>
-                                <th class="text-center" style="min-width: 170px;">Acciones</th>
+                                <th class="text-center" style="min-width: 130px;">Acciones</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -445,11 +445,9 @@ $badgesEstado = [
                                                 <button type="button" class="btn btn-sm btn-outline" title="Ver Detalle y Seguimiento" onclick="abrirModalDetalle(<?= (int)$oc['id'] ?>)">
                                                     👁️ Detalle
                                                 </button>
-                                                <?php if ($puedeRecibir && $puedeRecibirFila): ?>
-                                                    <a href="../recepciones/recepciones.php?orden_id=<?= (int)$oc['id'] ?>" class="btn btn-sm btn-gold" title="Registrar Recepción de Mercancía" style="text-decoration: none;">
-                                                        📥 Recibir
-                                                    </a>
-                                                <?php endif; ?>
+                                                <a href="compra/ver_pdf_orden.php?id=<?= (int)$oc['id'] ?>" target="_blank" class="btn btn-sm btn-outline" title="Ver / Descargar Documento PDF Oficial" style="display: inline-flex; align-items: center; gap: 3px; border-color: #a66e2e; color: #a66e2e; font-weight: 600; text-decoration: none;">
+                                                    📄 PDF
+                                                </a>
                                             </div>
                                         </td>
                                     </tr>
@@ -474,17 +472,17 @@ $badgesEstado = [
             </div>
             
             <form id="formNuevaOrden" onsubmit="guardarNuevaOrden(event)">
-                <div class="modal-body" style="padding: 14px 18px; max-height: calc(88vh - 110px); overflow-y: auto;">
+                <div class="modal-body" style="padding: 10px 16px; max-height: calc(88vh - 90px); overflow-y: auto;">
                     
                     <!-- 1. Cabecera Compacta -->
-                    <div style="background: #faf8f5; border: 1px solid #eae3d5; border-radius: 8px; padding: 10px 14px; margin-bottom: 12px;">
-                        <div style="font-size: 0.72rem; font-weight: 700; color: var(--accent-gold); text-transform: uppercase; margin-bottom: 6px;">
+                    <div style="background: #faf8f5; border: 1px solid #eae3d5; border-radius: 8px; padding: 7px 12px; margin-bottom: 8px;">
+                        <div style="font-size: 0.70rem; font-weight: 700; color: var(--accent-gold); text-transform: uppercase; margin-bottom: 4px;">
                             1. Datos de Cabecera
                         </div>
-                        <div style="display: grid; grid-template-columns: 2fr 1.2fr 1fr; gap: 12px; align-items: start;">
+                        <div style="display: grid; grid-template-columns: 2fr 1.2fr 1fr; gap: 10px; align-items: start;">
                             <div class="form-group" style="margin: 0;">
-                                <label class="form-label" style="font-size: 0.72rem; font-weight: 700; color: #5c5043;">Proveedor *</label>
-                                <select id="nuevaOrdenProveedor" name="proveedor_id" class="form-control" required onchange="actualizarInfoProveedor()" style="font-size: 0.83rem; height: 34px;">
+                                <label class="form-label" style="font-size: 0.70rem; font-weight: 700; color: #5c5043; margin-bottom: 2px;">Proveedor *</label>
+                                <select id="nuevaOrdenProveedor" name="proveedor_id" class="form-control" required onchange="actualizarInfoProveedor()" style="font-size: 0.82rem; height: 32px;">
                                     <option value="">-- Seleccione Proveedor --</option>
                                     <?php foreach ($proveedores as $prv): ?>
                                         <option value="<?= htmlspecialchars($prv['persona_id']) ?>"
@@ -494,36 +492,36 @@ $badgesEstado = [
                                         </option>
                                     <?php endforeach; ?>
                                 </select>
-                                <small id="infoProveedorDias" style="color: var(--text-muted); font-size: 0.72rem; margin-top: 2px; display: block;">
+                                <small id="infoProveedorDias" style="color: var(--text-muted); font-size: 0.70rem; margin-top: 1px; display: block;">
                                     Días de crédito habitual: --
                                 </small>
                             </div>
 
                             <div class="form-group" style="margin: 0;">
-                                <label class="form-label" style="font-size: 0.72rem; font-weight: 700; color: #5c5043;">Número de Orden *</label>
+                                <label class="form-label" style="font-size: 0.70rem; font-weight: 700; color: #5c5043; margin-bottom: 2px;">Número de Orden *</label>
                                 <div style="display: flex; gap: 4px;">
-                                    <input type="text" id="nuevaOrdenNumero" name="numero_orden" class="form-control" style="font-family: var(--font-mono); font-weight: 700; font-size: 0.85rem; height: 34px;" required maxlength="30" placeholder="OC-YYYYMMDD-0001" />
-                                    <button type="button" class="btn btn-secondary btn-sm" title="Generar correlativo" onclick="generarSiguienteNumeroOrden()" style="padding: 0 8px; flex-shrink: 0; height: 34px;">🔄</button>
+                                    <input type="text" id="nuevaOrdenNumero" name="numero_orden" class="form-control" style="font-family: var(--font-mono); font-weight: 700; font-size: 0.82rem; height: 32px;" required maxlength="30" placeholder="OC-YYYYMMDD-0001" />
+                                    <button type="button" class="btn btn-secondary btn-sm" title="Generar correlativo" onclick="generarSiguienteNumeroOrden()" style="padding: 0 8px; flex-shrink: 0; height: 32px;">🔄</button>
                                 </div>
                             </div>
 
                             <div class="form-group" style="margin: 0;">
-                                <label class="form-label" style="font-size: 0.72rem; font-weight: 700; color: #5c5043;">Fecha Esperada</label>
-                                <input type="date" id="nuevaOrdenFechaEsperada" name="fecha_esperada" class="form-control" min="<?= date('Y-m-d') ?>" style="font-size: 0.83rem; height: 34px;" />
+                                <label class="form-label" style="font-size: 0.70rem; font-weight: 700; color: #5c5043; margin-bottom: 2px;">Fecha Esperada</label>
+                                <input type="date" id="nuevaOrdenFechaEsperada" name="fecha_esperada" class="form-control" min="<?= date('Y-m-d') ?>" style="font-size: 0.82rem; height: 32px;" />
                             </div>
                         </div>
                     </div>
 
                     <!-- 2. Detalle y Selección de Productos (Layout Split 2 Columnas) -->
-                    <div class="grid-split-orden">
+                    <div class="grid-split-orden" style="margin-top: 6px;">
                         
                         <!-- Columna Izquierda: Catálogo de Productos y Búsqueda -->
-                        <div style="background: #faf8f5; border: 1px solid #e4dacb; border-radius: 8px; padding: 10px; display: flex; flex-direction: column; gap: 8px;">
+                        <div style="background: #faf8f5; border: 1px solid #e4dacb; border-radius: 8px; padding: 8px 10px; display: flex; flex-direction: column; gap: 6px;">
                             <div style="display: flex; justify-content: space-between; align-items: center;">
-                                <span style="font-size: 0.74rem; font-weight: 700; color: var(--accent-gold); text-transform: uppercase;">
+                                <span style="font-size: 0.72rem; font-weight: 700; color: var(--accent-gold); text-transform: uppercase;">
                                     Catálogo de Productos
                                 </span>
-                                <span id="lblEstadoCatalogo" style="font-size: 0.72rem; color: var(--text-muted);">
+                                <span id="lblEstadoCatalogo" style="font-size: 0.70rem; color: var(--text-muted);">
                                     <?= count($productos) ?> en catálogo
                                 </span>
                             </div>
@@ -532,25 +530,25 @@ $badgesEstado = [
                             <input type="text" id="inputBuscarCatalogo" class="form-control"
                                 placeholder="🔍 Buscar nombre o SKU..."
                                 oninput="buscarProductosCatalogo(this.value)"
-                                style="height: 34px; padding-left: 10px; font-size: 0.82rem;" />
+                                style="height: 32px; padding-left: 8px; font-size: 0.80rem;" />
 
                             <!-- Panel de Productos Scrolleable -->
-                            <div id="panelResultadosCatalogo" style="max-height: 290px; overflow-y: auto; background: #ffffff; border: 1px solid #dfcaa4; border-radius: 6px; padding: 4px;">
+                            <div id="panelResultadosCatalogo" style="max-height: 220px; overflow-y: auto; background: #ffffff; border: 1px solid #dfcaa4; border-radius: 6px; padding: 3px;">
                                 <!-- Items dinámicos con botones Agregar / Desagregar -->
                             </div>
                         </div>
 
                         <!-- Columna Derecha: Productos Agregados a la Orden -->
-                        <div style="display: flex; flex-direction: column; gap: 8px;">
+                        <div style="display: flex; flex-direction: column; gap: 6px;">
                             <div style="display: flex; justify-content: space-between; align-items: center;">
-                                <span style="font-size: 0.74rem; font-weight: 700; color: var(--accent-gold); text-transform: uppercase;">
+                                <span style="font-size: 0.72rem; font-weight: 700; color: var(--accent-gold); text-transform: uppercase;">
                                     Productos en la Orden (Ajusta Cantidad y Costo)
                                 </span>
-                                <small style="color: var(--text-muted); font-size: 0.72rem;">Define la cantidad a solicitar</small>
+                                <small style="color: var(--text-muted); font-size: 0.70rem;">Define la cantidad a solicitar</small>
                             </div>
 
                             <div style="border: 1px solid #e2dacb; border-radius: 8px; overflow: hidden; background: #ffffff; box-shadow: 0 1px 3px rgba(0,0,0,0.03);">
-                                <div style="max-height: 280px; min-height: 235px; overflow-y: auto;">
+                                <div style="max-height: 215px; min-height: 160px; overflow-y: auto;">
                                     <table class="table-compacta-orden" id="tablaDetalleNuevaOrden">
                                         <thead>
                                             <tr>
@@ -566,13 +564,13 @@ $badgesEstado = [
                                         </tbody>
                                     </table>
                                 </div>
-                                <div style="background: #faf6ee; border-top: 1px solid #e5d8c3; padding: 8px 14px; display: flex; justify-content: space-between; align-items: center; font-weight: 700;">
-                                    <div style="display: flex; gap: 18px; font-size: 0.82rem; color: #5a3e24;">
+                                <div style="background: #faf6ee; border-top: 1px solid #e5d8c3; padding: 6px 12px; display: flex; justify-content: space-between; align-items: center; font-weight: 700;">
+                                    <div style="display: flex; gap: 16px; font-size: 0.80rem; color: #5a3e24;">
                                         <span>Total Líneas: <strong id="lblTotalLineas" style="color: #211813;">0</strong></span>
                                         <span>Total Unidades: <strong id="lblTotalUnidades" style="color: #211813; font-family: var(--font-mono);">0</strong> u.</span>
                                     </div>
-                                    <div style="font-size: 0.95rem; font-family: var(--font-mono); color: var(--accent-gold);">
-                                        <span style="font-size: 0.74rem; color: #7a6b5d; text-transform: uppercase; font-family: var(--font-sans); margin-right: 6px;">Total Estimado:</span>
+                                    <div style="font-size: 0.90rem; font-family: var(--font-mono); color: var(--accent-gold);">
+                                        <span style="font-size: 0.72rem; color: #7a6b5d; text-transform: uppercase; font-family: var(--font-sans); margin-right: 4px;">Total Estimado:</span>
                                         <span id="lblMontoTotalEstimado">RD$ 0.00</span>
                                     </div>
                                 </div>
@@ -583,7 +581,7 @@ $badgesEstado = [
 
                 </div>
 
-                <div class="modal-footer" style="padding: 10px 18px;">
+                <div class="modal-footer" style="padding: 8px 16px;">
                     <button type="button" class="btn btn-secondary" onclick="cerrarModalNuevaOrden()">Cancelar</button>
                     <button type="submit" class="btn btn-gold" id="btnGuardarOrden">💾 Crear y Emitir Orden</button>
                 </div>
@@ -620,7 +618,7 @@ $badgesEstado = [
     <script>
         const CATALOGO_PRODUCTOS = <?= json_encode($productos, JSON_UNESCAPED_UNICODE) ?>;
     </script>
-    <script src="ordenes_compra.js?v=35"></script>
+    <script src="ordenes_compra.js?v=45"></script>
 </body>
 
 </html>

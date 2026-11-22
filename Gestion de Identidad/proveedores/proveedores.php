@@ -51,6 +51,72 @@ $tipoMsg = $_GET['tipo'] ?? 'exito';
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>House &amp; Ice • Proveedores</title>
   <link rel="stylesheet" href="../styles.css?v=13" />
+  <style>
+    .badge-code {
+      white-space: nowrap !important;
+      display: inline-block !important;
+      letter-spacing: 0.5px;
+      font-family: monospace;
+      font-size: 0.82rem !important;
+      font-weight: 700;
+      color: #925f24;
+      background-color: #faf5ee;
+      border: 1px solid #ebdcc5;
+      padding: 3px 8px !important;
+      border-radius: 4px;
+    }
+    .badge-ret-pill {
+      display: inline-block;
+      max-width: 170px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      vertical-align: middle;
+      font-size: 0.74rem;
+      padding: 2px 7px;
+      background: #faf6f0;
+      border: 1px solid #e5d7c3;
+      border-radius: 4px;
+      color: #553e29;
+      font-weight: 600;
+      margin: 1px 2px;
+    }
+    .col-codigo {
+      width: 95px !important;
+      white-space: nowrap !important;
+    }
+    .col-doc {
+      width: 160px !important;
+      white-space: nowrap !important;
+    }
+    .col-acciones {
+      width: 85px !important;
+      text-align: right !important;
+    }
+    .retencion-card-label {
+      user-select: none;
+    }
+    .retencion-card-label:hover {
+      border-color: #a66e2e !important;
+      background-color: #fff9f0 !important;
+      box-shadow: 0 2px 6px rgba(166, 110, 46, 0.12);
+    }
+    .retencion-card-label:has(.chk-retencion-prov:checked) {
+      border-color: #a66e2e !important;
+      background-color: #faf3e6 !important;
+      box-shadow: 0 0 0 1px #a66e2e;
+    }
+    #contenedorRetenciones::-webkit-scrollbar {
+      width: 6px;
+    }
+    #contenedorRetenciones::-webkit-scrollbar-thumb {
+      background: #c8b69f;
+      border-radius: 4px;
+    }
+    #contenedorRetenciones::-webkit-scrollbar-thumb:hover {
+      background: #a66e2e;
+    }
+  </style>
 </head>
 <body>
 
@@ -121,67 +187,69 @@ $tipoMsg = $_GET['tipo'] ?? 'exito';
           </div>
         </div>
 
-        <table class="data-table">
-          <thead>
-            <tr>
-              <th>Código</th>
-              <th>Razón Social / Proveedor</th>
-              <th>RNC / Documento</th>
-              <th>Contacto</th>
-              <th class="text-center">Crédito Habitual</th>
-              <th class="text-center">Retenciones Fiscales</th>
-              <th class="text-right">Acciones</th>
-            </tr>
-          </thead>
-          <tbody id="tablaBody">
-            <?php if (empty($proveedores)): ?>
+        <div style="overflow-x: auto; width: 100%;">
+          <table class="data-table" style="min-width: 860px; width: 100%;">
+            <thead>
               <tr>
-                <td colspan="7" class="text-center" style="padding: 30px; color: #888;">
-                  No hay proveedores registrados. Haz clic en <strong>+ Nuevo Proveedor</strong> para agregar el primero.
-                </td>
+                <th class="col-codigo">Código</th>
+                <th>Razón Social / Proveedor</th>
+                <th class="col-doc">RNC / Documento</th>
+                <th style="width: 170px;">Contacto</th>
+                <th class="text-center" style="width: 100px;">Crédito Habitual</th>
+                <th class="text-center" style="width: 170px;">Retenciones Fiscales</th>
+                <th class="col-acciones">Acciones</th>
               </tr>
-            <?php else: ?>
-              <?php foreach ($proveedores as $prv): 
-                $esActivo = !empty($prv['estado']);
-                $doc = htmlspecialchars($prv['documento_identidad']);
-                $nom = htmlspecialchars($prv['nombre_razon_social']);
-                $com = htmlspecialchars($prv['nombre_comercial'] ?? '');
-              ?>
-                <tr class="fila-prov" data-texto="<?= strtolower(htmlspecialchars($prv['codigo_proveedor'] . ' ' . $nom . ' ' . $com . ' ' . $doc . ' ' . ($prv['email'] ?? ''))) ?>">
-                  <td><span class="code-inline"><?= htmlspecialchars($prv['codigo_proveedor']) ?></span></td>
-                  <td>
-                    <div style="font-weight: 700; color: var(--text-dark); font-size: 0.92rem;"><?= $nom ?></div>
-                    <?php if (!empty($com) && $com !== $nom): ?>
-                      <div style="font-size: 0.78rem; color: var(--text-muted); margin-top: 2px;"><?= $com ?></div>
-                    <?php endif; ?>
-                  </td>
-                  <td>
-                    <span class="code-inline"><?= htmlspecialchars($prv['tipo_documento']) ?>: <?= $doc ?></span>
-                  </td>
-                  <td>
-                    <div style="font-weight: 500; color: var(--text-body);">📞 <?= htmlspecialchars($prv['telefono_principal'] ?: 'S/N') ?></div>
-                    <div style="font-size: 0.78rem; color: var(--text-muted);">✉️ <?= htmlspecialchars($prv['email'] ?: 'S/N') ?></div>
-                  </td>
-                  <td class="text-center" style="font-weight: 600; color: var(--text-dark);">
-                    <?= intval($prv['dias_credito_habitual']) ?> días
-                  </td>
-                  <td class="text-center">
-                    <?php if (!empty($prv['retenciones_nombres'])): ?>
-                      <?php foreach (explode(' | ', $prv['retenciones_nombres']) as $rNom): ?>
-                        <span class="code-inline" style="display: inline-block; margin: 2px; font-size: 0.76rem;"><?= htmlspecialchars($rNom) ?></span>
-                      <?php endforeach; ?>
-                    <?php else: ?>
-                      <span style="color: var(--text-muted); font-size: 0.8rem;">Sin retenciones</span>
-                    <?php endif; ?>
-                  </td>
-                  <td class="text-right action-btns">
-                    <button type="button" class="btn-sm btn-outline" onclick='editarProveedor(<?= json_encode($prv) ?>)'>Editar</button>
+            </thead>
+            <tbody id="tablaBody">
+              <?php if (empty($proveedores)): ?>
+                <tr>
+                  <td colspan="7" class="text-center" style="padding: 30px; color: #888;">
+                    No hay proveedores registrados. Haz clic en <strong>+ Nuevo Proveedor</strong> para agregar el primero.
                   </td>
                 </tr>
-              <?php endforeach; ?>
-            <?php endif; ?>
-          </tbody>
-        </table>
+              <?php else: ?>
+                <?php foreach ($proveedores as $prv): 
+                  $esActivo = !empty($prv['estado']);
+                  $doc = htmlspecialchars($prv['documento_identidad']);
+                  $nom = htmlspecialchars($prv['nombre_razon_social']);
+                  $com = htmlspecialchars($prv['nombre_comercial'] ?? '');
+                ?>
+                  <tr class="fila-prov" data-texto="<?= strtolower(htmlspecialchars($prv['codigo_proveedor'] . ' ' . $nom . ' ' . $com . ' ' . $doc . ' ' . ($prv['email'] ?? ''))) ?>">
+                    <td class="col-codigo"><span class="badge-code"><?= htmlspecialchars($prv['codigo_proveedor']) ?></span></td>
+                    <td>
+                      <div style="font-weight: 700; color: var(--text-dark); font-size: 0.92rem;"><?= $nom ?></div>
+                      <?php if (!empty($com) && $com !== $nom): ?>
+                        <div style="font-size: 0.78rem; color: var(--text-muted); margin-top: 2px;"><?= $com ?></div>
+                      <?php endif; ?>
+                    </td>
+                    <td class="col-doc">
+                      <span class="badge-code" style="font-weight: 600;"><?= htmlspecialchars($prv['tipo_documento']) ?>: <?= $doc ?></span>
+                    </td>
+                    <td>
+                      <div style="font-weight: 500; color: var(--text-body); font-size: 0.84rem;">📞 <?= htmlspecialchars($prv['telefono_principal'] ?: 'S/N') ?></div>
+                      <div style="font-size: 0.78rem; color: var(--text-muted);">✉️ <?= htmlspecialchars($prv['email'] ?: 'S/N') ?></div>
+                    </td>
+                    <td class="text-center" style="font-weight: 600; color: var(--text-dark);">
+                      <?= intval($prv['dias_credito_habitual']) ?> días
+                    </td>
+                    <td class="text-center">
+                      <?php if (!empty($prv['retenciones_nombres'])): ?>
+                        <?php foreach (explode(' | ', $prv['retenciones_nombres']) as $rNom): ?>
+                          <span class="badge-ret-pill" title="<?= htmlspecialchars($rNom) ?>"><?= htmlspecialchars($rNom) ?></span>
+                        <?php endforeach; ?>
+                      <?php else: ?>
+                        <span style="color: var(--text-muted); font-size: 0.8rem;">Sin retenciones</span>
+                      <?php endif; ?>
+                    </td>
+                    <td class="col-acciones action-btns">
+                      <button type="button" class="btn-sm btn-outline" onclick='editarProveedor(<?= json_encode($prv) ?>)'>Editar</button>
+                    </td>
+                  </tr>
+                <?php endforeach; ?>
+              <?php endif; ?>
+            </tbody>
+          </table>
+        </div>
 
         <div class="table-card-footer">
           <span id="footerInfo">Total: <?= count($proveedores) ?> proveedores</span>
@@ -194,7 +262,7 @@ $tipoMsg = $_GET['tipo'] ?? 'exito';
 
   <!-- MODAL NUEVO / EDITAR PROVEEDOR -->
   <div id="modalProveedor" class="modal-overlay" onclick="cerrarSiFondo(event)">
-    <div class="modal-box modal-lg">
+    <div class="modal-box modal-xl">
       <div class="modal-header">
         <h2 class="modal-title" id="modalTitulo">Nuevo Proveedor</h2>
       </div>
@@ -274,27 +342,42 @@ $tipoMsg = $_GET['tipo'] ?? 'exito';
               />
               <small style="color: #999;">Solo números enteros (0 a 180 días para Cuentas por Pagar).</small>
             </div>
-            <div class="form-group">
-              <label class="form-label">Retenciones Fiscales Habituales (Selección Múltiple)</label>
-              <div id="contenedorRetenciones" style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; background: #faf6f0; padding: 10px; border: 1px solid var(--border-color, #e2d5c4); border-radius: 8px; max-height: 135px; overflow-y: auto;">
-                <?php foreach ($retencionesCatalogo as $ret): ?>
-                  <label style="display: flex; align-items: flex-start; gap: 7px; font-size: 0.81rem; cursor: pointer; padding: 4px 6px; border-radius: 6px; background: #fff; border: 1px solid #eadecd;">
-                    <input
-                      type="checkbox"
-                      name="retenciones[]"
-                      class="chk-retencion-prov"
-                      value="<?= intval($ret['id']) ?>"
-                      style="margin-top: 2px; accent-color: #a66e2e;"
-                    />
-                    <span>
-                      <strong style="color: #211813; display: block;"><?= htmlspecialchars($ret['nombre']) ?></strong>
-                      <small style="color: #8a7b70; font-family: monospace;"><?= htmlspecialchars($ret['siglas']) ?> • <?= number_format((float)$ret['porcentaje'], 2) ?>% (<?= htmlspecialchars($ret['base_calculo']) ?>)</small>
-                    </span>
-                  </label>
-                <?php endforeach; ?>
-              </div>
-              <small style="color: #999;">Puedes marcar una o varias retenciones fiscales DGII (606) aplicables al proveedor.</small>
+          </div>
+
+          <!-- SECCIÓN: RETENCIONES FISCALES HABITUALES (DGII 606) -->
+          <div class="form-group" style="margin-top: 14px; border-top: 1px solid #ebdcc5; padding-top: 14px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+              <label class="form-label" style="font-weight: 700; color: #211813; margin: 0; font-size: 0.88rem;">
+                Retenciones Fiscales Habituales (Formato 606 DGII)
+              </label>
+              <span style="font-size: 0.78rem; color: #8a7b70;">Selección múltiple opcional</span>
             </div>
+
+            <div id="contenedorRetenciones" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(290px, 1fr)); gap: 10px; background: #faf6f0; padding: 12px; border: 1.5px solid var(--border-color, #e2d5c4); border-radius: 8px; max-height: 220px; overflow-y: auto; overflow-x: hidden;">
+              <?php foreach ($retencionesCatalogo as $ret): ?>
+                <label class="retencion-card-label" style="display: flex; align-items: flex-start; gap: 10px; font-size: 0.84rem; cursor: pointer; padding: 10px 12px; border-radius: 8px; background: #fff; border: 1.5px solid #e8decb; transition: all 0.2s ease;">
+                  <input
+                    type="checkbox"
+                    name="retenciones[]"
+                    class="chk-retencion-prov"
+                    value="<?= intval($ret['id']) ?>"
+                    style="width: 17px; height: 17px; accent-color: #a66e2e; margin-top: 2px; flex-shrink: 0; cursor: pointer;"
+                  />
+                  <div style="flex: 1; min-width: 0;">
+                    <strong style="color: #211813; display: block; font-size: 0.84rem; line-height: 1.25; margin-bottom: 4px;"><?= htmlspecialchars($ret['nombre']) ?></strong>
+                    <div style="display: flex; align-items: center; gap: 6px; font-size: 0.76rem; color: #7f6e5e;">
+                      <span style="background: #f1e6d4; color: #5a3e1b; font-family: monospace; font-weight: 700; padding: 1px 6px; border-radius: 4px;"><?= htmlspecialchars($ret['siglas']) ?></span>
+                      <span><?= number_format((float)$ret['porcentaje'], 2) ?>%</span>
+                      <span style="color: #a49282;">•</span>
+                      <span style="color: #8c7866;"><?= htmlspecialchars($ret['base_calculo']) ?></span>
+                    </div>
+                  </div>
+                </label>
+              <?php endforeach; ?>
+            </div>
+            <small style="color: #8a7b70; font-size: 0.78rem; display: block; margin-top: 6px;">
+              Puedes marcar una o varias retenciones fiscales aplicables habitualmente a este proveedor para agilizar el registro de compras.
+            </small>
           </div>
         </div>
 

@@ -20,25 +20,48 @@ if (empty($_SESSION['usuario']['usuario_id'])) {
     exit;
 }
 
-$accion = $_REQUEST['accion'] ?? '';
+// Soporte universal para GET, POST form-data y POST JSON (php://input)
+$rawInput = file_get_contents('php://input');
+$jsonBody = !empty($rawInput) ? json_decode($rawInput, true) : null;
+$datos = is_array($jsonBody) ? array_merge($_GET, $jsonBody) : array_merge($_GET, $_POST);
+$accion = trim((string)($datos['accion'] ?? $_REQUEST['accion'] ?? ''));
 
 try {
     switch ($accion) {
 
         // ====================================================================
-        // 1. Obtener siguiente número sugerido para la orden
+        // 1. Obtener siguiente número sugerido para la orden (Secuencia limpia 0001, 0002...)
         // ====================================================================
         case 'obtener_siguiente_numero':
-            $stmt = $pdo->query("SELECT COALESCE(MAX(id), 0) + 1 FROM compras.ordenes_compra");
-            $nextId = (int)$stmt->fetchColumn();
             $prefix = 'OC-' . date('Ymd') . '-';
-            $numeroSugerido = $prefix . str_pad((string)$nextId, 4, '0', STR_PAD_LEFT);
+            // Buscar todas las órdenes que comiencen con el prefijo de hoy
+            $stmt = $pdo->prepare("
+                SELECT numero_orden 
+                FROM compras.ordenes_compra 
+                WHERE numero_orden LIKE ?
+            ");
+            $stmt->execute([$prefix . '%']);
+            $ordenesHoy = $stmt->fetchAll(PDO::FETCH_COLUMN) ?: [];
 
-            // Verificar si por alguna razón ya existe
+            $maxSecuencia = 0;
+            foreach ($ordenesHoy as $num) {
+                $partes = explode('-', (string)$num);
+                $sec = (int)end($partes);
+                if ($sec > $maxSecuencia) {
+                    $maxSecuencia = $sec;
+                }
+            }
+
+            $siguienteSecuencia = $maxSecuencia + 1;
+            $numeroSugerido = $prefix . str_pad((string)$siguienteSecuencia, 4, '0', STR_PAD_LEFT);
+
+            // Doble comprobación de seguridad
             $checkStmt = $pdo->prepare("SELECT 1 FROM compras.ordenes_compra WHERE numero_orden = ?");
             $checkStmt->execute([$numeroSugerido]);
-            if ($checkStmt->fetch()) {
-                $numeroSugerido = $prefix . str_pad((string)($nextId + 1), 4, '0', STR_PAD_LEFT);
+            while ($checkStmt->fetch()) {
+                $siguienteSecuencia++;
+                $numeroSugerido = $prefix . str_pad((string)$siguienteSecuencia, 4, '0', STR_PAD_LEFT);
+                $checkStmt->execute([$numeroSugerido]);
             }
 
             echo json_encode([
@@ -222,7 +245,7 @@ try {
             }
 
             // Captura de datos
-            $input = json_decode(file_get_contents('php://input'), true) ?: $_POST;
+            $input = is_array($jsonBody) ? $jsonBody : $_POST;
 
             $proveedor_id   = trim($input['proveedor_id'] ?? '');
             $numero_orden   = trim($input['numero_orden'] ?? '');
@@ -363,11 +386,21 @@ try {
 
             $pdo->commit();
 
+            // Intento de envío de correo al proveedor (en archivo modular separado)
+            $resCorreo = ['ok' => false, 'mensaje' => 'Servicio de correo desactivado'];
+            try {
+                require_once __DIR__ . '/correo/enviar_correo_orden.php';
+                $resCorreo = enviarCorreoOrdenAlProveedor($pdo, $ordenId);
+            } catch (Throwable $eMail) {
+                $resCorreo = ['ok' => false, 'mensaje' => $eMail->getMessage()];
+            }
+
             echo json_encode([
                 'ok' => true,
                 'mensaje' => "Orden de compra {$numero_orden} creada exitosamente.",
                 'orden_id' => $ordenId,
-                'numero_orden' => $numero_orden
+                'numero_orden' => $numero_orden,
+                'correo' => $resCorreo
             ]);
             break;
 
@@ -379,7 +412,7 @@ try {
                 throw new Exception("No cuenta con permisos autorizados para cancelar órdenes.");
             }
 
-            $ordenId = (int)($_POST['orden_id'] ?? 0);
+            $ordenId = (int)($datos['orden_id'] ?? $_POST['orden_id'] ?? 0);
             if ($ordenId <= 0) {
                 throw new Exception("ID de orden inválido.");
             }
@@ -402,6 +435,25 @@ try {
                 'ok' => true,
                 'mensaje' => "La orden de compra #{$ordenId} ha sido cancelada."
             ]);
+            break;
+
+        // ====================================================================
+        // 5. Enviar / Reenviar correo de la orden al proveedor
+        // ====================================================================
+        case 'enviar_correo_orden':
+            if (!usuarioPuedeCrearOrdenCompra()) {
+                throw new Exception("No cuenta con permisos autorizados para enviar correos de órdenes.");
+            }
+
+            $ordenId = (int)($datos['orden_id'] ?? $_GET['orden_id'] ?? 0);
+            if ($ordenId <= 0) {
+                throw new Exception("ID de orden no válido.");
+            }
+
+            require_once __DIR__ . '/correo/enviar_correo_orden.php';
+            $resCorreo = enviarCorreoOrdenAlProveedor($pdo, $ordenId);
+
+            echo json_encode($resCorreo);
             break;
 
         default:

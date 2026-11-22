@@ -9,6 +9,120 @@
 let ORDEN_ACTUAL = null;
 let LINEAS_ORDEN_ACTUAL = [];
 
+/**
+ * Muestra un modal de mensaje o confirmación centrado, compacto y con el estilo visual institucional de House & Ice
+ */
+function mostrarMensajeModal(opciones = {}) {
+    const {
+        tipo = 'info', // 'exito', 'error', 'advertencia', 'pregunta', 'info'
+        titulo = '',
+        mensaje = '',
+        detalle = '',
+        esConfirmacion = false,
+        textoBoton = 'Aceptar',
+        textoCancelar = 'Cancelar',
+        alConfirmar = null,
+        alCerrar = null
+    } = opciones;
+
+    let modal = document.getElementById('modalMensajeSistema');
+    if (!modal) {
+        modal = document.createElement('div');
+        modal.id = 'modalMensajeSistema';
+        modal.className = 'modal-overlay';
+        modal.style.cssText = 'display: none; position: fixed; inset: 0; z-index: 99999; align-items: center; justify-content: center; background: rgba(20, 14, 9, 0.65); backdrop-filter: blur(4px);';
+        modal.innerHTML = `
+            <div class="modal-box" style="max-width: 390px; width: 90%; background: #ffffff; border-radius: 14px; border: 1.5px solid #d4c1a7; box-shadow: 0 18px 45px rgba(28, 18, 12, 0.35); padding: 0; overflow: hidden; animation: modalPop 0.22s ease-out; margin: auto; text-align: center;">
+                <div id="msgModalIconoCont" style="padding-top: 22px;"></div>
+                <div style="padding: 6px 22px 18px;">
+                    <h3 id="msgModalTitulo" style="margin: 0 0 8px 0; font-family: Georgia, serif; font-size: 1.18rem; color: #211813; font-weight: 700;"></h3>
+                    <div id="msgModalTexto" style="font-size: 0.9rem; color: #554436; line-height: 1.5;"></div>
+                    <div id="msgModalDetalle" style="margin-top: 10px; font-size: 0.82rem; color: #735d48; background: #faf5ee; border: 1px solid #ebdcc5; border-radius: 6px; padding: 7px 10px; display: none;"></div>
+                </div>
+                <div id="msgModalFooter" style="background: #fbf8f3; border-top: 1px solid #ebdcc5; padding: 12px 20px; display: flex; justify-content: center; gap: 10px;">
+                    <button type="button" class="btn btn-secondary" id="msgModalBtnCancel" style="display: none; padding: 8px 18px; font-weight: 600; border-radius: 6px; font-size: 0.9rem;">
+                        Cancelar
+                    </button>
+                    <button type="button" class="btn btn-gold" id="msgModalBtnOk" style="min-width: 110px; padding: 8px 22px; font-weight: 700; border-radius: 6px; font-size: 0.9rem; box-shadow: 0 2px 6px rgba(166,110,46,0.25);">
+                        Aceptar
+                    </button>
+                </div>
+            </div>
+        `;
+        document.body.appendChild(modal);
+
+        if (!document.getElementById('styleModalPop')) {
+            const st = document.createElement('style');
+            st.id = 'styleModalPop';
+            st.innerHTML = `
+                @keyframes modalPop {
+                    from { opacity: 0; transform: scale(0.92) translateY(6px); }
+                    to { opacity: 1; transform: scale(1) translateY(0); }
+                }
+            `;
+            document.head.appendChild(st);
+        }
+    }
+
+    const iconoCont = document.getElementById('msgModalIconoCont');
+    let tituloPorDefecto = 'Notificación';
+    if (tipo === 'exito') {
+        iconoCont.innerHTML = `<div style="width: 52px; height: 52px; border-radius: 50%; background: #eaf5ea; border: 2px solid #82c785; color: #2e7d32; display: flex; align-items: center; justify-content: center; font-size: 26px; font-weight: bold; margin: 0 auto;">✓</div>`;
+        tituloPorDefecto = '¡Operación Exitosa!';
+    } else if (tipo === 'error') {
+        iconoCont.innerHTML = `<div style="width: 52px; height: 52px; border-radius: 50%; background: #fdeeee; border: 2px solid #f59e9e; color: #c62828; display: flex; align-items: center; justify-content: center; font-size: 24px; font-weight: bold; margin: 0 auto;">✕</div>`;
+        tituloPorDefecto = 'Atención';
+    } else if (tipo === 'advertencia' || tipo === 'pregunta') {
+        iconoCont.innerHTML = `<div style="width: 52px; height: 52px; border-radius: 50%; background: #fff8e6; border: 2px solid #f5cf7a; color: #b78103; display: flex; align-items: center; justify-content: center; font-size: 24px; font-weight: bold; margin: 0 auto;">⚠️</div>`;
+        tituloPorDefecto = esConfirmacion ? 'Confirmación' : 'Información Requerida';
+    } else {
+        iconoCont.innerHTML = `<div style="width: 52px; height: 52px; border-radius: 50%; background: #f5f0e8; border: 2px solid #d4c0a5; color: #7f5e39; display: flex; align-items: center; justify-content: center; font-size: 24px; font-weight: bold; margin: 0 auto;">ℹ️</div>`;
+        tituloPorDefecto = 'Aviso del Sistema';
+    }
+
+    document.getElementById('msgModalTitulo').textContent = titulo || tituloPorDefecto;
+    document.getElementById('msgModalTexto').innerHTML = (mensaje || '').replace(/\n/g, '<br>');
+
+    const detalleDiv = document.getElementById('msgModalDetalle');
+    if (detalle && detalle.trim() !== '') {
+        detalleDiv.innerHTML = detalle.replace(/\n/g, '<br>');
+        detalleDiv.style.display = 'block';
+    } else {
+        detalleDiv.style.display = 'none';
+        detalleDiv.innerHTML = '';
+    }
+
+    const btnOk = document.getElementById('msgModalBtnOk');
+    const btnCancel = document.getElementById('msgModalBtnCancel');
+
+    btnOk.textContent = textoBoton || (esConfirmacion ? 'Confirmar' : 'Aceptar');
+
+    if (esConfirmacion) {
+        btnCancel.style.display = 'inline-block';
+        btnCancel.textContent = textoCancelar || 'Cancelar';
+        btnCancel.onclick = function() {
+            modal.style.display = 'none';
+        };
+        btnOk.onclick = function() {
+            modal.style.display = 'none';
+            if (typeof alConfirmar === 'function') {
+                alConfirmar();
+            }
+        };
+    } else {
+        btnCancel.style.display = 'none';
+        btnOk.onclick = function() {
+            modal.style.display = 'none';
+            if (typeof alCerrar === 'function') {
+                alCerrar();
+            }
+        };
+    }
+
+    modal.style.display = 'flex';
+    btnOk.focus();
+}
+
 document.addEventListener('DOMContentLoaded', function () {
     // Si viene orden_id preseleccionada desde la URL (por ejemplo desde Órdenes de Compra)
     if (typeof ORDEN_ID_INICIAL !== 'undefined' && ORDEN_ID_INICIAL > 0) {
@@ -502,14 +616,28 @@ async function guardarRecepcion(event) {
         const data = await resp.json();
 
         if (data && data.ok) {
-            alert('✅ ' + (data.mensaje || 'Recepción registrada exitosamente.'));
-            window.location.href = 'recepciones.php';
+            mostrarMensajeModal({
+                tipo: 'exito',
+                titulo: '¡Recepción Registrada!',
+                mensaje: data.mensaje || 'Recepción y entrada a inventario procesada exitosamente.',
+                alCerrar: () => {
+                    window.location.href = 'recepciones.php';
+                }
+            });
         } else {
-            alert('❌ Error al procesar la recepción: ' + (data.mensaje || 'Error del servidor.'));
+            mostrarMensajeModal({
+                tipo: 'error',
+                titulo: 'Error en Recepción',
+                mensaje: data.mensaje || 'Error al procesar la recepción.'
+            });
         }
     } catch (e) {
         console.error('Error:', e);
-        alert('❌ Error de comunicación con el servidor: ' + e.message);
+        mostrarMensajeModal({
+            tipo: 'error',
+            titulo: 'Error de Comunicación',
+            mensaje: 'No se pudo comunicar con el servidor: ' + e.message
+        });
     } finally {
         if (btnGuardar) {
             btnGuardar.disabled = false;
