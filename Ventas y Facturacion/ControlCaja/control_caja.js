@@ -113,7 +113,7 @@ function abrirModalApertura(cajaId = null, nombreCaja = '', ubicacion = '') {
 
   const lblNombre = document.getElementById('lblModalCajaNombre');
   if (lblNombre) {
-    lblNombre.textContent = nombreCaja ? `Caja #${cajaId} - ${nombreCaja}` : `Caja #${cajaId || ''}`;
+    lblNombre.textContent = nombreCaja || `Caja #${cajaId || ''}`;
   }
 
   const lblUbicacion = document.getElementById('lblModalCajaUbicacion');
