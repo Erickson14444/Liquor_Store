@@ -387,6 +387,7 @@ if (!function_exists('usuarioPuedeAccederDelivery')) {
         global $sesionEsSupervisor;
         return usuarioEsAdministrador()
             || $sesionEsSupervisor
+            || usuarioTienePermiso('CREAR_FACTURA')
             || usuarioTienePermiso('VER_PEDIDOS_ASIGNADOS')
             || usuarioTienePermiso('ACTUALIZAR_ESTADO_DELIVERY');
     }
