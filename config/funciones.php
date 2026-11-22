@@ -276,3 +276,25 @@ if (!function_exists('usuarioPuedeAccederControlCaja')) {
         return $sesionEsAdmin || $sesionEsSupervisor || usuarioTienePermiso('GESTIONAR_CONTROL_CAJA') || usuarioTienePermiso('SUPERVISOR_CAJA');
     }
 }
+
+// Compras y Recepción: Permisos RBAC
+if (!function_exists('usuarioPuedeCrearOrdenCompra')) {
+    function usuarioPuedeCrearOrdenCompra(): bool {
+        global $sesionEsAdmin;
+        return (bool)$sesionEsAdmin || usuarioTienePermiso('CREAR_ORDEN_COMPRA');
+    }
+}
+
+if (!function_exists('usuarioPuedeRegistrarRecepcion')) {
+    function usuarioPuedeRegistrarRecepcion(): bool {
+        global $sesionEsAdmin;
+        return (bool)$sesionEsAdmin || usuarioTienePermiso('REGISTRAR_RECEPCION_COMPRA');
+    }
+}
+
+if (!function_exists('usuarioPuedeAccederCompras')) {
+    function usuarioPuedeAccederCompras(): bool {
+        global $sesionEsAdmin;
+        return (bool)$sesionEsAdmin || usuarioTienePermiso('CREAR_ORDEN_COMPRA') || usuarioTienePermiso('REGISTRAR_RECEPCION_COMPRA') || usuarioTienePermiso('GESTIONAR_PROVEEDORES') || usuarioTienePermiso('GESTIONAR_CXP');
+    }
+}

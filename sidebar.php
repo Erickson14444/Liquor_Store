@@ -16,7 +16,7 @@ $isSubdir = in_array($currentDir, [
   'impuestos', 'lotes', 'metodos-pago', 'monedas', 'personal', 'presentaciones',
   'productos', 'proveedores', 'retenciones', 'roles', 'secuencias-dgii',
   'usuarios', 'zonas-delivery', 'Delivery', 'Facturacion', 'ControlCaja',
-  'Movimientos', 'Traslados', 'Lotes'
+  'Movimientos', 'Traslados', 'Lotes', 'ordenes_compra', 'recepciones'
 ]);
 
 if ($isSubdir) {
@@ -35,6 +35,7 @@ $seguridadPfx = $rootPfx . 'Seguridad y Control/';
 $inventarioPfx = $rootPfx . 'Inventario y Stock/';
 $promoPfx = $rootPfx . 'Gestion de Promociones/';
 $ventasPfx = $rootPfx . 'Ventas y Facturacion/';
+$comprasPfx = $rootPfx . 'Compras y Recepcion/';
 
 // Lista de páginas pertenecientes al panel de configuración
 $configPages = [
@@ -58,6 +59,7 @@ $isIdentidadActive   = in_array($currentPage, ['clientes.php', 'proveedores.php'
 $isSeguridadActive   = in_array($currentPage, ['roles.php']);
 $isInventarioActive  = in_array($currentPage, ['movimientos.php', 'traslados.php', 'lotes.php']);
 $isVentasActive      = in_array($currentPage, ['delivery.php', 'facturacion.php', 'control_caja.php']);
+$isComprasActive     = in_array($currentPage, ['ordenes_compra.php', 'recepciones.php']);
 $isPromocionesActive = in_array($currentPage, ['promociones.php', 'cupones.php']);
 $isBancosActive = false;
 $isConfigOnlyActive = in_array($currentPage, [
@@ -167,14 +169,14 @@ $isConfigActive = (!empty($configPages) && is_array($configPages)) ? in_array($c
     </li>
 
     <!-- MÓDULO 5: Compras y Recepción (SOLO PROCESOS) ▸ -->
-    <li class="sidebar-item collapsed" id="menuCompras">
-      <div class="sidebar-link" onclick="toggleSidebarMenu('menuCompras')">
+    <li class="sidebar-item <?= $isComprasActive ? '' : 'collapsed' ?>" id="menuCompras">
+      <div class="sidebar-link <?= $isComprasActive ? 'active' : '' ?>" onclick="toggleSidebarMenu('menuCompras')">
         <span>📥 Compras y Recepción</span>
         <span class="sidebar-chevron">▸</span>
       </div>
       <ul class="sidebar-subnav">
-        <li><a href="#" class="sidebar-sublink" onclick="alert('Órdenes de Compra en desarrollo'); return false;"><span>📥</span> Órdenes de Compra</a></li>
-        <li><a href="#" class="sidebar-sublink" onclick="alert('Recepción de Mercancía con Lote FEFO en desarrollo'); return false;"><span>🏷️</span> Recepción Check-in</a></li>
+        <li><a href="<?= $comprasPfx ?>ordenes_compra/ordenes_compra.php" class="sidebar-sublink <?= ($currentPage === 'ordenes_compra.php') ? 'active' : '' ?>"><span>📥</span> Órdenes de Compra</a></li>
+        <li><a href="<?= $comprasPfx ?>recepciones/recepciones.php" class="sidebar-sublink <?= ($currentPage === 'recepciones.php') ? 'active' : '' ?>"><span>🏷️</span> Recepción Check-in</a></li>
         <li><a href="#" class="sidebar-sublink" onclick="alert('Proceso de Cuentas por Pagar (CxP) en desarrollo'); return false;"><span>🏛️</span> Cuentas por Pagar (CxP)</a></li>
       </ul>
     </li>
