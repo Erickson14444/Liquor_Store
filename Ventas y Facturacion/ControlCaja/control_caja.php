@@ -61,6 +61,7 @@ if ($pdo) {
         $cajasPos = $stmtCajas->fetchAll(PDO::FETCH_ASSOC) ?: [];
 
         // 2. Usuarios con rol o función de Cajero (vinculados a seguridad.usuarios para fk_sesion_cajero)
+        // FILTRADO ESTRICTO: Solo cajeros que NO tienen turno activo actualmente (uk_cajero_abierto)
         $stmtEmp = $pdo->query("
             SELECT u.usuario_id AS cajero_usuario_id,
                    e.empleado_id, 
@@ -76,6 +77,11 @@ if ($pdo) {
             JOIN seguridad.roles r ON ur.rol_id = r.rol_id
             WHERE u.estado = 'ACTIVO' 
               AND p.estado = TRUE
+              AND u.usuario_id NOT IN (
+                  SELECT sc.cajero_id 
+                  FROM ventas.sesiones_caja sc 
+                  WHERE sc.estado IN ('ABIERTA', 'EN_CUADRE')
+              )
             GROUP BY u.usuario_id, e.empleado_id, e.codigo_empleado, p.nombre_razon_social, p.documento_identidad, e.cargo
             HAVING bool_or(LOWER(COALESCE(r.nombre, '')) = 'cajero' OR LOWER(COALESCE(e.cargo, '')) LIKE '%cajer%')
             ORDER BY p.nombre_razon_social ASC
@@ -131,6 +137,16 @@ foreach ($historialSesiones as $h) {
         $totalFaltantesDinero += abs($dif);
     }
 }
+
+if (!function_exists('obtenerInicialesCajero')) {
+    function obtenerInicialesCajero($nombre) {
+        $partes = preg_split('/\s+/', trim((string)$nombre));
+        $in = '';
+        if (!empty($partes[0])) $in .= mb_substr($partes[0], 0, 1, 'UTF-8');
+        if (isset($partes[1]) && !empty($partes[1])) $in .= mb_substr($partes[1], 0, 1, 'UTF-8');
+        return strtoupper($in ?: 'CJ');
+    }
+}
 ?>
 <!DOCTYPE html>
 <html lang="es">
@@ -142,59 +158,205 @@ foreach ($historialSesiones as $h) {
   <style>
     .pos-card-grid {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
-      gap: 16px;
-      margin-bottom: 24px;
+      grid-template-columns: repeat(auto-fit, minmax(330px, 1fr));
+      gap: 18px;
+      margin-bottom: 26px;
     }
     .pos-box-card {
       background: #ffffff;
-      border: 1px solid #eadecd;
-      border-radius: 12px;
-      padding: 18px 20px;
-      box-shadow: 0 2px 8px rgba(33, 24, 19, 0.04);
+      border: 1px solid #e7ded3;
+      border-radius: 14px;
+      padding: 20px;
+      box-shadow: 0 3px 12px rgba(33, 24, 19, 0.04);
       display: flex;
       flex-direction: column;
       justify-content: space-between;
       position: relative;
-      transition: transform 0.15s ease, border-color 0.15s ease;
+      overflow: hidden;
+      transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
     }
     .pos-box-card:hover {
       transform: translateY(-2px);
+      box-shadow: 0 6px 20px rgba(33, 24, 19, 0.08);
       border-color: #c89d5c;
     }
-    .pos-box-card.abierta {
-      border-top: 4px solid #2e7d32;
+    .pos-box-card::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 4px;
+      background: #d8c8b8;
     }
-    .pos-box-card.cerrada {
-      border-top: 4px solid #8c8173;
+    .pos-box-card.abierta::before {
+      background: linear-gradient(90deg, #2e7d32, #4caf50);
     }
-    .pos-box-card.en_cuadre {
-      border-top: 4px solid #b25e09;
-      background: #fffcf7;
+    .pos-box-card.cerrada::before {
+      background: #9c8e82;
+    }
+    .pos-box-card.en_cuadre::before, .pos-box-card.en_arqueo::before {
+      background: linear-gradient(90deg, #b25e09, #f59e0b);
+    }
+    .pos-card-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      margin-bottom: 14px;
+    }
+    .pos-terminal-info {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .pos-icon-badge {
+      width: 42px;
+      height: 42px;
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.25rem;
+      background: #fbf7f0;
+      border: 1px solid #ebdccb;
+      flex-shrink: 0;
+    }
+    .pos-box-card.abierta .pos-icon-badge {
+      background: #e8f5e9;
+      border-color: #c8e6c9;
+    }
+    .pos-box-card.en_cuadre .pos-icon-badge, .pos-box-card.en_arqueo .pos-icon-badge {
+      background: #fff3e0;
+      border-color: #ffe082;
+    }
+    .pos-terminal-titles h3 {
+      font-size: 1.1rem;
+      font-weight: 800;
+      color: #211813;
+      margin: 0;
+    }
+    .pos-terminal-titles .pos-loc {
+      font-size: 0.75rem;
+      color: #8a7b70;
+      margin-top: 3px;
+      display: flex;
+      align-items: center;
+      gap: 4px;
     }
     .kpi-caja-pill {
-      display: inline-block;
-      padding: 3px 9px;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 10px;
       border-radius: 99px;
       font-size: 0.72rem;
       font-weight: 800;
       letter-spacing: 0.4px;
       text-transform: uppercase;
+      flex-shrink: 0;
     }
     .pill-abierta {
       background: #e8f5e9;
-      color: #2e7d32;
+      color: #1b5e20;
       border: 1px solid #a5d6a7;
     }
     .pill-cerrada {
-      background: #f5f5f5;
-      color: #757575;
-      border: 1px solid #e0e0e0;
+      background: #f5f2ed;
+      color: #6e645a;
+      border: 1px solid #ddd5c9;
     }
-    .pill-en-cuadre {
+    .pill-en-cuadre, .pill-en-arqueo {
       background: #fff3e0;
       color: #b25e09;
       border: 1px solid #ffe082;
+    }
+    .pulse-dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: #2e7d32;
+      box-shadow: 0 0 0 rgba(46, 125, 50, 0.4);
+      animation: pulse-green 1.8s infinite;
+      display: inline-block;
+    }
+    @keyframes pulse-green {
+      0% { box-shadow: 0 0 0 0 rgba(46, 125, 50, 0.6); }
+      70% { box-shadow: 0 0 0 6px rgba(46, 125, 50, 0); }
+      100% { box-shadow: 0 0 0 0 rgba(46, 125, 50, 0); }
+    }
+    .pos-card-content {
+      background: #fdfbf7;
+      border: 1px solid #eee5d8;
+      border-radius: 10px;
+      padding: 13px 15px;
+      margin-bottom: 14px;
+    }
+    .pos-cashier-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 10px;
+      padding-bottom: 9px;
+      border-bottom: 1px dashed #e8dccf;
+    }
+    .cashier-avatar-mini {
+      width: 34px;
+      height: 34px;
+      border-radius: 50%;
+      background: #211813;
+      color: #d8b888;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.78rem;
+      font-weight: 800;
+      letter-spacing: 0.5px;
+      flex-shrink: 0;
+    }
+    .cashier-meta {
+      flex: 1;
+      min-width: 0;
+    }
+    .cashier-name {
+      font-weight: 800;
+      color: #211813;
+      font-size: 0.9rem;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .cashier-tag {
+      font-size: 0.72rem;
+      color: #794a15;
+      font-weight: 600;
+    }
+    .pos-stats-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+    }
+    .pos-stat-item {
+      display: flex;
+      flex-direction: column;
+    }
+    .pos-stat-label {
+      font-size: 0.67rem;
+      font-weight: 700;
+      color: #8a7b70;
+      text-transform: uppercase;
+      letter-spacing: 0.4px;
+    }
+    .pos-stat-value {
+      font-size: 0.86rem;
+      font-weight: 800;
+      color: #211813;
+      font-family: monospace;
+      margin-top: 1px;
+    }
+    .pos-card-actions {
+      display: flex;
+      align-items: center;
+      gap: 8px;
     }
 
 
@@ -346,9 +508,6 @@ foreach ($historialSesiones as $h) {
           <a href="../Facturacion/facturacion.php" class="btn btn-gold" style="text-decoration: none;">
             🛒 Ir a Facturación (POS)
           </a>
-          <button type="button" class="btn btn-beige" onclick="abrirModalApertura()">
-            + Asignar Caja y Turno
-          </button>
         </div>
       </div>
 
@@ -382,9 +541,14 @@ foreach ($historialSesiones as $h) {
 
       <!-- SECCIÓN 1: MATRIZ DE TERMINALES POS (DISPONIBILIDAD EN VIVO) -->
       <div style="margin-bottom: 26px;">
-        <h2 style="font-size: 1.15rem; font-weight: 700; color: #211813; margin-bottom: 12px; display: flex; align-items: center; gap: 8px;">
-          <span>💻</span> Estado y Asignación de Terminales Físicas
-        </h2>
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px;">
+          <h2 style="font-size: 1.15rem; font-weight: 700; color: #211813; margin: 0; display: flex; align-items: center; gap: 8px;">
+            <span>💻</span> Terminales Físicas y Turnos en Vivo
+          </h2>
+          <span style="font-size: 0.8rem; color: #8a7b70;">
+            Abre o gestiona turnos directamente desde cada terminal
+          </span>
+        </div>
 
         <div class="pos-card-grid">
           <?php if (empty($cajasPos)): ?>
@@ -393,47 +557,112 @@ foreach ($historialSesiones as $h) {
             </div>
           <?php else: ?>
             <?php foreach ($cajasPos as $cp): 
-              $estClase = strtolower($cp['estado'] ?? 'cerrada');
+              $estado = $cp['estado'] ?? 'CERRADA';
+              $estClase = strtolower($estado);
               $pillClase = 'pill-' . str_replace('_', '-', $estClase);
+              $esAbierta = ($estado === 'ABIERTA' && !empty($cp['sesion_activa_id']));
+              $esEnCuadre = ($estado === 'EN_ARQUEO' || $estado === 'EN_CUADRE');
             ?>
               <div class="pos-box-card <?= htmlspecialchars($estClase) ?>">
+                <!-- CABECERA DE LA TERMINAL -->
                 <div>
-                  <div style="display: flex; justify-content: space-between; align-items: flex-start;">
-                    <div>
-                      <h3 style="font-size: 1.1rem; font-weight: 800; color: #211813;"><?= htmlspecialchars($cp['nombre_equipo']) ?></h3>
-                      <div style="font-size: 0.75rem; color: #8a7b70;">Ubicación: <?= htmlspecialchars($cp['ubicacion'] ?: 'Mostrador Principal') ?></div>
+                  <div class="pos-card-header">
+                    <div class="pos-terminal-info">
+                      <div class="pos-icon-badge">
+                        <?php if ($esAbierta): ?>
+                          🖥️
+                        <?php elseif ($esEnCuadre): ?>
+                          ⏳
+                        <?php else: ?>
+                          🔒
+                        <?php endif; ?>
+                      </div>
+                      <div class="pos-terminal-titles">
+                        <h3><?= htmlspecialchars($cp['nombre_equipo']) ?></h3>
+                        <div class="pos-loc">
+                          <span>📍</span> <?= htmlspecialchars($cp['ubicacion'] ?: 'Mostrador Principal') ?>
+                        </div>
+                      </div>
                     </div>
+
                     <span class="kpi-caja-pill <?= $pillClase ?>">
-                      <?= htmlspecialchars($cp['estado']) ?>
+                      <?php if ($esAbierta): ?>
+                        <span class="pulse-dot"></span> ABIERTA
+                      <?php elseif ($esEnCuadre): ?>
+                        ⏳ EN ARQUEO
+                      <?php else: ?>
+                        CERRADA
+                      <?php endif; ?>
                     </span>
                   </div>
 
-                  <div style="margin-top: 14px; padding: 10px; background: #fdfaf4; border-radius: 8px; font-size: 0.83rem;">
-                    <?php if ($cp['estado'] === 'ABIERTA' && !empty($cp['sesion_activa_id'])): ?>
-                      <div style="color: #2e7d32; font-weight: 700; margin-bottom: 4px;">● Cajero en Turno:</div>
-                      <div style="font-weight: 800; color: #211813; font-size: 0.95rem;"><?= htmlspecialchars($cp['cajero_en_turno']) ?> (<?= htmlspecialchars($cp['codigo_empleado']) ?>)</div>
-                      <div style="display: flex; justify-content: space-between; margin-top: 6px; font-size: 0.78rem; color: #8a7b70;">
-                        <span>Iniciado: <?= htmlspecialchars($cp['fecha_apertura_fmt']) ?></span>
-                        <span style="font-weight: 700; color: #794a15;">Fondo: RD$ <?= number_format((float)$cp['monto_inicial_efectivo'], 2) ?></span>
+                  <!-- CONTENIDO CENTRAL DE LA TERMINAL -->
+                  <div class="pos-card-content">
+                    <?php if ($esAbierta): ?>
+                      <div class="pos-cashier-row">
+                        <div class="cashier-avatar-mini">
+                          <?= htmlspecialchars(obtenerInicialesCajero($cp['cajero_en_turno'])) ?>
+                        </div>
+                        <div class="cashier-meta">
+                          <div class="cashier-name" title="<?= htmlspecialchars($cp['cajero_en_turno']) ?>">
+                            <?= htmlspecialchars($cp['cajero_en_turno']) ?>
+                          </div>
+                          <div class="cashier-tag">
+                            <?= htmlspecialchars($cp['codigo_empleado'] ?: 'CAJERO') ?> • Turno Activo
+                          </div>
+                        </div>
                       </div>
-                    <?php elseif ($cp['estado'] === 'EN_ARQUEO'): ?>
-                      <div style="color: #b25e09; font-weight: 700;">⚠️ Arqueo en curso por <?= htmlspecialchars($cp['cajero_en_turno']) ?></div>
-                      <div style="font-size: 0.76rem; color: #8a7b70; margin-top: 2px;">La terminal está bloqueada esperando el veredicto del conteo físico.</div>
+
+                      <div class="pos-stats-grid">
+                        <div class="pos-stat-item">
+                          <span class="pos-stat-label">Hora de Inicio</span>
+                          <span class="pos-stat-value" style="font-size: 0.8rem;"><?= htmlspecialchars($cp['fecha_apertura_fmt']) ?></span>
+                        </div>
+                        <div class="pos-stat-item" style="text-align: right;">
+                          <span class="pos-stat-label">Fondo de Menudo</span>
+                          <span class="pos-stat-value" style="color: #2e7d32;">RD$ <?= number_format((float)$cp['monto_inicial_efectivo'], 2) ?></span>
+                        </div>
+                      </div>
+
+                    <?php elseif ($esEnCuadre): ?>
+                      <div style="display: flex; gap: 10px; align-items: flex-start;">
+                        <span style="font-size: 1.3rem;">⚠️</span>
+                        <div>
+                          <div style="font-weight: 800; color: #b25e09; font-size: 0.88rem;">Arqueo Ciego en Curso</div>
+                          <div style="font-size: 0.76rem; color: #8a7b70; margin-top: 2px;">
+                            Cajero <strong><?= htmlspecialchars($cp['cajero_en_turno']) ?></strong> está realizando el conteo físico de gaveta.
+                          </div>
+                        </div>
+                      </div>
+
                     <?php else: ?>
-                      <div style="color: #8a7b70; font-style: italic;">Terminal disponible sin turno asignado.</div>
+                      <div style="display: flex; gap: 10px; align-items: center; color: #8a7b70;">
+                        <span style="font-size: 1.25rem; opacity: 0.75;">✨</span>
+                        <div>
+                          <div style="font-weight: 700; color: #5a4f46; font-size: 0.85rem;">Terminal Disponible</div>
+                          <div style="font-size: 0.75rem; color: #9c8e82; margin-top: 2px;">
+                            Sin turno activo. Asigna un cajero y fondo para iniciar facturación.
+                          </div>
+                        </div>
+                      </div>
                     <?php endif; ?>
                   </div>
                 </div>
 
-                <div style="margin-top: 14px; display: flex; gap: 8px; justify-content: flex-end;">
-                  <?php if ($cp['estado'] === 'CERRADA'): ?>
-                    <button type="button" class="btn btn-gold btn-sm" onclick="abrirModalApertura(<?= $cp['id'] ?>)">
+                <!-- ACCIONES INFERIORES -->
+                <div class="pos-card-actions">
+                  <?php if ($cp['estado'] === 'CERRADA' || empty($cp['sesion_activa_id'])): ?>
+                    <button type="button" class="btn btn-gold btn-sm" style="width: 100%; justify-content: center; font-weight: 700; padding: 9px 14px;" onclick="abrirModalApertura(<?= $cp['id'] ?>)">
                       🔓 Asignar Cajero y Abrir
                     </button>
-                  <?php elseif ($cp['estado'] === 'ABIERTA'): ?>
-                    <button type="button" class="btn btn-beige btn-sm" onclick="abrirModalCajaChica(<?= $cp['sesion_activa_id'] ?>, '<?= htmlspecialchars($cp['nombre_equipo']) ?>')">
+                  <?php elseif ($esAbierta): ?>
+                    <button type="button" class="btn btn-beige btn-sm" style="width: 100%; justify-content: center; font-weight: 700; padding: 9px 14px; border: 1px solid #d8b888; background: #fffcf7;" onclick="abrirModalCajaChica(<?= $cp['sesion_activa_id'] ?>, '<?= htmlspecialchars($cp['nombre_equipo']) ?>')">
                       💸 Movimiento Caja Chica
                     </button>
+                  <?php elseif ($esEnCuadre): ?>
+                    <div style="width: 100%; text-align: center; font-size: 0.75rem; color: #b25e09; font-weight: 700; padding: 6px;">
+                      🔒 Terminal bloqueada por arqueo
+                    </div>
                   <?php endif; ?>
                 </div>
               </div>
@@ -575,14 +804,19 @@ foreach ($historialSesiones as $h) {
           <!-- SELECCIONAR CAJERO -->
           <div class="form-group">
             <label class="form-label" for="apertura_cajero_id">EMPLEADO / CAJERO ASIGNADO *</label>
-            <select id="apertura_cajero_id" name="cajero_id" class="form-control" required>
-              <option value="">-- Seleccione el Cajero --</option>
-              <?php foreach ($empleadosCajeros as $emp): ?>
-                <option value="<?= htmlspecialchars($emp['cajero_usuario_id']) ?>">
-                  <?= htmlspecialchars($emp['nombre_razon_social']) ?> (<?= htmlspecialchars($emp['codigo_empleado']) ?> • <?= htmlspecialchars($emp['roles_nombres'] ?: 'Cajero') ?>)
-                </option>
-              <?php endforeach; ?>
+            <select id="apertura_cajero_id" name="cajero_id" class="form-control" required <?= empty($empleadosCajeros) ? 'disabled' : '' ?>>
+              <?php if (empty($empleadosCajeros)): ?>
+                <option value="" disabled selected>⚠️ No hay cajeros disponibles (todos tienen turno abierto)</option>
+              <?php else: ?>
+                <option value="">-- Seleccione el Cajero --</option>
+                <?php foreach ($empleadosCajeros as $emp): ?>
+                  <option value="<?= htmlspecialchars($emp['cajero_usuario_id']) ?>">
+                    <?= htmlspecialchars($emp['nombre_razon_social']) ?> (<?= htmlspecialchars($emp['codigo_empleado']) ?> • <?= htmlspecialchars($emp['roles_nombres'] ?: 'Cajero') ?>)
+                  </option>
+                <?php endforeach; ?>
+              <?php endif; ?>
             </select>
+            <small style="color: #8a7b70; font-size: 0.74rem;">Solo se listan cajeros que no tienen una caja asignada actualmente.</small>
           </div>
 
           <!-- FONDO INICIAL (MENUDO) -->
