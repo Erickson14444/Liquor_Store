@@ -32,20 +32,20 @@ try {
     // =========================================================================
     if ($action === 'guardar_horario') {
         $repartidorId = trim($_POST['repartidor_id'] ?? '');
-        $horaInicio   = trim($_POST['hora_inicio'] ?? '');
-        $horaFin      = trim($_POST['hora_fin'] ?? '');
+        $horaInicio = trim($_POST['hora_inicio'] ?? '');
+        $horaFin = trim($_POST['hora_fin'] ?? '');
 
         // Recibir uno o varios días (ej. "1,3,5" o array)
         $diasRaw = $_POST['dias_semana'] ?? ($_POST['dia_semana'] ?? '');
         if (is_array($diasRaw)) {
             $diasInput = $diasRaw;
         } else {
-            $diasInput = explode(',', (string)$diasRaw);
+            $diasInput = explode(',', (string) $diasRaw);
         }
 
         $diasSeleccionados = [];
         foreach ($diasInput as $d) {
-            $dInt = intval(trim((string)$d));
+            $dInt = intval(trim((string) $d));
             if ($dInt >= 1 && $dInt <= 7 && !in_array($dInt, $diasSeleccionados, true)) {
                 $diasSeleccionados[] = $dInt;
             }
@@ -53,12 +53,12 @@ try {
         sort($diasSeleccionados);
 
         $origRepartidorId = trim($_POST['orig_repartidor_id'] ?? '');
-        $origDiaSemana    = intval($_POST['orig_dia_semana'] ?? 0);
-        $origHoraInicio   = trim($_POST['orig_hora_inicio'] ?? '');
+        $origDiaSemana = intval($_POST['orig_dia_semana'] ?? 0);
+        $origHoraInicio = trim($_POST['orig_hora_inicio'] ?? '');
 
         if ($repartidorId === '' || empty($diasSeleccionados) || $horaInicio === '' || $horaFin === '') {
             echo json_encode([
-                'status'  => 'error',
+                'status' => 'error',
                 'message' => 'Seleccione el Repartidor, al menos un Día de la semana, la Hora de Inicio y la Hora de Fin.'
             ]);
             exit;
@@ -67,7 +67,7 @@ try {
         // Validación: hora_fin > hora_inicio
         if (strtotime($horaFin) <= strtotime($horaInicio)) {
             echo json_encode([
-                'status'  => 'error',
+                'status' => 'error',
                 'message' => 'La Hora de Fin (' . $horaFin . ') debe ser posterior a la Hora de Inicio (' . $horaInicio . ').'
             ]);
             exit;
@@ -77,8 +77,13 @@ try {
 
         // Validación: Verificar si ya existe horario para este repartidor en alguno de los días seleccionados
         $diasNombres = [
-            1 => 'Lunes', 2 => 'Martes', 3 => 'Miércoles',
-            4 => 'Jueves', 5 => 'Viernes', 6 => 'Sábado', 7 => 'Domingo'
+            1 => 'Lunes',
+            2 => 'Martes',
+            3 => 'Miércoles',
+            4 => 'Jueves',
+            5 => 'Viernes',
+            6 => 'Sábado',
+            7 => 'Domingo'
         ];
 
         $conflictos = [];
@@ -113,7 +118,7 @@ try {
 
         if (!empty($conflictos)) {
             echo json_encode([
-                'status'  => 'error',
+                'status' => 'error',
                 'message' => 'El repartidor ya tiene un horario existente para: ' . implode(', ', array_unique($conflictos)) . '. No se permiten horarios repetidos.'
             ]);
             exit;
@@ -171,15 +176,14 @@ try {
         ");
         $horariosActualizados = $stmtAll->fetchAll(PDO::FETCH_ASSOC) ?: [];
 
-        $pdo->commit();
 
         $cantDias = count($diasSeleccionados);
         echo json_encode([
-            'status'    => 'success',
-            'message'   => $esEdicion
+            'status' => 'success',
+            'message' => $esEdicion
                 ? 'Horario de trabajo actualizado correctamente.'
                 : ($cantDias > 1 ? "Se asignaron {$cantDias} días de horario correctamente." : 'Horario de trabajo asignado correctamente.'),
-            'horarios'  => $horariosActualizados
+            'horarios' => $horariosActualizados
         ]);
         exit;
     }
@@ -189,8 +193,8 @@ try {
     // =========================================================================
     if ($action === 'eliminar_horario') {
         $repartidorId = trim($_POST['repartidor_id'] ?? '');
-        $diaSemana    = intval($_POST['dia_semana'] ?? 0);
-        $horaInicio   = trim($_POST['hora_inicio'] ?? '');
+        $diaSemana = intval($_POST['dia_semana'] ?? 0);
+        $horaInicio = trim($_POST['hora_inicio'] ?? '');
 
         if ($repartidorId === '' || $diaSemana < 1 || $diaSemana > 7 || $horaInicio === '') {
             echo json_encode(['status' => 'error', 'message' => 'Parámetros incompletos para eliminar el horario.']);
@@ -210,7 +214,7 @@ try {
         ]);
 
         echo json_encode([
-            'status'  => 'success',
+            'status' => 'success',
             'message' => 'Horario eliminado correctamente.'
         ]);
         exit;
@@ -220,16 +224,16 @@ try {
     // 3. GUARDAR / EDITAR ASIGNACIÓN DE ZONA (ventas.repartidor_zonas)
     // =========================================================================
     if ($action === 'guardar_zona') {
-        $repartidorId    = trim($_POST['repartidor_id'] ?? '');
-        $zonaId          = intval($_POST['zona_id'] ?? 0);
+        $repartidorId = trim($_POST['repartidor_id'] ?? '');
+        $zonaId = intval($_POST['zona_id'] ?? 0);
         $esRutaPrincipal = filter_var($_POST['es_ruta_principal'] ?? false, FILTER_VALIDATE_BOOLEAN);
 
         $origRepartidorId = trim($_POST['orig_repartidor_id'] ?? '');
-        $origZonaId       = intval($_POST['orig_zona_id'] ?? 0);
+        $origZonaId = intval($_POST['orig_zona_id'] ?? 0);
 
         if ($repartidorId === '' || $zonaId <= 0) {
             echo json_encode([
-                'status'  => 'error',
+                'status' => 'error',
                 'message' => 'Seleccione tanto el Repartidor como la Zona de Delivery.'
             ]);
             exit;
@@ -248,10 +252,10 @@ try {
                     WHERE repartidor_id = :rep AND zona_id = :zon
                 ");
                 $stmtDup->execute([':rep' => $repartidorId, ':zon' => $zonaId]);
-                if ((int)$stmtDup->fetchColumn() > 0) {
+                if ((int) $stmtDup->fetchColumn() > 0) {
                     $pdo->rollBack();
                     echo json_encode([
-                        'status'  => 'error',
+                        'status' => 'error',
                         'message' => 'Este repartidor ya tiene asignada esa zona de delivery.'
                     ]);
                     exit;
@@ -266,11 +270,11 @@ try {
                 WHERE repartidor_id = :orig_rep
                   AND zona_id       = :orig_zon
             ");
-            $stmtUpd->bindValue(':rep',      $repartidorId,    PDO::PARAM_STR);
-            $stmtUpd->bindValue(':zon',      $zonaId,          PDO::PARAM_INT);
-            $stmtUpd->bindValue(':prin',     $esRutaPrincipal, PDO::PARAM_BOOL);
+            $stmtUpd->bindValue(':rep', $repartidorId, PDO::PARAM_STR);
+            $stmtUpd->bindValue(':zon', $zonaId, PDO::PARAM_INT);
+            $stmtUpd->bindValue(':prin', $esRutaPrincipal, PDO::PARAM_BOOL);
             $stmtUpd->bindValue(':orig_rep', $origRepartidorId, PDO::PARAM_STR);
-            $stmtUpd->bindValue(':orig_zon', $origZonaId,       PDO::PARAM_INT);
+            $stmtUpd->bindValue(':orig_zon', $origZonaId, PDO::PARAM_INT);
             $stmtUpd->execute();
         } else {
             // Verificar duplicado en PK (repartidor_id, zona_id)
@@ -279,10 +283,10 @@ try {
                 WHERE repartidor_id = :rep AND zona_id = :zon
             ");
             $stmtDup->execute([':rep' => $repartidorId, ':zon' => $zonaId]);
-            if ((int)$stmtDup->fetchColumn() > 0) {
+            if ((int) $stmtDup->fetchColumn() > 0) {
                 $pdo->rollBack();
                 echo json_encode([
-                    'status'  => 'error',
+                    'status' => 'error',
                     'message' => 'Esta zona ya se encuentra asignada a este repartidor.'
                 ]);
                 exit;
@@ -292,8 +296,8 @@ try {
                 INSERT INTO ventas.repartidor_zonas (repartidor_id, zona_id, es_ruta_principal)
                 VALUES (:rep, :zon, :prin)
             ");
-            $stmtIns->bindValue(':rep',  $repartidorId,    PDO::PARAM_STR);
-            $stmtIns->bindValue(':zon',  $zonaId,          PDO::PARAM_INT);
+            $stmtIns->bindValue(':rep', $repartidorId, PDO::PARAM_STR);
+            $stmtIns->bindValue(':zon', $zonaId, PDO::PARAM_INT);
             $stmtIns->bindValue(':prin', $esRutaPrincipal, PDO::PARAM_BOOL);
             $stmtIns->execute();
         }
@@ -328,8 +332,8 @@ try {
         $pdo->commit();
 
         echo json_encode([
-            'status'   => 'success',
-            'message'  => $esEdicion ? 'Asignación de zona actualizada correctamente.' : 'Zona de delivery asignada al repartidor correctamente.',
+            'status' => 'success',
+            'message' => $esEdicion ? 'Asignación de zona actualizada correctamente.' : 'Zona de delivery asignada al repartidor correctamente.',
             'registro' => $registro
         ]);
         exit;
@@ -339,8 +343,8 @@ try {
     // 4. CAMBIAR RUTA PRINCIPAL (TOGGLE es_ruta_principal EN ventas.repartidor_zonas)
     // =========================================================================
     if ($action === 'toggle_ruta_principal') {
-        $repartidorId    = trim($_POST['repartidor_id'] ?? '');
-        $zonaId          = intval($_POST['zona_id'] ?? 0);
+        $repartidorId = trim($_POST['repartidor_id'] ?? '');
+        $zonaId = intval($_POST['zona_id'] ?? 0);
         $esRutaPrincipal = filter_var($_POST['es_ruta_principal'] ?? false, FILTER_VALIDATE_BOOLEAN);
 
         if ($repartidorId === '' || $zonaId <= 0) {
@@ -355,14 +359,14 @@ try {
               AND zona_id       = :zon
         ");
         $stmtToggle->bindValue(':prin', $esRutaPrincipal, PDO::PARAM_BOOL);
-        $stmtToggle->bindValue(':rep',  $repartidorId,    PDO::PARAM_STR);
-        $stmtToggle->bindValue(':zon',  $zonaId,          PDO::PARAM_INT);
+        $stmtToggle->bindValue(':rep', $repartidorId, PDO::PARAM_STR);
+        $stmtToggle->bindValue(':zon', $zonaId, PDO::PARAM_INT);
         $stmtToggle->execute();
 
         echo json_encode([
-            'status'            => 'success',
+            'status' => 'success',
             'es_ruta_principal' => $esRutaPrincipal,
-            'message'           => $esRutaPrincipal ? 'Marcada como Ruta Principal del repartidor.' : 'Cambiada a Ruta Secundaria.'
+            'message' => $esRutaPrincipal ? 'Marcada como Ruta Principal del repartidor.' : 'Cambiada a Ruta Secundaria.'
         ]);
         exit;
     }
@@ -372,7 +376,7 @@ try {
     // =========================================================================
     if ($action === 'eliminar_zona') {
         $repartidorId = trim($_POST['repartidor_id'] ?? '');
-        $zonaId       = intval($_POST['zona_id'] ?? 0);
+        $zonaId = intval($_POST['zona_id'] ?? 0);
 
         if ($repartidorId === '' || $zonaId <= 0) {
             echo json_encode(['status' => 'error', 'message' => 'Parámetros incompletos para desvincular la zona.']);
@@ -390,7 +394,7 @@ try {
         ]);
 
         echo json_encode([
-            'status'  => 'success',
+            'status' => 'success',
             'message' => 'Asignación de zona eliminada correctamente.'
         ]);
         exit;
@@ -402,7 +406,7 @@ try {
         $pdo->rollBack();
     }
     echo json_encode([
-        'status'  => 'error',
+        'status' => 'error',
         'message' => 'Error en PostgreSQL: ' . $e->getMessage()
     ]);
 }

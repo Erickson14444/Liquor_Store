@@ -1,4 +1,4 @@
-﻿<?php
+<?php
 /**
  * #14 — Mantenimiento de Retenciones DGII [NUEVO]
  * House & Ice • Sistema Administrativo (ERP Licorero)
@@ -8,29 +8,34 @@
 require_once __DIR__ . '/../../config/conexion.php';
 
 if (!usuarioPuedeAccederRetenciones()) {
-    header("Location: ../../Login%20y%20Menu/menu.php?msg=" . urlencode("Acceso restringido: Solo el rol Administrador posee el permiso para gestionar Retenciones Fiscales."));
-    exit;
+  header("Location: ../../Login%20y%20Menu/menu.php?msg=" . urlencode("Acceso restringido: Solo el rol Administrador posee el permiso para gestionar Retenciones Fiscales."));
+  exit;
 }
 
 $retencionesDb = [];
 if ($pdo) {
-    try {
-        $retencionesDb = $pdo->query("
+  try {
+    $retencionesDb = $pdo->query("
             SELECT id, siglas, nombre, base_calculo, porcentaje, activo
             FROM tesoreria.retenciones
             ORDER BY id ASC
         ")->fetchAll(PDO::FETCH_ASSOC) ?: [];
-    } catch (Throwable $e) {}
+  } catch (Throwable $e) {
+  }
 }
+
+
 ?>
 <!DOCTYPE html>
 <html lang="es">
+
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>House &amp; Ice • Retenciones DGII</title>
   <link rel="stylesheet" href="../styles.css?v=14" />
 </head>
+
 <body>
 
   <header class="topbar">
@@ -54,7 +59,10 @@ if ($pdo) {
           <div class="user-sub-line">
             <span class="user-role-text"><?= htmlspecialchars($sesionRol) ?></span>
             <span class="user-bullet">•</span>
-            <?= renderizarPillCajaTopbar() ?>
+            <span class="user-caja-pill open">
+              <span class="pill-dot green"></span>
+              Caja 0<?= htmlspecialchars((string) $sesionCajaId) ?>
+            </span>
           </div>
         </div>
       </div>
@@ -68,7 +76,8 @@ if ($pdo) {
       <div class="page-header">
         <div>
           <h1 class="page-title">Retenciones Fiscales DGII</h1>
-          <p class="page-subtitle">Configuración de retenciones de compras (ISR 2%, ISR 10%, ITBIS 30%, ITBIS 100%) y su base de cálculo (Subtotal o Impuesto)</p>
+          <p class="page-subtitle">Configuración de retenciones de compras (ISR 2%, ISR 10%, ITBIS 30%, ITBIS 100%) y su
+            base de cálculo (Subtotal o Impuesto)</p>
         </div>
         <button type="button" class="btn btn-gold" onclick="abrirModal()">+ Nueva Retención DGII</button>
       </div>
@@ -81,7 +90,8 @@ if ($pdo) {
           </div>
           <div class="search-box">
             <span class="search-icon">🔍</span>
-            <input type="text" id="buscar" placeholder="Buscar por siglas, nombre o base..." oninput="renderizarTabla(this.value)" />
+            <input type="text" id="buscar" placeholder="Buscar por siglas, nombre o base..."
+              oninput="renderizarTabla(this.value)" />
           </div>
         </div>
 
@@ -103,7 +113,8 @@ if ($pdo) {
 
         <div class="table-card-footer">
           <span id="footerInfo">Mostrando retenciones</span>
-          <span style="color: var(--text-muted); font-size: 0.82rem;">* SUBTOTAL calcula sobre el monto neto antes de impuestos (ISR); IMPUESTO calcula sobre el ITBIS facturado</span>
+          <span style="color: var(--text-muted); font-size: 0.82rem;">* SUBTOTAL calcula sobre el monto neto antes de
+            impuestos (ISR); IMPUESTO calcula sobre el ITBIS facturado</span>
         </div>
       </div>
     </main>
@@ -120,17 +131,12 @@ if ($pdo) {
           <div class="form-row-2">
             <div class="form-group">
               <label class="form-label" for="siglas">SIGLAS / CÓDIGO *</label>
-              <input
-                type="text"
-                id="siglas"
-                class="form-control"
-                required
-                maxlength="20"
+              <input type="text" id="siglas" class="form-control" required maxlength="20"
                 placeholder="Ej. RET_ISR_10, RET_ITBIS_30"
                 style="font-family: monospace; font-weight: 700; text-transform: uppercase;"
-                oninput="this.value = this.value.toUpperCase().replace(/[^A-Z0-9_-]/g, ''); autocompletarPorSiglas(this.value);"
-              />
-              <small id="siglasFeedback" style="display: none; color: var(--accent-gold); font-weight: 600; font-size: 0.76rem; margin-top: 3px;"></small>
+                oninput="this.value = this.value.toUpperCase().replace(/[^A-Z0-9_-]/g, ''); autocompletarPorSiglas(this.value);" />
+              <small id="siglasFeedback"
+                style="display: none; color: var(--accent-gold); font-weight: 600; font-size: 0.76rem; margin-top: 3px;"></small>
             </div>
             <div class="form-group">
               <label class="form-label" for="base_calculo">BASE DE CÁLCULO *</label>
@@ -143,30 +149,15 @@ if ($pdo) {
 
           <div class="form-group">
             <label class="form-label" for="nombre">NOMBRE DE LA RETENCIÓN *</label>
-            <input
-              type="text"
-              id="nombre"
-              class="form-control"
-              required
-              maxlength="100"
-              placeholder="Ej. Retención 10% ISR (Honorarios Profesionales)"
-            />
+            <input type="text" id="nombre" class="form-control" required maxlength="100"
+              placeholder="Ej. Retención 10% ISR (Honorarios Profesionales)" />
           </div>
 
           <div class="form-group">
             <label class="form-label" for="porcentaje">PORCENTAJE DE RETENCIÓN (0.01% A 100.00%) *</label>
-            <input
-              type="text"
-              inputmode="decimal"
-              id="porcentaje"
-              class="form-control"
-              required
-              value="10.00"
-              placeholder="Ej. 10.00 o 30.00"
-              style="font-family: monospace; font-weight: 700; font-size: 1.02rem;"
-              onkeydown="return soloNumerosDecimales(event, this)"
-              oninput="limpiarDecimalDos(this)"
-            />
+            <input type="text" inputmode="decimal" id="porcentaje" class="form-control" required value="10.00"
+              placeholder="Ej. 10.00 o 30.00" style="font-family: monospace; font-weight: 700; font-size: 1.02rem;"
+              onkeydown="return soloNumerosDecimales(event, this)" oninput="limpiarDecimalDos(this)" />
             <small style="color: #888; font-size: 0.74rem;">Solo números positivos entre 0.01 y 100.00.</small>
           </div>
         </div>
@@ -180,7 +171,10 @@ if ($pdo) {
   </div>
 
   <div id="toast" class="toast"></div>
-  <div id="datosRetenciones" data-retenciones="<?= htmlspecialchars(json_encode($retencionesDb, JSON_UNESCAPED_UNICODE), ENT_QUOTES, 'UTF-8') ?>" style="display:none;"></div>
+  <div id="datosRetenciones"
+    data-retenciones="<?= htmlspecialchars(json_encode($retencionesDb, JSON_UNESCAPED_UNICODE), ENT_QUOTES, 'UTF-8') ?>"
+    style="display:none;"></div>
   <script src="retenciones.js?v=1"></script>
 </body>
+
 </html>

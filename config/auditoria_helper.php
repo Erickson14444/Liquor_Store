@@ -109,24 +109,20 @@ if (!function_exists('obtenerSupervisoresAutorizados')) {
 }
 
 if (!function_exists('validarPinSupervisor')) {
-    /**
-     * Valida las credenciales rápidas (Supervisor + PIN) contra seguridad.usuarios.
-     * Soporta hash BCrypt/Argon (password_verify) y compatibilidad segura con
-     * registros previos en texto plano mientras se migran.
-     *
-     * @throws Exception si el supervisor no existe, no tiene permiso o el PIN no coincide.
-     */
     function validarPinSupervisor(PDO $pdo, string $supervisorUsuarioId, string $pinIngresado): array
     {
         $supervisorUsuarioId = trim($supervisorUsuarioId);
         $pinIngresado = trim($pinIngresado);
 
         if ($supervisorUsuarioId === '') {
-            throw new Exception("Debes indicar el usuario del supervisor que autoriza la operación.");
+            throw new Exception("Debes indicar el supervisor que autoriza la operación.");
         }
         if (!preg_match('/^\d{4,6}$/', $pinIngresado)) {
             throw new Exception("El PIN de autorización debe contener entre 4 y 6 dígitos numéricos.");
         }
+
+        $esUuid = (bool) preg_match('/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i', $supervisorUsuarioId);
+        $condicionUsuario = $esUuid ? "u.usuario_id = ?" : "LOWER(TRIM(u.username)) = LOWER(TRIM(?))";
 
         $stmt = $pdo->prepare("
             SELECT u.usuario_id,
@@ -142,22 +138,14 @@ if (!function_exists('validarPinSupervisor')) {
                        JOIN seguridad.permisos perm ON perm.permiso_id = rp.permiso_id
                        WHERE ur.usuario_id = u.usuario_id
                          AND r.es_activo = TRUE
-                         AND (
-                             UPPER(perm.clave_sistema) = 'AUTORIZAR_CON_PIN' 
-                             OR UPPER(perm.clave_sistema) LIKE '%PIN%'
-                             OR UPPER(r.nombre) LIKE '%SUPERVISOR%'
-                             OR UPPER(r.nombre) LIKE '%ADMIN%'
-                         )
+                         AND (UPPER(perm.clave_sistema) = 'AUTORIZAR_CON_PIN' OR UPPER(perm.clave_sistema) LIKE '%PIN%')
                    ) AS tiene_permiso_pin
             FROM seguridad.usuarios u
             JOIN identidad.personas p ON p.persona_id = u.persona_id
-            LEFT JOIN identidad.empleados e ON e.persona_id = p.persona_id
-            WHERE u.usuario_id::text = :sup
-               OR LOWER(u.username) = LOWER(:sup)
-               OR LOWER(COALESCE(e.codigo_empleado, '')) = LOWER(:sup)
+            WHERE {$condicionUsuario}
             LIMIT 1
         ");
-        $stmt->execute([':sup' => $supervisorUsuarioId]);
+        $stmt->execute([$supervisorUsuarioId]);
         $sup = $stmt->fetch(PDO::FETCH_ASSOC);
 
         if (!$sup) {
@@ -193,7 +181,6 @@ if (!function_exists('validarPinSupervisor')) {
         ];
     }
 }
-
 if (!function_exists('registrarAuditoria')) {
     /**
      * Inserta un registro forense en seguridad.auditoria (datos JSONB).
