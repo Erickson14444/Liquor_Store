@@ -122,7 +122,7 @@ if (!function_exists('validarPinSupervisor')) {
         $pinIngresado = trim($pinIngresado);
 
         if ($supervisorUsuarioId === '') {
-            throw new Exception("Debes seleccionar el supervisor que autoriza la operación.");
+            throw new Exception("Debes indicar el usuario del supervisor que autoriza la operación.");
         }
         if (!preg_match('/^\d{4,6}$/', $pinIngresado)) {
             throw new Exception("El PIN de autorización debe contener entre 4 y 6 dígitos numéricos.");
@@ -151,10 +151,13 @@ if (!function_exists('validarPinSupervisor')) {
                    ) AS tiene_permiso_pin
             FROM seguridad.usuarios u
             JOIN identidad.personas p ON p.persona_id = u.persona_id
-            WHERE u.usuario_id = ?
+            LEFT JOIN identidad.empleados e ON e.persona_id = p.persona_id
+            WHERE u.usuario_id::text = :sup
+               OR LOWER(u.username) = LOWER(:sup)
+               OR LOWER(COALESCE(e.codigo_empleado, '')) = LOWER(:sup)
             LIMIT 1
         ");
-        $stmt->execute([$supervisorUsuarioId]);
+        $stmt->execute([':sup' => $supervisorUsuarioId]);
         $sup = $stmt->fetch(PDO::FETCH_ASSOC);
 
         if (!$sup) {

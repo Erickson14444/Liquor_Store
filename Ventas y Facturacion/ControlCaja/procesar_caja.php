@@ -328,7 +328,7 @@ try {
 
         // Validación estricta: Siempre se requiere USUARIO SUPERVISOR y su PIN
         if (empty($supervisorUsuarioId)) {
-            responderJson('error', 'Debe seleccionar el usuario del Supervisor que autoriza la operación.');
+            responderJson('error', 'Debe digitar el nombre de usuario del Supervisor que autoriza la operación.');
         }
         if (empty($pin)) {
             responderJson('error', 'Se requiere el PIN de autorización del Supervisor seleccionado.');

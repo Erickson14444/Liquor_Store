@@ -1428,17 +1428,20 @@ foreach ($secuenciasFiscales as $sec) {
               🔐 AUTORIZACIÓN DEL SUPERVISOR EN TURNO
             </div>
 
-            <!-- SELECCIONAR USUARIO DEL SUPERVISOR -->
+            <!-- DIGITAR USUARIO DEL SUPERVISOR -->
             <div style="margin-bottom: 10px;">
-              <label class="form-label" for="pos_mov_supervisor_id" style="color: #794a15; font-size: 0.76rem; font-weight: 700;">USUARIO SUPERVISOR *</label>
-              <select id="pos_mov_supervisor_id" name="supervisor_id" class="arqueo-input-control" style="font-size: 0.88rem; background: #fff;" required>
-                <option value="">-- Seleccione el Supervisor --</option>
-                <?php foreach ($supervisoresAutorizados as $sup): ?>
-                  <option value="<?= htmlspecialchars($sup['usuario_id']) ?>">
-                    <?= htmlspecialchars($sup['nombre_completo']) ?> (@<?= htmlspecialchars($sup['username']) ?>)
-                  </option>
-                <?php endforeach; ?>
-              </select>
+              <label class="form-label" for="pos_mov_usuario_supervisor" style="color: #794a15; font-size: 0.76rem; font-weight: 700;">USUARIO DEL SUPERVISOR *</label>
+              <input
+                type="text"
+                id="pos_mov_usuario_supervisor"
+                name="usuario_supervisor"
+                class="arqueo-input-control"
+                placeholder="Ej. admin o usuario del supervisor"
+                autocomplete="off"
+                required
+                style="font-size: 0.88rem; background: #fff; font-weight: 600;"
+              />
+              <small style="color: #8a7b70; font-size: 0.72rem; display: block; margin-top: 2px;">El supervisor debe digitar su nombre de usuario.</small>
             </div>
 
             <!-- PIN DE AUTORIZACIÓN -->
