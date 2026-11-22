@@ -321,8 +321,9 @@ function renderizarTablaOrden() {
     if (MAPA_ORDEN_PRODUCTOS.size === 0) {
         tbody.innerHTML = `
             <tr>
-                <td colspan="5" class="text-center" style="padding: 24px 16px; color: var(--text-muted); font-size: 0.85rem;">
-                    No has agregado productos a la orden aún. Escribe en el buscador superior y presiona <strong>+ Agregar</strong>.
+                <td colspan="5" style="padding: 35px 16px; color: var(--text-muted); font-size: 0.84rem; text-align: center; line-height: 1.5;">
+                    🛒 <strong>No has agregado productos a esta orden aún.</strong><br>
+                    <span style="font-size: 0.78rem; color: #8c7864;">Haz clic en el botón <strong>+ Agregar</strong> del producto en la lista de la izquierda.</span>
                 </td>
             </tr>
         `;

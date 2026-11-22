@@ -172,7 +172,7 @@ $badgesEstado = [
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>House &amp; Ice • Órdenes de Compra</title>
-    <link rel="stylesheet" href="../styles.css?v=30" />
+    <link rel="stylesheet" href="../styles.css?v=35" />
     <style>
         .badge-estado {
             display: inline-flex;
@@ -186,8 +186,20 @@ $badgesEstado = [
             letter-spacing: 0.3px;
         }
         .modal-xl {
-            width: 95% !important;
-            max-width: 960px !important;
+            width: 96% !important;
+            max-width: 1140px !important;
+        }
+        .grid-split-orden {
+            display: grid;
+            grid-template-columns: 360px 1fr;
+            gap: 14px;
+            margin-top: 10px;
+            align-items: start;
+        }
+        @media (max-width: 920px) {
+            .grid-split-orden {
+                grid-template-columns: 1fr !important;
+            }
         }
         .table-compacta-orden {
             width: 100% !important;
@@ -502,64 +514,71 @@ $badgesEstado = [
                         </div>
                     </div>
 
-                    <!-- 2. Buscador Dinámico de Productos y Detalle -->
-                    <div style="margin-bottom: 8px;">
-                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
-                            <span style="font-size: 0.75rem; font-weight: 700; color: var(--accent-gold); text-transform: uppercase;">
-                                2. Buscar y Agregar Productos a la Orden
-                            </span>
-                            <span id="lblEstadoCatalogo" style="font-size: 0.75rem; color: var(--text-muted);">
-                                <?= count($productos) ?> producto(s) en catálogo
-                            </span>
-                        </div>
-
-                        <!-- Barra de Búsqueda de Productos -->
-                        <div style="display: flex; gap: 8px; align-items: center;">
-                            <div style="position: relative; flex: 1;">
-                                <input type="text" id="inputBuscarCatalogo" class="form-control"
-                                    placeholder="🔍 Escribe nombre o SKU del producto para buscar..."
-                                    oninput="buscarProductosCatalogo(this.value)"
-                                    style="height: 36px; padding-left: 12px; font-size: 0.85rem;" />
+                    <!-- 2. Detalle y Selección de Productos (Layout Split 2 Columnas) -->
+                    <div class="grid-split-orden">
+                        
+                        <!-- Columna Izquierda: Catálogo de Productos y Búsqueda -->
+                        <div style="background: #faf8f5; border: 1px solid #e4dacb; border-radius: 8px; padding: 10px; display: flex; flex-direction: column; gap: 8px;">
+                            <div style="display: flex; justify-content: space-between; align-items: center;">
+                                <span style="font-size: 0.74rem; font-weight: 700; color: var(--accent-gold); text-transform: uppercase;">
+                                    Catálogo de Productos
+                                </span>
+                                <span id="lblEstadoCatalogo" style="font-size: 0.72rem; color: var(--text-muted);">
+                                    <?= count($productos) ?> en catálogo
+                                </span>
                             </div>
-                            <button type="button" class="btn btn-sm btn-secondary" onclick="toggleVerCatalogoCompleto()" id="btnToggleCatalogo" style="height: 36px; white-space: nowrap; font-size: 0.8rem;">
-                                📋 Ver Todo el Catálogo
-                            </button>
-                        </div>
 
-                        <!-- Panel Desplegable de Resultados con botones Agregar / Desagregar -->
-                        <div id="panelResultadosCatalogo" style="display: none; max-height: 200px; overflow-y: auto; background: #ffffff; border: 1px solid #dfcaa4; border-radius: 6px; box-shadow: 0 4px 14px rgba(37,28,22,0.1); margin-top: 6px; padding: 4px;">
-                            <!-- Items dinámicos con botones Agregar / Desagregar -->
-                        </div>
-                    </div>
+                            <!-- Buscador en Catálogo -->
+                            <input type="text" id="inputBuscarCatalogo" class="form-control"
+                                placeholder="🔍 Buscar nombre o SKU..."
+                                oninput="buscarProductosCatalogo(this.value)"
+                                style="height: 34px; padding-left: 10px; font-size: 0.82rem;" />
 
-                    <!-- Tabla de Productos Agregados a la Orden (Scrollable y fija para alto volumen) -->
-                    <div style="border: 1px solid #e2dacb; border-radius: 8px; overflow: hidden; background: #ffffff; margin-top: 10px; box-shadow: 0 1px 3px rgba(0,0,0,0.03);">
-                        <div style="max-height: 240px; overflow-y: auto;">
-                            <table class="table-compacta-orden" id="tablaDetalleNuevaOrden">
-                                <thead>
-                                    <tr>
-                                        <th style="width: 46%;">Producto Seleccionado</th>
-                                        <th style="width: 14%; text-align: center;">Cantidad *</th>
-                                        <th style="width: 18%; text-align: right;">Costo Pactado (RD$) *</th>
-                                        <th style="width: 16%; text-align: right;">Subtotal</th>
-                                        <th style="width: 6%; text-align: center;"></th>
-                                    </tr>
-                                </thead>
-                                <tbody id="tbodyLineasNuevaOrden">
-                                    <!-- Filas de productos agregados -->
-                                </tbody>
-                            </table>
-                        </div>
-                        <div style="background: #faf6ee; border-top: 1px solid #e5d8c3; padding: 8px 14px; display: flex; justify-content: space-between; align-items: center; font-weight: 700;">
-                            <div style="display: flex; gap: 18px; font-size: 0.82rem; color: #5a3e24;">
-                                <span>Total Líneas: <strong id="lblTotalLineas" style="color: #211813;">0</strong></span>
-                                <span>Total Unidades: <strong id="lblTotalUnidades" style="color: #211813; font-family: var(--font-mono);">0</strong> u.</span>
-                            </div>
-                            <div style="font-size: 0.95rem; font-family: var(--font-mono); color: var(--accent-gold);">
-                                <span style="font-size: 0.74rem; color: #7a6b5d; text-transform: uppercase; font-family: var(--font-sans); margin-right: 6px;">Total Estimado:</span>
-                                <span id="lblMontoTotalEstimado">RD$ 0.00</span>
+                            <!-- Panel de Productos Scrolleable -->
+                            <div id="panelResultadosCatalogo" style="max-height: 290px; overflow-y: auto; background: #ffffff; border: 1px solid #dfcaa4; border-radius: 6px; padding: 4px;">
+                                <!-- Items dinámicos con botones Agregar / Desagregar -->
                             </div>
                         </div>
+
+                        <!-- Columna Derecha: Productos Agregados a la Orden -->
+                        <div style="display: flex; flex-direction: column; gap: 8px;">
+                            <div style="display: flex; justify-content: space-between; align-items: center;">
+                                <span style="font-size: 0.74rem; font-weight: 700; color: var(--accent-gold); text-transform: uppercase;">
+                                    Productos en la Orden (Ajusta Cantidad y Costo)
+                                </span>
+                                <small style="color: var(--text-muted); font-size: 0.72rem;">Define la cantidad a solicitar</small>
+                            </div>
+
+                            <div style="border: 1px solid #e2dacb; border-radius: 8px; overflow: hidden; background: #ffffff; box-shadow: 0 1px 3px rgba(0,0,0,0.03);">
+                                <div style="max-height: 280px; min-height: 235px; overflow-y: auto;">
+                                    <table class="table-compacta-orden" id="tablaDetalleNuevaOrden">
+                                        <thead>
+                                            <tr>
+                                                <th style="width: 44%;">Producto Seleccionado</th>
+                                                <th style="width: 16%; text-align: center;">Cantidad *</th>
+                                                <th style="width: 20%; text-align: right;">Costo Pactado (RD$) *</th>
+                                                <th style="width: 14%; text-align: right;">Subtotal</th>
+                                                <th style="width: 6%; text-align: center;"></th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="tbodyLineasNuevaOrden">
+                                            <!-- Filas de productos agregados -->
+                                        </tbody>
+                                    </table>
+                                </div>
+                                <div style="background: #faf6ee; border-top: 1px solid #e5d8c3; padding: 8px 14px; display: flex; justify-content: space-between; align-items: center; font-weight: 700;">
+                                    <div style="display: flex; gap: 18px; font-size: 0.82rem; color: #5a3e24;">
+                                        <span>Total Líneas: <strong id="lblTotalLineas" style="color: #211813;">0</strong></span>
+                                        <span>Total Unidades: <strong id="lblTotalUnidades" style="color: #211813; font-family: var(--font-mono);">0</strong> u.</span>
+                                    </div>
+                                    <div style="font-size: 0.95rem; font-family: var(--font-mono); color: var(--accent-gold);">
+                                        <span style="font-size: 0.74rem; color: #7a6b5d; text-transform: uppercase; font-family: var(--font-sans); margin-right: 6px;">Total Estimado:</span>
+                                        <span id="lblMontoTotalEstimado">RD$ 0.00</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
                     </div>
 
                 </div>
@@ -601,7 +620,7 @@ $badgesEstado = [
     <script>
         const CATALOGO_PRODUCTOS = <?= json_encode($productos, JSON_UNESCAPED_UNICODE) ?>;
     </script>
-    <script src="ordenes_compra.js?v=30"></script>
+    <script src="ordenes_compra.js?v=35"></script>
 </body>
 
 </html>
