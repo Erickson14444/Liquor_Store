@@ -1,0 +1,408 @@
+/* ============================================================================
+ * ESTILOS DE CUENTAS POR COBRAR (CXC) • HOUSE & ICE
+ * Ubicación: Ventas y Facturacion/CuentasPorCobrar/styles.css
+ * ============================================================================ */
+
+/* Contenedor de 4 KPIs en una fila perfecta */
+.cxc-kpi-container {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+@media (max-width: 1100px) {
+  .cxc-kpi-container {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 600px) {
+  .cxc-kpi-container {
+    grid-template-columns: 1fr;
+  }
+}
+
+.cxc-kpi-card {
+  background: #ffffff;
+  border: 1px solid var(--border-light, #eae3d5);
+  border-radius: var(--radius-md, 8px);
+  padding: 16px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  box-shadow: 0 2px 8px rgba(37, 28, 22, 0.04);
+}
+
+.cxc-kpi-icon {
+  width: 48px;
+  height: 48px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.5rem;
+  flex-shrink: 0;
+}
+
+.cxc-kpi-icon.gold { background: #fdf5ea; color: #a66e2e; }
+.cxc-kpi-icon.red { background: #fdf0ee; color: #d45448; }
+.cxc-kpi-icon.green { background: #eef8f2; color: #2e7d52; }
+.cxc-kpi-icon.blue { background: #edf4fb; color: #1e6091; }
+
+.cxc-kpi-data h4 {
+  font-size: 0.78rem;
+  color: var(--text-muted, #8c8173);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 4px;
+  font-weight: 700;
+}
+
+.cxc-kpi-data .cxc-kpi-value {
+  font-family: var(--font-mono, monospace);
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: var(--text-dark, #251c16);
+}
+
+.cxc-kpi-data .cxc-kpi-sub {
+  font-size: 0.74rem;
+  color: var(--text-muted, #8c8173);
+  margin-top: 2px;
+}
+
+/* Tabs */
+.cxc-tabs {
+  display: flex;
+  gap: 8px;
+  border-bottom: 2px solid var(--border-light, #eae3d5);
+  margin-bottom: 20px;
+}
+
+.cxc-tab-btn {
+  background: none;
+  border: none;
+  padding: 10px 18px;
+  font-family: var(--font-sans, inherit);
+  font-size: 0.92rem;
+  font-weight: 600;
+  color: var(--text-muted, #8c8173);
+  cursor: pointer;
+  position: relative;
+  transition: all 0.2s ease;
+  border-radius: 6px 6px 0 0;
+}
+
+.cxc-tab-btn:hover {
+  color: var(--text-dark, #251c16);
+  background: rgba(166, 110, 46, 0.05);
+}
+
+.cxc-tab-btn.active {
+  color: var(--accent-gold, #a66e2e);
+  font-weight: 700;
+}
+
+.cxc-tab-btn.active::after {
+  content: '';
+  position: absolute;
+  bottom: -2px;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: var(--accent-gold, #a66e2e);
+  border-radius: 3px 3px 0 0;
+}
+
+.cxc-tab-content {
+  display: none;
+}
+
+.cxc-tab-content.active {
+  display: block;
+}
+
+/* Filtros */
+.cxc-filter-bar {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  margin-bottom: 16px;
+  background: #ffffff;
+  padding: 14px 18px;
+  border-radius: var(--radius-md, 8px);
+  border: 1px solid var(--border-light, #eae3d5);
+  box-shadow: 0 1px 4px rgba(37, 28, 22, 0.03);
+}
+
+.cxc-filter-group {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.cxc-filter-group label {
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--text-muted, #8c8173);
+  text-transform: uppercase;
+}
+
+/* Semáforo de Antigüedad y Estados */
+.badge-al-dia {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  border-radius: 12px;
+  font-size: 0.74rem;
+  font-weight: 700;
+  background: #eef8f2;
+  color: #2e7d52;
+  border: 1px solid #c2e5d1;
+}
+
+.badge-hoy {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  border-radius: 12px;
+  font-size: 0.74rem;
+  font-weight: 700;
+  background: #fef9e7;
+  color: #b78103;
+  border: 1px solid #fae69e;
+}
+
+.badge-vencida {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  border-radius: 12px;
+  font-size: 0.74rem;
+  font-weight: 700;
+  background: #fdf0ee;
+  color: #d45448;
+  border: 1px solid #f9ccc7;
+}
+
+.badge-pagada {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  border-radius: 12px;
+  font-size: 0.74rem;
+  font-weight: 700;
+  background: #edf4fb;
+  color: #1e6091;
+  border: 1px solid #c7ddf2;
+}
+
+.badge-anulada {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  border-radius: 12px;
+  font-size: 0.74rem;
+  font-weight: 700;
+  background: #f1ede8;
+  color: #796e65;
+  border: 1px solid #dfd7cc;
+}
+
+.badge-incobrable {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  border-radius: 12px;
+  font-size: 0.74rem;
+  font-weight: 700;
+  background: #ffebee;
+  color: #b71c1c;
+  border: 1px solid #ffcdd2;
+}
+
+/* Barra flotante inferior de selección de cobro */
+.cxc-floating-bar {
+  position: fixed;
+  bottom: 24px;
+  left: calc(260px + 32px);
+  right: 32px;
+  background: #251c16;
+  color: #ffffff;
+  padding: 14px 24px;
+  border-radius: 10px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.28);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  z-index: 1000;
+  transition: all 0.25s ease;
+  transform: translateY(150%);
+  opacity: 0;
+  pointer-events: none;
+}
+
+.cxc-floating-bar.active {
+  transform: translateY(0);
+  opacity: 1;
+  pointer-events: auto;
+}
+
+@media (max-width: 991px) {
+  .cxc-floating-bar {
+    left: 20px;
+    right: 20px;
+    bottom: 16px;
+  }
+}
+
+.cxc-selection-total {
+  font-family: var(--font-mono, monospace);
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: #e5b36a;
+}
+
+/* Filas de métodos de pago en el split */
+.split-pago-row {
+  display: grid;
+  grid-template-columns: 180px 1fr 140px 40px;
+  gap: 10px;
+  align-items: center;
+  background: #ffffff;
+  padding: 8px 12px;
+  border: 1px solid var(--border-light, #eae3d5);
+  border-radius: 6px;
+  margin-bottom: 8px;
+}
+
+@media (max-width: 768px) {
+  .split-pago-row {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Estilos de Modales */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background: rgba(37, 28, 22, 0.6);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 2000;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s ease;
+  padding: 20px;
+}
+
+.modal-overlay.active {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.modal-dialog {
+  background: #ffffff;
+  border-radius: var(--radius-lg, 12px);
+  width: 100%;
+  max-width: 600px;
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.22);
+}
+
+.modal-dialog.modal-lg {
+  max-width: 950px;
+}
+
+.modal-dialog form {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.modal-header {
+  padding: 16px 22px;
+  border-bottom: 1px solid var(--border-light, #eae3d5);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: #fcfaf6;
+  flex-shrink: 0;
+}
+
+.modal-header h3 {
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: var(--text-dark, #251c16);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.modal-close-btn {
+  background: none;
+  border: none;
+  font-size: 1.5rem;
+  color: var(--text-muted, #8c8173);
+  cursor: pointer;
+  line-height: 1;
+}
+
+.modal-close-btn:hover {
+  color: var(--accent-red, #d45448);
+}
+
+.modal-body {
+  padding: 20px 22px;
+  overflow-y: auto;
+  flex: 1;
+}
+
+.modal-footer {
+  padding: 14px 22px;
+  border-top: 1px solid var(--border-light, #eae3d5);
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  background: #fcfaf6;
+  flex-shrink: 0;
+}
+
+/* Indicador de caja activa */
+.caja-status-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 20px;
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+.caja-status-pill.abierta {
+  background: #eef8f2;
+  color: #2e7d52;
+  border: 1px solid #c2e5d1;
+}
+.caja-status-pill.cerrada {
+  background: #fdf0ee;
+  color: #d45448;
+  border: 1px solid #f9ccc7;
+}

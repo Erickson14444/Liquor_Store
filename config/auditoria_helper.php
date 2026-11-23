@@ -129,6 +129,7 @@ if (!function_exists('validarPinSupervisor')) {
                    u.username,
                    u.estado,
                    u.pin_autorizacion,
+                   u.persona_id,
                    COALESCE(NULLIF(TRIM(p.nombre_razon_social), ''), u.username) AS nombre_completo,
                    EXISTS (
                        SELECT 1
@@ -138,7 +139,12 @@ if (!function_exists('validarPinSupervisor')) {
                        JOIN seguridad.permisos perm ON perm.permiso_id = rp.permiso_id
                        WHERE ur.usuario_id = u.usuario_id
                          AND r.es_activo = TRUE
-                         AND (UPPER(perm.clave_sistema) = 'AUTORIZAR_CON_PIN' OR UPPER(perm.clave_sistema) LIKE '%PIN%')
+                         AND (
+                             UPPER(perm.clave_sistema) = 'AUTORIZAR_CON_PIN' 
+                             OR UPPER(perm.clave_sistema) LIKE '%PIN%'
+                             OR UPPER(r.nombre) LIKE '%SUPERVISOR%'
+                             OR UPPER(r.nombre) LIKE '%ADMIN%'
+                         )
                    ) AS tiene_permiso_pin
             FROM seguridad.usuarios u
             JOIN identidad.personas p ON p.persona_id = u.persona_id
@@ -157,7 +163,7 @@ if (!function_exists('validarPinSupervisor')) {
 
         $tienePermiso = ($sup['tiene_permiso_pin'] === true || $sup['tiene_permiso_pin'] === 't' || $sup['tiene_permiso_pin'] === 1);
         if (!$tienePermiso) {
-            throw new Exception("El usuario '{$sup['username']}' no posee un rol activo con permiso AUTORIZAR_CON_PIN.");
+            throw new Exception("El usuario '{$sup['username']}' no posee un rol activo con permiso de autorización.");
         }
 
         $pinGuardado = trim((string) ($sup['pin_autorizacion'] ?? ''));
@@ -178,6 +184,7 @@ if (!function_exists('validarPinSupervisor')) {
             'usuario_id' => $sup['usuario_id'],
             'username' => $sup['username'],
             'nombre_completo' => $sup['nombre_completo'],
+            'persona_id' => $sup['persona_id'] ?? null,
         ];
     }
 }

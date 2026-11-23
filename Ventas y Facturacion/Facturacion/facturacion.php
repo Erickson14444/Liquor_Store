@@ -239,10 +239,95 @@ foreach ($secuenciasFiscales as $sec) {
     .btn-close:hover { color: #211813; background: rgba(0,0,0,0.06); }
 
     .pos-scanner-strip {
-      display: grid; grid-template-columns: 1.5fr 1fr auto; gap: 10px; align-items: end;
+      display: grid; grid-template-columns: 3.5fr 1.1fr 1.1fr auto; gap: 12px; align-items: end;
       background: #fff; border: 1px solid #e7dcc8; border-radius: 10px;
-      padding: 12px 16px; margin-bottom: 14px;
+      padding: 10px 14px; margin-bottom: 12px;
     }
+    @media (max-width: 1200px) {
+      .pos-scanner-strip { grid-template-columns: 1fr 1fr; }
+    }
+    @media (max-width: 700px) {
+      .pos-scanner-strip { grid-template-columns: 1fr; }
+    }
+
+    /* Coordinación de tamaños uniformes (35px) sincronizados con los textboxes */
+    .pos-btn-sync {
+      height: 35px !important;
+      min-height: 35px !important;
+      padding: 0 11px !important;
+      font-size: 0.81rem !important;
+      font-weight: 600 !important;
+      border-radius: var(--radius-sm, 6px) !important;
+      display: inline-flex !important;
+      align-items: center !important;
+      justify-content: center !important;
+      gap: 5px !important;
+      white-space: nowrap !important;
+      box-sizing: border-box !important;
+      transition: all 0.15s ease !important;
+    }
+    .pos-btn-sync:hover {
+      transform: translateY(-1px);
+    }
+
+    /* Botón Finalizar/Empezar Turno: más grande que el resto (38px) */
+    .pos-btn-turno {
+      height: 38px !important;
+      min-height: 38px !important;
+      padding: 0 14px !important;
+      font-size: 0.85rem !important;
+      font-weight: 700 !important;
+      border-radius: var(--radius-sm, 6px) !important;
+      display: inline-flex !important;
+      align-items: center !important;
+      justify-content: center !important;
+      gap: 6px !important;
+      white-space: nowrap !important;
+      box-sizing: border-box !important;
+      transition: all 0.15s ease !important;
+      box-shadow: 0 2px 5px rgba(0, 0, 0, 0.12) !important;
+    }
+    .pos-btn-turno:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 3px 7px rgba(0, 0, 0, 0.18) !important;
+    }
+
+    /* Botón Emitir Factura: el más grande de todos (42px) y destacado al final */
+    .pos-btn-emitir {
+      height: 42px !important;
+      min-height: 42px !important;
+      padding: 0 22px !important;
+      font-size: 0.94rem !important;
+      font-weight: 800 !important;
+      background: #241911 !important;
+      color: #ffffff !important;
+      border: 1px solid #241911 !important;
+      border-radius: var(--radius-sm, 6px) !important;
+      box-shadow: 0 3px 8px rgba(0, 0, 0, 0.25) !important;
+      display: inline-flex !important;
+      align-items: center !important;
+      justify-content: center !important;
+      gap: 7px !important;
+      white-space: nowrap !important;
+      cursor: pointer !important;
+      transition: all 0.15s ease !important;
+      margin-left: 4px !important;
+      letter-spacing: 0.3px;
+    }
+    .pos-btn-emitir:hover:not(:disabled) {
+      background: #3c2a1e !important;
+      border-color: #3c2a1e !important;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.35) !important;
+      transform: translateY(-1px);
+    }
+    .pos-btn-emitir:disabled {
+      opacity: 0.55 !important;
+      cursor: not-allowed !important;
+      background: #6c757d !important;
+      border-color: #6c757d !important;
+      box-shadow: none !important;
+    }
+
     .pos-cupon-strip {
       display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px;
       background: #fdfaf4; border: 1px dashed #d8b888; border-radius: 8px;
@@ -350,23 +435,60 @@ foreach ($secuenciasFiscales as $sec) {
     <main class="main-content">
 
       <!-- ENCABEZADO -->
-      <div class="page-header">
+      <div class="page-header" style="align-items: center;">
         <div>
           <h1 class="page-title">Facturación (Punto de Venta POS)</h1>
           <p class="page-subtitle">Motor fiscal DGII, promociones automáticas, cupones, descarga FEFO y Split Universal de pagos</p>
         </div>
-        <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
-          <button type="button" class="btn btn-outline" onclick="abrirModalHistorial()">
-            🧾 Facturas Emitidas (<?= count($facturasRecientes) ?>)
-          </button>
+        <div style="display: flex; align-items: center; gap: 6px; flex-wrap: wrap;">
+          <!-- 1. CAJA CHICA -->
           <?php if ($puedeFacturar): ?>
-              <button type="button" class="btn btn-outline" onclick="abrirModalCajaChicaFacturacion()" style="border-color: #d8b888; color: #794a15; background: #fffcf8; font-weight: 600;">
+              <button type="button" class="btn btn-outline pos-btn-sync" onclick="abrirModalCajaChicaFacturacion()" style="border-color: #d8b888; color: #794a15; background: #fffcf8;" title="Entrada / Salida de caja chica">
                 💵 Caja Chica
               </button>
           <?php endif; ?>
+
+          <!-- 2. IMPORTAR COTIZACIÓN -->
+          <button type="button" class="btn btn-outline pos-btn-sync" onclick="abrirModalCotizaciones()" title="Importar cotización pendiente">
+            📄 Importar Cotización
+            <?php if (count($cotizacionesPend) > 0): ?>
+                <span class="pos-inline-count"><?= count($cotizacionesPend) ?></span>
+            <?php endif; ?>
+          </button>
+
+          <!-- 3. FACTURAS EMITIDAS -->
+          <button type="button" class="btn btn-outline pos-btn-sync" onclick="abrirModalHistorial()" title="Ver facturas emitidas">
+            🧾 Facturas Emitidas (<?= count($facturasRecientes) ?>)
+          </button>
+
+          <!-- 4. PEDIDO A DOMICILIO (SIN PARÉNTESIS) -->
+          <button type="button" class="btn btn-outline pos-btn-sync" id="btnAbrirPedidoDelivery" onclick="abrirModalPedidoDelivery()" title="Configurar pedido a domicilio">
+            🛵 Pedido a Domicilio
+          </button>
+
+          <!-- 5. FINALIZAR / EMPEZAR TURNO (MÁS GRANDE QUE LOS ANTERIORES) -->
           <?php if (!empty($sesionCajaActiva)): ?>
-              <button type="button" class="btn btn-gold" onclick="abrirModalArqueoFacturacion()" style="background: #965318; border-color: #965318; color: #fff; font-weight: 600;">
+              <button type="button" class="btn btn-gold pos-btn-turno" onclick="abrirModalArqueoFacturacion()" style="background: #965318; border-color: #965318; color: #fff;" title="Finalizar turno y arqueo">
                 🔒 Finalizar Turno
+              </button>
+          <?php elseif ($enCuadreCaja): ?>
+              <button type="button" class="btn btn-gold pos-btn-turno" onclick="abrirModalArqueoFacturacion()" style="background: #b25e09; border-color: #b25e09; color: #fff;" title="Concluir conteo físico">
+                ⏳ Concluir Arqueo
+              </button>
+          <?php else: ?>
+              <a href="../ControlCaja/control_caja.php" class="btn btn-primary pos-btn-turno" style="background: #2e7d52; border-color: #2e7d52; color: #fff; text-decoration: none;" title="Abrir turno de caja">
+                🟢 Iniciar Turno
+              </a>
+          <?php endif; ?>
+
+          <!-- 6. EMITIR FACTURA (EL MÁS GRANDE DE TODOS AL FINAL DE LA LÍNEA) -->
+          <?php if (!$puedeFacturar): ?>
+              <button type="button" class="pos-btn-emitir" id="btnGuardarFactura" disabled title="Caja cerrada o en arqueo">
+                🔒 <?= $enCuadreCaja ? 'En Arqueo' : 'Sin Turno' ?>
+              </button>
+          <?php else: ?>
+              <button type="button" class="pos-btn-emitir" id="btnGuardarFactura" onclick="abrirModalCobro()" title="Emitir Factura">
+                💳 Emitir Factura
               </button>
           <?php endif; ?>
         </div>
@@ -427,12 +549,12 @@ foreach ($secuenciasFiscales as $sec) {
             <!-- CONDICIÓN DE VENTA Y MONEDA -->
             <div class="pos-field-group">
               <label for="selectCondicionVenta" class="form-label">CONDICIÓN DE VENTA:</label>
-              <div style="display: flex; gap: 6px;">
-                <select id="selectCondicionVenta" class="form-control" onchange="alCambiarCondicionVenta()">
-                  <option value="CONTADO">Contado (Split Universal)</option>
-                  <option value="CREDITO">Crédito Comercial (CxC 30d)</option>
+              <div style="display: flex; gap: 6px; align-items: center;">
+                <select id="selectCondicionVenta" class="form-control" style="flex: 1; min-width: 95px;" onchange="alCambiarCondicionVenta()">
+                  <option value="CONTADO">Contado</option>
+                  <option value="CREDITO">Crédito (30d)</option>
                 </select>
-                <select id="selectMoneda" class="form-control" style="max-width: 105px;" onchange="alCambiarMoneda()">
+                <select id="selectMoneda" class="form-control" style="width: 58px; max-width: 58px; padding: 0 4px; font-size: 0.82rem; text-align: center; font-weight: 700; flex-shrink: 0;" onchange="alCambiarMoneda()">
                   <?php foreach ($monedas as $mon): ?>
                       <option value="<?= (int) $mon['id'] ?>"
                               data-iso="<?= htmlspecialchars($mon['codigo_iso']) ?>"
@@ -471,78 +593,50 @@ foreach ($secuenciasFiscales as $sec) {
         </div>
       </div>
 
-      <!-- BARRA DE ESCÁNER + ALMACÉN POS + ACCIONES -->
+      <!-- BARRA DE ESCÁNER + ALMACÉN POS + CUPÓN + CATÁLOGO -->
       <div class="pos-scanner-strip">
-        <div class="form-group" style="margin-bottom: 0;">
+        <div class="form-group" style="margin-bottom: 0; min-width: 0;">
           <label for="inputScannerPos" class="form-label">ESCÁNER RÁPIDO (CÓDIGO DE BARRAS O SKU)</label>
-          <div style="display: flex; gap: 6px;">
+          <div style="display: flex; gap: 6px; width: 100%;">
             <input type="text" id="inputScannerPos" class="form-control"
+                   style="flex: 1; min-width: 0; width: 100%;"
                    placeholder="Escanea botella, six-pack o caja y presiona Enter..."
                    autocomplete="off"
                    onkeydown="if(event.key==='Enter'){ event.preventDefault(); escanearCodigoPos(); }" />
-            <button type="button" class="btn btn-secondary" onclick="escanearCodigoPos()">Agregar</button>
+            <button type="button" class="btn btn-secondary pos-btn-sync" onclick="escanearCodigoPos()">Agregar</button>
           </div>
         </div>
 
-        <div class="form-group" style="margin-bottom: 0;">
+        <div class="form-group" style="margin-bottom: 0; min-width: 0;">
           <label for="selectAlmacenPos" class="form-label">ALMACÉN DE DESPACHO (FEFO)</label>
-          <select id="selectAlmacenPos" class="form-control" onchange="recalcularCarritoServidor()">
+          <select id="selectAlmacenPos" class="form-control" style="width: 100%;" onchange="recalcularCarritoServidor()">
             <?php foreach ($almacenes as $alm): ?>
                 <option value="<?= (int) $alm['id'] ?>"><?= htmlspecialchars($alm['nombre']) ?></option>
             <?php endforeach; ?>
           </select>
         </div>
 
+        <div class="form-group" style="margin-bottom: 0; min-width: 0;">
+          <label for="inputCodigoCupon" class="form-label">CUPÓN PROMOCIONAL</label>
+          <div style="display: flex; gap: 6px; width: 100%;">
+            <input type="text" id="inputCodigoCupon" class="form-control"
+                   style="flex: 1; min-width: 0; width: 100%; text-transform: uppercase; font-family: monospace; font-weight: 700;"
+                   placeholder="LQR-A1B2C3"
+                   onkeydown="if(event.key==='Enter'){ event.preventDefault(); aplicarCuponPos(); }" />
+            <button type="button" class="btn btn-secondary pos-btn-sync" onclick="aplicarCuponPos()">Aplicar</button>
+            <button type="button" class="btn btn-outline pos-btn-sync" id="btnQuitarCupon" style="display: none; padding: 0 8px !important; color: #b71c1c;" onclick="quitarCuponPos()" title="Quitar cupón">✕</button>
+          </div>
+        </div>
+
         <div style="display: flex; gap: 8px; flex-wrap: wrap;">
-          <button type="button" class="btn btn-gold" onclick="abrirModalCatalogo()">
+          <button type="button" class="btn btn-gold pos-btn-sync" onclick="abrirModalCatalogo()">
             🔍 Catálogo y Presentaciones
           </button>
         </div>
       </div>
 
-      <!-- BARRA DE ACCIONES OPERATIVAS -->
-      <div class="pos-action-bar">
-        <div class="pos-action-left">
-          <button type="button" class="btn btn-outline-card" onclick="abrirModalCotizaciones()">
-            📄 Importar Cotización
-            <?php if (count($cotizacionesPend) > 0): ?>
-                <span class="pos-inline-count"><?= count($cotizacionesPend) ?></span>
-            <?php endif; ?>
-          </button>
-
-          <button type="button" class="btn btn-outline-card" id="btnAbrirPedidoDelivery" onclick="abrirModalPedidoDelivery()">
-            🛵 Pedido a Domicilio (Delivery)
-          </button>
-        </div>
-
-        <div class="pos-action-right">
-          <button type="button" class="btn btn-outline-card" id="btnLimpiarCarrito" onclick="limpiarCarritoConConfirmacion()" style="display: none;">
-            Vaciar Carrito
-          </button>
-          <?php if (!$puedeFacturar): ?>
-              <button type="button" class="btn btn-dark-save" id="btnGuardarFactura" disabled style="opacity: 0.55; cursor: not-allowed; background: #6c757d; border-color: #6c757d;">
-                🔒 <?= $enCuadreCaja ? 'Caja en Arqueo' : 'Sin Caja Asignada' ?>
-              </button>
-          <?php else: ?>
-              <button type="button" class="btn btn-dark-save" id="btnGuardarFactura" onclick="abrirModalCobro()">
-                💳 Cobrar / Emitir Factura
-              </button>
-          <?php endif; ?>
-        </div>
-      </div>
-
-      <!-- BARRA DE CUPÓN PROMOCIONAL (REBAJA BASE ANTES DE IMPUESTOS) -->
-      <div class="pos-cupon-strip">
-        <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
-          <strong style="font-size: 0.84rem; color: #794a15;">🎟️ Cupón Promocional (antes de impuestos):</strong>
-          <input type="text" id="inputCodigoCupon" class="form-control" style="width: 190px; height: 34px; text-transform: uppercase; font-family: monospace; font-weight: 700;" placeholder="Ej. LQR-A1B2C3"
-                 onkeydown="if(event.key==='Enter'){ event.preventDefault(); aplicarCuponPos(); }" />
-          <button type="button" class="btn-sm btn-gold" onclick="aplicarCuponPos()">Aplicar Cupón</button>
-          <button type="button" class="btn-sm btn-outline" id="btnQuitarCupon" style="display: none;" onclick="quitarCuponPos()">Quitar</button>
-        </div>
-        <div id="estadoCuponTexto" style="font-size: 0.82rem; color: #7a6b5d;">
-          Si el cliente presenta una <strong>Nota de Crédito B04</strong>, se aplica como medio de pago en el modal de Cobro.
-        </div>
+      <div id="estadoCuponTexto" style="font-size: 0.8rem; color: #7a6b5d; margin-top: -6px; margin-bottom: 12px; padding: 0 4px;">
+        Si el cliente presenta una <strong>Nota de Crédito B04</strong>, se aplica como medio de pago en el modal de Cobro.
       </div>
 
       <!-- BANNERS DINÁMICOS (DELIVERY, COTIZACIÓN, CASHBACK, ALERTAS STOCK) -->
@@ -570,11 +664,14 @@ foreach ($secuenciasFiscales as $sec) {
 
       <!-- TABLA PRINCIPAL: DETALLE DE PARTIDAS EN CARRITO -->
       <div class="table-card pos-cart-card">
-        <div class="table-card-top">
-          <div class="table-card-info">
+        <div class="table-card-top" style="display: flex; align-items: center; justify-content: space-between;">
+          <div class="table-card-info" style="display: flex; align-items: center; gap: 10px;">
             <h2 class="table-card-title">Detalle de Partidas en Carrito</h2>
+            <span class="badge-count" id="badgeArticulosCarrito">0 Artículos</span>
           </div>
-          <span class="badge-count" id="badgeArticulosCarrito">0 Artículos</span>
+          <button type="button" class="btn btn-outline pos-btn-sync" id="btnLimpiarCarrito" onclick="limpiarCarritoConConfirmacion()" style="display: none; color: #b71c1c; border-color: #f0c5c1;" title="Vaciar todos los artículos del carrito">
+            🗑️ Vaciar Carrito
+          </button>
         </div>
 
         <div class="table-wrapper">
