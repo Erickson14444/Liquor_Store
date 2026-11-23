@@ -841,7 +841,13 @@ try {
                        pm.categoria_id,
                        pm.marca_id,
                        COALESCE(cp.nombre, 'General') AS categoria_nombre,
-                       NULL::bigint AS codigo_barra_id,
+                       (
+                           SELECT id
+                           FROM inventario.producto_codigos_barra
+                           WHERE producto_maestro_id = pm.id AND factor_multiplicador = 1
+                           ORDER BY id ASC
+                           LIMIT 1
+                       ) AS codigo_barra_id,
                        pm.sku AS codigo_barra,
                        'Unidad Base (x1)' AS descripcion_presentacion,
                        1 AS factor_conversion,
@@ -967,6 +973,57 @@ try {
         responderPos(true, 'OK', ['items' => $rows]);
     }
 
+
+    // =========================================================================
+    // 2B. BUSCADOR EN VIVO DE CLIENTES (NOMBRE, CÉDULA, RNC, CÓDIGO, TELÉFONO)
+    // =========================================================================
+    if ($accion === 'buscar_clientes') {
+        $q = trim((string) ($datos['q'] ?? ''));
+        $params = [];
+        $where = [
+            "p.estado = TRUE",
+            "c.codigo_cliente <> 'CLI-000'",
+            "p.documento_identidad <> '00000000000'",
+        ];
+
+        if ($q !== '') {
+            $like = '%' . $q . '%';
+            $where[] = "(
+                p.nombre_razon_social ILIKE ?
+                OR p.documento_identidad ILIKE ?
+                OR c.codigo_cliente ILIKE ?
+                OR COALESCE(p.telefono_principal, '') ILIKE ?
+            )";
+            array_push($params, $like, $like, $like, $like);
+        }
+
+        $st = $pdo->prepare("
+            SELECT c.persona_id AS cliente_id,
+                   c.codigo_cliente,
+                   c.categoria_cliente,
+                   c.limite_credito,
+                   c.permite_credito,
+                   p.tipo_documento,
+                   p.documento_identidad,
+                   p.nombre_razon_social,
+                   COALESCE(p.telefono_principal, '') AS telefono_principal
+            FROM identidad.clientes c
+            JOIN identidad.personas p ON p.persona_id = c.persona_id
+            WHERE " . implode(' AND ', $where) . "
+            ORDER BY p.nombre_razon_social ASC
+            LIMIT 25
+        ");
+        $st->execute($params);
+        $rows = $st->fetchAll(PDO::FETCH_ASSOC) ?: [];
+        foreach ($rows as &$r) {
+            $r['permite_credito'] = ($r['permite_credito'] === true || $r['permite_credito'] === 't' || $r['permite_credito'] == 1);
+            $r['limite_credito'] = floatval($r['limite_credito'] ?? 0);
+        }
+        unset($r);
+
+        responderPos(true, 'OK', ['clientes' => $rows]);
+    }
+
     // =========================================================================
     // 3. EVALUACIÓN EN VIVO DEL CARRITO (PROMOS 5 TIPOS, CUPÓN, IMPUESTOS, DELIVERY)
     // =========================================================================
@@ -1061,7 +1118,10 @@ try {
 
         $stmtCab = $pdo->prepare("
             SELECT cot.id, cot.numero_cotizacion, cot.cliente_id, cot.fecha_vencimiento, cot.estado,
-                   p.nombre_razon_social AS cliente_nombre, p.documento_identidad AS cliente_doc
+                   c.codigo_cliente, c.permite_credito, c.limite_credito,
+                   p.tipo_documento AS cliente_tipo_doc,
+                   p.nombre_razon_social AS cliente_nombre,
+                   p.documento_identidad AS cliente_doc
             FROM ventas.cotizaciones cot
             JOIN identidad.clientes c ON cot.cliente_id = c.persona_id
             JOIN identidad.personas p ON c.persona_id = p.persona_id

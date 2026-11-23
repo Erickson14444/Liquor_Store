@@ -13,6 +13,20 @@ let cotizacionOrigenId = null;
 let pagosSplit = [];
 let creditoB04Verificado = null;
 let timerCatPos = null;
+let timerCliPos = null;
+let resultadosClientesPos = [];
+
+const CLIENTE_CONSUMIDOR_FINAL = {
+  cliente_id: 'CONSUMIDOR_FINAL',
+  codigo_cliente: 'CLI-000',
+  nombre_razon_social: 'Consumidor Final',
+  tipo_documento: 'CEDULA',
+  documento_identidad: '',
+  permite_credito: false,
+  limite_credito: 0
+};
+
+let clienteSeleccionadoPos = { ...CLIENTE_CONSUMIDOR_FINAL };
 
 let pedidoDeliveryConfig = {
   activo: false,
@@ -44,11 +58,29 @@ document.addEventListener('DOMContentLoaded', () => {
 
   document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') {
+      const dd = document.getElementById('posClienteDropdown');
+      if (dd && dd.style.display === 'block') {
+        cerrarBuscadorClientePos();
+        return;
+      }
       document.querySelectorAll('.modal-overlay.open, .modal-overlay.active').forEach((m) => {
         m.classList.remove('open', 'active');
       });
     }
   });
+
+  document.addEventListener('click', (e) => {
+    const wrap = document.getElementById('posClientPickerWrap');
+    const dd = document.getElementById('posClienteDropdown');
+    if (wrap && dd && dd.style.display === 'block' && !wrap.contains(e.target)) {
+      cerrarBuscadorClientePos();
+    }
+  });
+
+  const cotParam = new URLSearchParams(window.location.search).get('cotizacion_id');
+  if (cotParam && parseInt(cotParam, 10) > 0) {
+    cargarCotizacionEnCarrito(parseInt(cotParam, 10));
+  }
 });
 
 /* ==========================================================================
@@ -97,19 +129,140 @@ function cerrarModal(id) {
 }
 
 /* ==========================================================================
+   BUSCADOR EN VIVO DE CLIENTES PARA POS (ESCALABLE A CIENTOS/MILES)
+   ========================================================================== */
+function abrirBuscadorClientePos() {
+  const pill = document.getElementById('posClientePill');
+  const inp = document.getElementById('inputBuscarClientePos');
+  if (pill) pill.style.display = 'none';
+  if (inp) {
+    inp.style.display = '';
+    inp.value = '';
+    inp.focus();
+  }
+  buscarClientesPos();
+}
+
+function cerrarBuscadorClientePos() {
+  const pill = document.getElementById('posClientePill');
+  const inp = document.getElementById('inputBuscarClientePos');
+  const dd = document.getElementById('posClienteDropdown');
+  if (dd) dd.style.display = 'none';
+  if (inp) inp.style.display = 'none';
+  if (pill) pill.style.display = 'flex';
+}
+
+function programarBusquedaClientesPos() {
+  clearTimeout(timerCliPos);
+  timerCliPos = setTimeout(buscarClientesPos, 180);
+}
+
+async function buscarClientesPos() {
+  const inp = document.getElementById('inputBuscarClientePos');
+  const dd = document.getElementById('posClienteDropdown');
+  if (!inp || !dd) return;
+
+  const q = inp.value.trim();
+  dd.style.display = 'block';
+  dd.innerHTML = '<div style="padding:10px 12px; color:#888; font-size:0.82rem;">Buscando clientes...</div>';
+
+  try {
+    const res = await fetch(`procesar_facturacion.php?accion=buscar_clientes&q=${encodeURIComponent(q)}`, {
+      headers: { 'X-Requested-With': 'XMLHttpRequest' }
+    });
+    const data = await res.json();
+    const listaDb = Array.isArray(data.clientes) ? data.clientes : [];
+
+    // Incluir Consumidor Final primero si la búsqueda está vacía o coincide con su texto
+    const incluirCf = (!q || 'consumidor final mostrador'.includes(q.toLowerCase()));
+    resultadosClientesPos = incluirCf ? [{ ...CLIENTE_CONSUMIDOR_FINAL }, ...listaDb] : listaDb;
+
+    if (resultadosClientesPos.length === 0) {
+      dd.innerHTML = '<div style="padding:10px 12px; color:#888; font-size:0.82rem;">Sin coincidencias. Usa <strong>+ Cliente</strong> para registrarlo.</div>';
+      return;
+    }
+
+    dd.innerHTML = resultadosClientesPos.map((cli, idx) => {
+      if (cli.cliente_id === 'CONSUMIDOR_FINAL') {
+        return `
+          <div class="pos-client-opt" onmousedown="seleccionarClientePosPorIndice(${idx})" style="background:#faf7f2;">
+            <div style="font-weight:700; color:#5a3818;">👤 Consumidor Final (Mostrador)</div>
+            <div style="font-size:0.74rem; color:#8a7b70;">Venta rápida sin RNC (Comprobante B02)</div>
+          </div>
+        `;
+      }
+      const credBadge = cli.permite_credito
+        ? `<span style="font-size:0.68rem; background:#e8f5e9; color:#2e7d32; padding:1px 6px; border-radius:4px; font-weight:700; margin-left:4px;">★ Crédito</span>`
+        : '';
+      return `
+        <div class="pos-client-opt" onmousedown="seleccionarClientePosPorIndice(${idx})">
+          <div style="font-weight:700; color:#211813;">${escaparHtml(cli.nombre_razon_social)}${credBadge}</div>
+          <div style="font-size:0.74rem; color:#7a6b5d; font-family:monospace;">
+            ${escaparHtml(cli.codigo_cliente || '')} • ${escaparHtml(cli.tipo_documento)}: ${escaparHtml(cli.documento_identidad)}
+            ${cli.telefono_principal ? ' • ' + escaparHtml(cli.telefono_principal) : ''}
+          </div>
+        </div>
+      `;
+    }).join('');
+  } catch (err) {
+    dd.innerHTML = '<div style="padding:10px 12px; color:#c62828; font-size:0.82rem;">Error de red al buscar clientes.</div>';
+  }
+}
+
+function teclaBusquedaClientesPos(e) {
+  if (e.key === 'Enter') {
+    e.preventDefault();
+    if (resultadosClientesPos.length > 0) {
+      seleccionarClientePosPorIndice(0);
+    }
+  }
+}
+
+function seleccionarClientePosPorIndice(idx) {
+  const cli = resultadosClientesPos[idx];
+  if (!cli) return;
+  seleccionarClientePos(cli);
+}
+
+function seleccionarClientePos(cli) {
+  clienteSeleccionadoPos = {
+    cliente_id: cli.cliente_id || 'CONSUMIDOR_FINAL',
+    codigo_cliente: cli.codigo_cliente || '',
+    nombre_razon_social: cli.nombre_razon_social || 'Consumidor Final',
+    tipo_documento: (cli.tipo_documento || 'CEDULA').toUpperCase(),
+    documento_identidad: cli.documento_identidad || '',
+    permite_credito: Boolean(cli.permite_credito),
+    limite_credito: Number(cli.limite_credito || 0)
+  };
+
+  document.getElementById('selectCliente').value = clienteSeleccionadoPos.cliente_id;
+  const lbl = document.getElementById('posClientePillTexto');
+  if (lbl) {
+    if (clienteSeleccionadoPos.cliente_id === 'CONSUMIDOR_FINAL') {
+      lbl.innerHTML = '<strong>Consumidor Final</strong> <span style="font-size:0.74rem; color:#7a6b5d;">(Mostrador)</span>';
+    } else {
+      const cred = clienteSeleccionadoPos.permite_credito ? ' <span style="color:#2e7d32; font-weight:700;">★</span>' : '';
+      const doc = clienteSeleccionadoPos.documento_identidad
+        ? ` <span style="font-size:0.74rem; color:#7a6b5d; font-family:monospace;">(${escaparHtml(clienteSeleccionadoPos.tipo_documento)}: ${escaparHtml(clienteSeleccionadoPos.documento_identidad)})</span>`
+        : '';
+      lbl.innerHTML = `<strong>${escaparHtml(clienteSeleccionadoPos.nombre_razon_social)}</strong>${cred}${doc}`;
+    }
+  }
+
+  cerrarBuscadorClientePos();
+  alCambiarCliente();
+}
+
+/* ==========================================================================
    CABECERA: CLIENTE, NCF, CONDICIÓN DE VENTA Y MONEDA
    ========================================================================== */
 function alCambiarCliente() {
-  const selCli = document.getElementById('selectCliente');
   const selNcf = document.getElementById('selectTipoNcf');
-  if (!selCli || !selNcf) return;
+  if (!selNcf) return;
 
-  const opt = selCli.options[selCli.selectedIndex];
-  const tipoDoc = (opt?.getAttribute('data-tipo-doc') || '').toUpperCase();
-
-  if (selCli.value === 'CONSUMIDOR_FINAL') {
+  if (clienteSeleccionadoPos.cliente_id === 'CONSUMIDOR_FINAL') {
     if (selNcf.value === 'B01') selNcf.value = 'B02';
-  } else if (tipoDoc === 'RNC') {
+  } else if (clienteSeleccionadoPos.tipo_documento === 'RNC') {
     selNcf.value = 'B01';
   }
 
@@ -229,7 +382,10 @@ async function buscarEnCatalogoPos() {
         ? '<span style="font-size:0.68rem; background:#fff3e0; color:#e65100; padding:1px 5px; border-radius:4px; font-weight:700;">FEFO</span>'
         : '';
 
-      let btns = `
+      const presentaciones = Array.isArray(item.presentaciones) ? item.presentaciones : [];
+      const tienePresentacionBase = presentaciones.some((pr) => Number(pr.factor_conversion) === 1);
+
+      let btns = tienePresentacionBase ? '' : `
         <button type="button" class="btn-sm btn-outline"
           onclick="agregarDesdeCatalogoPos(${item.producto_maestro_id}, null, '${escaparHtml(item.producto_nombre)}')"
           style="margin: 2px; font-size: 0.78rem; padding: 4px 8px;">
@@ -237,7 +393,7 @@ async function buscarEnCatalogoPos() {
         </button>
       `;
 
-      (item.presentaciones || []).forEach((pr) => {
+      presentaciones.forEach((pr) => {
         btns += `
           <button type="button" class="btn-sm btn-outline"
             onclick="agregarDesdeCatalogoPos(${item.producto_maestro_id}, ${pr.codigo_barra_id}, '${escaparHtml(pr.descripcion_presentacion)}')"
@@ -294,7 +450,6 @@ function agregarItemCrudoAlCarrito(pmId, cbId, cantidad = 1) {
 }
 
 function cambiarCantidadProducto(pmId, delta) {
-  // Ajustar sobre la última entrada de ese producto maestro
   const idx = carritoRaw.findIndex((it) => Number(it.producto_maestro_id) === Number(pmId));
   if (idx === -1) return;
 
@@ -313,7 +468,6 @@ function fijarCantidadProducto(pmId, valor) {
     quitarProductoDelCarrito(pmId);
     return;
   }
-  // Unificar entradas del mismo producto maestro a una sola línea con la cantidad digitada
   const primera = carritoRaw.find((it) => Number(it.producto_maestro_id) === Number(pmId));
   if (!primera) return;
   carritoRaw = carritoRaw.filter((it) => Number(it.producto_maestro_id) !== Number(pmId));
@@ -349,7 +503,7 @@ async function recalcularCarritoServidor() {
   }
 
   const almacenId = parseInt(document.getElementById('selectAlmacenPos')?.value || '0', 10);
-  const clienteId = document.getElementById('selectCliente')?.value || 'CONSUMIDOR_FINAL';
+  const clienteId = clienteSeleccionadoPos.cliente_id || 'CONSUMIDOR_FINAL';
   const origen = pedidoDeliveryConfig.activo ? 'DELIVERY' : 'MOSTRADOR';
   const zonaId = pedidoDeliveryConfig.activo ? parseInt(pedidoDeliveryConfig.zona_id || '0', 10) : 0;
 
@@ -465,7 +619,6 @@ function renderizarCarritoDesdeCalculo(calc) {
   if (badge) badge.textContent = `${totalUds} ${totalUds === 1 ? 'Unidad' : 'Unidades'}`;
   if (footer) footer.textContent = `${calc.lineas.length} línea(s) consolidada(s) (${totalUds} uds. base)`;
 
-  // Banner Cashback (CUPON_TICKET)
   if (banCb) {
     if (calc.cupon_cashback_prev) {
       const cb = calc.cupon_cashback_prev;
@@ -476,7 +629,6 @@ function renderizarCarritoDesdeCalculo(calc) {
     }
   }
 
-  // Banner Alertas de Stock
   if (banStock) {
     if (Array.isArray(calc.alertas_stock) && calc.alertas_stock.length > 0) {
       banStock.style.display = 'block';
@@ -486,7 +638,6 @@ function renderizarCarritoDesdeCalculo(calc) {
     }
   }
 
-  // Estado del cupón aplicado
   const lblCup = document.getElementById('estadoCuponTexto');
   if (calc.cupon_aplicado) {
     document.getElementById('btnQuitarCupon').style.display = 'inline-block';
@@ -750,23 +901,22 @@ function abrirModalCobro() {
     return;
   }
 
-  const selCli = document.getElementById('selectCliente');
+  const cliId = clienteSeleccionadoPos.cliente_id;
   const tipoNcf = document.getElementById('selectTipoNcf').value;
   const cond = document.getElementById('selectCondicionVenta').value;
 
-  if (tipoNcf === 'B01' && selCli.value === 'CONSUMIDOR_FINAL') {
+  if (tipoNcf === 'B01' && cliId === 'CONSUMIDOR_FINAL') {
     mostrarToast('El comprobante B01 exige seleccionar un cliente registrado con RNC o Cédula.', 'error');
     return;
   }
-  if (cond === 'CREDITO' && selCli.value === 'CONSUMIDOR_FINAL') {
+  if (cond === 'CREDITO' && cliId === 'CONSUMIDOR_FINAL') {
     mostrarToast('Las facturas a Crédito Comercial requieren un cliente registrado.', 'error');
     return;
   }
 
-  // Mayoría de edad obligatoria solo si vende alcohol a Consumidor Final
   const bloqueEdad = document.getElementById('bloqueVerificacionEdad');
   const chkEdad = document.getElementById('chkConfirmoMayoriaEdad');
-  const pedirEdad = Boolean(ultimoCalculo.contiene_alcohol) && selCli.value === 'CONSUMIDOR_FINAL';
+  const pedirEdad = Boolean(ultimoCalculo.contiene_alcohol) && cliId === 'CONSUMIDOR_FINAL';
   bloqueEdad.style.display = pedirEdad ? 'block' : 'none';
   if (chkEdad) chkEdad.checked = !pedirEdad;
 
@@ -781,12 +931,10 @@ function abrirModalCobro() {
   if (cond === 'CREDITO') {
     panelContado.style.display = 'none';
     panelCredito.style.display = 'block';
-    const optCli = selCli.options[selCli.selectedIndex];
-    const limite = Number(optCli?.getAttribute('data-limite') || 0);
     document.getElementById('tituloModalCobro').textContent = 'Confirmar Factura a Crédito (CxC)';
     document.getElementById('textoResumenCredito').innerHTML = `
-      <strong>Cliente:</strong> ${escaparHtml(optCli?.getAttribute('data-nombre') || '')}<br>
-      <strong>Límite autorizado:</strong> ${formatearMoneda(limite)} • <strong>Plazo:</strong> 30 días calendario<br>
+      <strong>Cliente:</strong> ${escaparHtml(clienteSeleccionadoPos.nombre_razon_social)}<br>
+      <strong>Límite autorizado:</strong> ${formatearMoneda(clienteSeleccionadoPos.limite_credito)} • <strong>Plazo:</strong> 30 días calendario<br>
       <strong>Monto a cargar a Cuentas por Cobrar:</strong> <strong>${formatearMoneda(ultimoCalculo.monto_total)}</strong>
     `;
   } else {
@@ -1000,9 +1148,9 @@ function actualizarResumenSplit() {
 
 async function confirmarYGuardarFactura() {
   const cond = document.getElementById('selectCondicionVenta').value;
-  const selCli = document.getElementById('selectCliente');
+  const cliId = clienteSeleccionadoPos.cliente_id;
 
-  if (ultimoCalculo?.contiene_alcohol && selCli.value === 'CONSUMIDOR_FINAL') {
+  if (ultimoCalculo?.contiene_alcohol && cliId === 'CONSUMIDOR_FINAL') {
     const chk = document.getElementById('chkConfirmoMayoriaEdad');
     if (!chk || !chk.checked) {
       mostrarToast('Confirma la mayoría de edad (>= 18 años) para vender bebidas alcohólicas.', 'error');
@@ -1011,7 +1159,6 @@ async function confirmarYGuardarFactura() {
   }
 
   if (cond === 'CONTADO') {
-    // Si el usuario no agregó el pago a la lista pero digitó monto en efectivo/único pago, intentar agregarlo
     if (pagosSplit.length === 0) {
       agregarPagoSplit();
     }
@@ -1030,7 +1177,7 @@ async function confirmarYGuardarFactura() {
     const payload = {
       accion: 'guardar_factura',
       almacen_id: parseInt(document.getElementById('selectAlmacenPos').value, 10),
-      cliente_id: selCli.value,
+      cliente_id: cliId,
       tipo_ncf: document.getElementById('selectTipoNcf').value,
       condicion_pago: cond,
       moneda_id: parseInt(document.getElementById('selectMoneda').value || '1', 10),
@@ -1093,10 +1240,16 @@ async function cargarCotizacionEnCarrito(cotizacionId) {
       return;
     }
 
-    const selCli = document.getElementById('selectCliente');
-    if (selCli && data.cotizacion?.cliente_id) {
-      selCli.value = data.cotizacion.cliente_id;
-      alCambiarCliente();
+    if (data.cotizacion?.cliente_id) {
+      seleccionarClientePos({
+        cliente_id: data.cotizacion.cliente_id,
+        codigo_cliente: data.cotizacion.codigo_cliente || '',
+        nombre_razon_social: data.cotizacion.cliente_nombre,
+        tipo_documento: data.cotizacion.cliente_tipo_doc || 'CEDULA',
+        documento_identidad: data.cotizacion.cliente_doc || '',
+        permite_credito: Boolean(data.cotizacion.permite_credito),
+        limite_credito: Number(data.cotizacion.limite_credito || 0)
+      });
     }
 
     carritoRaw = (data.detalles || []).map((d) => ({
@@ -1179,19 +1332,7 @@ async function guardarClienteRapido(e) {
       mostrarToast(data.mensaje || 'Error al registrar cliente.', 'error');
       return;
     }
-    const c = data.cliente;
-    const sel = document.getElementById('selectCliente');
-    const opt = document.createElement('option');
-    opt.value = c.cliente_id;
-    opt.setAttribute('data-doc', c.documento_identidad || '');
-    opt.setAttribute('data-nombre', c.nombre_razon_social || '');
-    opt.setAttribute('data-tipo-doc', c.tipo_documento || 'CEDULA');
-    opt.setAttribute('data-credito', '0');
-    opt.setAttribute('data-limite', '0');
-    opt.textContent = `${c.nombre_razon_social} (${c.tipo_documento}: ${c.documento_identidad})`;
-    sel.appendChild(opt);
-    sel.value = c.cliente_id;
-    alCambiarCliente();
+    seleccionarClientePos(data.cliente);
     cerrarModal('modalNuevoClienteRapido');
     mostrarToast(data.mensaje || 'Cliente creado.');
   } catch (err) {

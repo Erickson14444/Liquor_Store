@@ -33,6 +33,7 @@ $isSubdir = in_array($currentDir, [
   'Delivery',
   'Facturacion',
   'ControlCaja',
+  'Cotizaciones',
   'Movimientos',
   'Traslados',
   'Lotes',
@@ -145,7 +146,7 @@ $configPages = [
 $isIdentidadActive = in_array($currentPage, ['clientes.php', 'proveedores.php', 'personal.php']);
 $isSeguridadActive = in_array($currentPage, ['roles.php']);
 $isInventarioActive = in_array($currentPage, ['movimientos.php', 'traslados.php', 'lotes.php']);
-$isVentasActive = in_array($currentPage, ['delivery.php', 'facturacion.php', 'control_caja.php']);
+$isVentasActive = in_array($currentPage, ['delivery.php', 'facturacion.php', 'control_caja.php', 'cotizaciones.php']);
 $isComprasActive = in_array($currentPage, ['ordenes_compra.php', 'recepciones.php']);
 $isPromocionesActive = in_array($currentPage, ['promociones.php', 'cupones.php']);
 $isBancosActive = false;
@@ -273,9 +274,9 @@ $isConfigActive = $isConfigOnlyActive;
             </li>
           <?php endif; ?>
           <?php if ($pCotizaciones): ?>
-            <li><a href="#" class="sidebar-sublink"
-                onclick="alert('Proceso 2: Cotizaciones en desarrollo'); return false;"><span>📝</span> Cotizaciones</a>
-            </li>
+            <li><a href="<?= $ventasPfx ?>Cotizaciones/cotizaciones.php"
+                class="sidebar-sublink <?= ($currentPage === 'cotizaciones.php') ? 'active' : '' ?>"><span>📝</span>
+                Cotizaciones</a></li>
           <?php endif; ?>
           <?php if ($pConsignaciones): ?>
             <li><a href="#" class="sidebar-sublink"
@@ -310,13 +311,19 @@ $isConfigActive = $isConfigOnlyActive;
         </div>
         <ul class="sidebar-subnav">
           <?php if ($pOrdenCompra): ?>
-            <li><a href="<?= $comprasPfx ?>ordenes_compra/ordenes_compra.php" class="sidebar-sublink <?= ($currentPage === 'ordenes_compra.php') ? 'active' : '' ?>"><span>📥</span> Órdenes de Compra</a></li>
+            <li><a href="<?= $comprasPfx ?>ordenes_compra/ordenes_compra.php"
+                class="sidebar-sublink <?= ($currentPage === 'ordenes_compra.php') ? 'active' : '' ?>"><span>📥</span>
+                Órdenes de Compra</a></li>
           <?php endif; ?>
           <?php if ($pRecepcion): ?>
-            <li><a href="<?= $comprasPfx ?>recepciones/recepciones.php" class="sidebar-sublink <?= ($currentPage === 'recepciones.php') ? 'active' : '' ?>"><span>🏷️</span> Recepción Check-in</a></li>
+            <li><a href="<?= $comprasPfx ?>recepciones/recepciones.php"
+                class="sidebar-sublink <?= ($currentPage === 'recepciones.php') ? 'active' : '' ?>"><span>🏷️</span>
+                Recepción Check-in</a></li>
           <?php endif; ?>
           <?php if ($pCxp): ?>
-            <li><a href="#" class="sidebar-sublink" onclick="alert('Proceso de Cuentas por Pagar (CxP) en desarrollo'); return false;"><span>🏛️</span> Cuentas por Pagar (CxP)</a></li>
+            <li><a href="#" class="sidebar-sublink"
+                onclick="alert('Proceso de Cuentas por Pagar (CxP) en desarrollo'); return false;"><span>🏛️</span> Cuentas
+                por Pagar (CxP)</a></li>
           <?php endif; ?>
         </ul>
       </li>
