@@ -760,7 +760,7 @@ function buscarCreditoB04Vigente(PDO $pdo, string $codigoOCredito, int $monedaId
         throw new Exception('Ingresa o escanea el código de crédito o NCF B04.');
     }
 
-    $lockSql = $forUpdate ? 'FOR UPDATE' : '';
+    $lockSql = $forUpdate ? 'FOR UPDATE OF d' : '';
     $stmt = $pdo->prepare("
         SELECT d.id, d.factura_id, d.ncf_nota_credito, d.codigo_credito, d.monto_total,
                d.saldo_disponible, d.fecha_vencimiento_saldo, d.estado_saldo,

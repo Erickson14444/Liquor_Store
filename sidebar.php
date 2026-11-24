@@ -34,6 +34,8 @@ $isSubdir = in_array($currentDir, [
   'Facturacion',
   'ControlCaja',
   'Cotizaciones',
+  'Devoluciones',
+  'HistorialVentas',
   'Movimientos',
   'Traslados',
   'Lotes',
@@ -146,7 +148,7 @@ $configPages = [
 $isIdentidadActive = in_array($currentPage, ['clientes.php', 'proveedores.php', 'personal.php']);
 $isSeguridadActive = in_array($currentPage, ['roles.php']);
 $isInventarioActive = in_array($currentPage, ['movimientos.php', 'traslados.php', 'lotes.php']);
-$isVentasActive = in_array($currentPage, ['delivery.php', 'facturacion.php', 'control_caja.php', 'cotizaciones.php']);
+$isVentasActive = in_array($currentPage, ['delivery.php', 'facturacion.php', 'control_caja.php', 'cotizaciones.php', 'devoluciones.php', 'historial_ventas.php']);
 $isComprasActive = in_array($currentPage, ['ordenes_compra.php', 'recepciones.php']);
 $isPromocionesActive = in_array($currentPage, ['promociones.php', 'cupones.php']);
 $isBancosActive = false;
@@ -269,9 +271,9 @@ $isConfigActive = $isConfigOnlyActive;
                 Delivery</a></li>
           <?php endif; ?>
           <?php if ($pFacturacion): ?>
-            <li><a href="#" class="sidebar-sublink"
-                onclick="alert('Historial de Ventas en desarrollo'); return false;"><span>🧾</span> Historial de Ventas</a>
-            </li>
+            <li><a href="<?= $ventasPfx ?>HistorialVentas/historial_ventas.php"
+                class="sidebar-sublink <?= ($currentPage === 'historial_ventas.php') ? 'active' : '' ?>"><span>🧾</span>
+                Historial de Ventas</a></li>
           <?php endif; ?>
           <?php if ($pCotizaciones): ?>
             <li><a href="<?= $ventasPfx ?>Cotizaciones/cotizaciones.php"
@@ -284,9 +286,9 @@ $isConfigActive = $isConfigOnlyActive;
             </li>
           <?php endif; ?>
           <?php if ($pDevoluciones): ?>
-            <li><a href="#" class="sidebar-sublink"
-                onclick="alert('Proceso 6: Devoluciones en desarrollo'); return false;"><span>🔄</span> Devoluciones</a>
-            </li>
+            <li><a href="<?= $ventasPfx ?>Devoluciones/devoluciones.php"
+                class="sidebar-sublink <?= ($currentPage === 'devoluciones.php') ? 'active' : '' ?>"><span>🔄</span>
+                Devoluciones</a></li>
           <?php endif; ?>
           <?php if ($pCxc): ?>
             <li><a href="#" class="sidebar-sublink"
