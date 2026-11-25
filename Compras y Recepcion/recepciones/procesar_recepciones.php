@@ -24,7 +24,7 @@ if (empty($_SESSION['usuario']['usuario_id'])) {
 $rawInput = file_get_contents('php://input');
 $jsonBody = !empty($rawInput) ? json_decode($rawInput, true) : null;
 $datos = is_array($jsonBody) ? array_merge($_GET, $jsonBody) : array_merge($_GET, $_POST);
-$accion = trim((string)($datos['accion'] ?? $_REQUEST['accion'] ?? ''));
+$accion = trim((string) ($datos['accion'] ?? $_REQUEST['accion'] ?? ''));
 
 try {
     switch ($accion) {
@@ -33,12 +33,11 @@ try {
         // 1. Obtener líneas pendientes (cantidad_pendiente > 0) de una orden
         // ====================================================================
         case 'obtener_lineas_orden':
-            $ordenId = (int)($_GET['orden_id'] ?? 0);
+            $ordenId = (int) ($_GET['orden_id'] ?? 0);
             if ($ordenId <= 0) {
                 throw new Exception("ID de orden de compra inválido.");
             }
 
-            // Consultar datos de cabecera de la orden y proveedor
             $stmtOrd = $pdo->prepare("
                 SELECT oc.id,
                        oc.numero_orden,
@@ -70,7 +69,6 @@ try {
                 throw new Exception("Esta orden se encuentra en estado '{$orden['estado']}' y no puede recibir nueva mercancía.");
             }
 
-            // REGLA: Consultar vía AJAX únicamente las líneas donde cantidad_pendiente > 0
             $stmtLineas = $pdo->prepare("
                 SELECT d.orden_compra_id,
                        d.producto_maestro_id,
@@ -110,12 +108,11 @@ try {
         // 2. Obtener detalle de una recepción ya guardada (Historial)
         // ====================================================================
         case 'obtener_detalle_recepcion':
-            $recepcionId = (int)($_GET['recepcion_id'] ?? 0);
+            $recepcionId = (int) ($_GET['recepcion_id'] ?? 0);
             if ($recepcionId <= 0) {
                 throw new Exception("ID de recepción inválido.");
             }
 
-            // Cabecera
             $stmtRec = $pdo->prepare("
                 SELECT rc.id,
                        rc.orden_compra_id,
@@ -149,7 +146,6 @@ try {
                 throw new Exception("La recepción solicitada no existe.");
             }
 
-            // Detalle de lotes recibidos
             $stmtDet = $pdo->prepare("
                 SELECT rcd.recepcion_id,
                        rcd.producto_maestro_id,
@@ -173,7 +169,6 @@ try {
             $stmtDet->execute([$recepcionId]);
             $detalles = $stmtDet->fetchAll(PDO::FETCH_ASSOC) ?: [];
 
-            // Deuda generada en Cuentas por Pagar
             $stmtCxp = $pdo->prepare("
                 SELECT cxp.id,
                        cxp.monto_original,
@@ -206,21 +201,42 @@ try {
 
             $input = is_array($jsonBody) ? $jsonBody : $_POST;
 
-            $ordenId          = !empty($input['orden_compra_id']) ? (int)$input['orden_compra_id'] : null;
-            $proveedorIdInput = !empty($input['proveedor_id']) ? trim((string)$input['proveedor_id']) : null;
-            $numFactura       = trim($input['numero_factura_proveedor'] ?? '');
-            $ncfProveedor     = trim($input['ncf_proveedor'] ?? '');
-            $condicionPago    = strtoupper(trim($input['condicion_pago'] ?? 'CREDITO'));
-            $lineasRecibidas  = $input['lineas'] ?? [];
+            $ordenId = !empty($input['orden_compra_id']) ? (int) $input['orden_compra_id'] : null;
+            $proveedorIdInput = !empty($input['proveedor_id']) ? trim((string) $input['proveedor_id']) : null;
+            $almacenId = (int) ($input['almacen_id'] ?? 0);
+            $numFactura = trim($input['numero_factura_proveedor'] ?? '');
+            $ncfProveedor = trim($input['ncf_proveedor'] ?? '');
+            $condicionPago = strtoupper(trim($input['condicion_pago'] ?? 'CREDITO'));
+            $ncfProveedor = strtoupper($ncfProveedor);
+
+
+
+            $lineasRecibidas = $input['lineas'] ?? [];
 
             if (is_string($lineasRecibidas)) {
                 $lineasRecibidas = json_decode($lineasRecibidas, true) ?: [];
             }
 
+            // Validar almacén destino
+            if ($almacenId <= 0) {
+                throw new Exception("Debe seleccionar un almacén de destino para ingresar la mercancía.");
+            }
+            $stmtAlm = $pdo->prepare("
+                SELECT id, nombre
+                FROM inventario.almacenes
+                WHERE id = ? AND activo = TRUE
+                LIMIT 1
+            ");
+            $stmtAlm->execute([$almacenId]);
+            $almacenRow = $stmtAlm->fetch(PDO::FETCH_ASSOC);
+            if (!$almacenRow) {
+                throw new Exception("El almacén destino seleccionado no existe o está inactivo.");
+            }
+            $almacenNombre = (string) $almacenRow['nombre'];
+
             // 1. Validaciones de Cabecera Física
             $proveedorId = null;
             if ($ordenId !== null && $ordenId > 0) {
-                // Validar existencia y estado de la orden
                 $stmtOrd = $pdo->prepare("
                     SELECT id, proveedor_id, estado, numero_orden
                     FROM compras.ordenes_compra
@@ -238,7 +254,6 @@ try {
                 }
                 $proveedorId = $orden['proveedor_id'];
             } else {
-                // Recepción directa sin orden de compra (orden_compra_id = NULL)
                 $ordenId = null;
                 if (empty($proveedorIdInput)) {
                     throw new Exception("Debe seleccionar un proveedor para registrar la recepción directa.");
@@ -269,6 +284,48 @@ try {
                 throw new Exception("La condición de pago debe ser CONTADO o CREDITO.");
             }
 
+            $ncfProveedor = strtoupper($ncfProveedor);
+
+            // Validar antes de la transacción si la Factura o el NCF ya existen para este proveedor
+            $stmtDupFac = $pdo->prepare("
+                SELECT id, TO_CHAR(fecha_recepcion, 'DD/MM/YYYY') AS fecha_fmt
+                FROM compras.recepciones_compra
+                WHERE proveedor_id = ?
+                  AND UPPER(TRIM(numero_factura_proveedor)) = UPPER(?)
+                LIMIT 1
+            ");
+            $stmtDupFac->execute([$proveedorId, $numFactura]);
+            $dupFac = $stmtDupFac->fetch(PDO::FETCH_ASSOC);
+
+            $stmtDupNcf = $pdo->prepare("
+                SELECT id, TO_CHAR(fecha_recepcion, 'DD/MM/YYYY') AS fecha_fmt
+                FROM compras.recepciones_compra
+                WHERE proveedor_id = ?
+                  AND UPPER(TRIM(COALESCE(ncf_proveedor, ''))) = UPPER(?)
+                LIMIT 1
+            ");
+            $stmtDupNcf->execute([$proveedorId, $ncfProveedor]);
+            $dupNcf = $stmtDupNcf->fetch(PDO::FETCH_ASSOC);
+
+            if ($dupFac && $dupNcf) {
+                throw new Exception(
+                    "Esta factura ya fue registrada anteriormente para este proveedor (Recepción #{$dupFac['id']} del {$dupFac['fecha_fmt']}). " .
+                    "Verifica tanto el N° de Factura ({$numFactura}) como el NCF ({$ncfProveedor})."
+                );
+            }
+            if ($dupFac) {
+                throw new Exception(
+                    "El N° de Factura Física «{$numFactura}» ya existe para este proveedor (Recepción #{$dupFac['id']} del {$dupFac['fecha_fmt']}). " .
+                    "Por favor revisa el número de factura antes de continuar."
+                );
+            }
+            if ($dupNcf) {
+                throw new Exception(
+                    "El NCF «{$ncfProveedor}» ya fue registrado para este proveedor (Recepción #{$dupNcf['id']} del {$dupNcf['fecha_fmt']}). " .
+                    "Por favor verifica el comprobante fiscal impreso en la factura."
+                );
+            }
+
             // 2. Validaciones de Líneas y Multi-Lote
             if (!is_array($lineasRecibidas) || count($lineasRecibidas) === 0) {
                 throw new Exception("No se recibieron datos de productos para ingresar.");
@@ -276,7 +333,6 @@ try {
 
             $dbPendientes = [];
             if ($ordenId !== null) {
-                // Consultar las líneas pendientes actuales de la orden en la base de datos
                 $stmtPendBD = $pdo->prepare("
                     SELECT d.producto_maestro_id,
                            d.cantidad_pendiente,
@@ -297,19 +353,17 @@ try {
                 }
             }
 
-            // Filtrar solo líneas con cantidad_recibida_buena > 0 (permite entrega parcial con productos en 0)
             $lineasValidas = [];
             $lotesPorProducto = [];
             $cantidadesPorProducto = [];
 
-            foreach ($lineasRecibidas as $idx => $linea) {
-                $prodId = (int)($linea['producto_maestro_id'] ?? 0);
-                $cantRec = (int)($linea['cantidad_recibida_buena'] ?? 0);
-                $costoFact = (float)($linea['costo_unitario_facturado'] ?? 0);
+            foreach ($lineasRecibidas as $linea) {
+                $prodId = (int) ($linea['producto_maestro_id'] ?? 0);
+                $cantRec = (int) ($linea['cantidad_recibida_buena'] ?? 0);
+                $costoFact = (float) ($linea['costo_unitario_facturado'] ?? 0);
                 $lote = trim($linea['numero_lote'] ?? '');
                 $venc = trim($linea['fecha_vencimiento'] ?? '');
 
-                // Si viene en 0 o negativo, se ignora (se permite dejar productos en 0)
                 if ($cantRec <= 0) {
                     continue;
                 }
@@ -353,7 +407,6 @@ try {
                     throw new Exception("El costo unitario facturado para el producto '{$prodNombre}' debe ser mayor a cero.");
                 }
 
-                // REGLA: No permitir numero_lote repetido para el mismo producto_maestro_id dentro de la misma recepción
                 if (!isset($lotesPorProducto[$prodId])) {
                     $lotesPorProducto[$prodId] = [];
                     $cantidadesPorProducto[$prodId] = 0;
@@ -367,26 +420,24 @@ try {
                 $cantidadesPorProducto[$prodId] += $cantRec;
 
                 $lineasValidas[] = [
-                    'producto_maestro_id'      => $prodId,
-                    'numero_lote'              => $lote,
-                    'fecha_vencimiento'        => $venc,
-                    'cantidad_recibida_buena'  => $cantRec,
+                    'producto_maestro_id' => $prodId,
+                    'numero_lote' => $lote,
+                    'fecha_vencimiento' => $venc,
+                    'cantidad_recibida_buena' => $cantRec,
                     'costo_unitario_facturado' => round($costoFact, 2),
-                    'orden_compra_id'          => $ordenId
+                    'orden_compra_id' => $ordenId
                 ];
             }
 
-            // REGLA: Exigir que al menos una línea tenga cantidad_recibida_buena > 0 para guardar
             if (empty($lineasValidas)) {
                 throw new Exception("Debe ingresar al menos una línea con cantidad recibida mayor a cero.");
             }
 
-            // REGLA: La suma de cantidad_recibida_buena de todos los lotes de un mismo producto NO puede exceder su cantidad_pendiente si viene de una orden
             if ($ordenId !== null) {
                 foreach ($cantidadesPorProducto as $prodId => $totalRecibidoProd) {
                     if (isset($dbPendientes[$prodId])) {
                         $infoProd = $dbPendientes[$prodId];
-                        $pendienteMax = (int)$infoProd['cantidad_pendiente'];
+                        $pendienteMax = (int) $infoProd['cantidad_pendiente'];
 
                         if ($totalRecibidoProd > $pendienteMax) {
                             throw new Exception("La suma recibida ({$totalRecibidoProd} unidades) para el producto '{$infoProd['producto_nombre']}' excede la cantidad pendiente ({$pendienteMax} unidades).");
@@ -395,7 +446,6 @@ try {
                 }
             }
 
-            // Calcular Monto Total de la Factura Física
             $montoTotalFactura = 0;
             foreach ($lineasValidas as $lv) {
                 $montoTotalFactura += ($lv['cantidad_recibida_buena'] * $lv['costo_unitario_facturado']);
@@ -405,12 +455,6 @@ try {
             $usuarioId = $_SESSION['usuario']['usuario_id'];
 
             // INSERCIÓN ATÓMICA EN TRANSACCIÓN PDO
-            // La base de datos (PostgreSQL) se encarga de disparar los triggers que actualizan:
-            // 1. inventario.lotes e inventario.inventario_stock
-            // 2. Kardex (movimientos_inventario y movimiento_inventario_detalles)
-            // 3. Recálculo de costo_promedio en productos_maestro
-            // 4. Creación de deuda en compras.cuentas_por_pagar
-            // 5. compras.orden_compra_detalles.cantidad_recibida_total y estado en ordenes_compra
             $pdo->beginTransaction();
 
             $stmtInsRec = $pdo->prepare("
@@ -439,7 +483,7 @@ try {
                 $usuarioId,
                 $condicionPago
             ]);
-            $recepcionId = (int)$stmtInsRec->fetchColumn();
+            $recepcionId = (int) $stmtInsRec->fetchColumn();
 
             // 1. Sentencias preparadas para recepción, inventario, lotes y Kardex
             $stmtInsDet = $pdo->prepare("
@@ -454,7 +498,6 @@ try {
                 ) VALUES (?, ?, ?, ?, ?, ?, ?)
             ");
 
-            // Cabecera de Kardex / Movimiento de Inventario (ENTRADA_COMPRA)
             $stmtMov = $pdo->prepare("
                 INSERT INTO inventario.movimientos_inventario (
                     tipo_movimiento,
@@ -470,20 +513,19 @@ try {
                     CURRENT_TIMESTAMP
                 ) RETURNING id
             ");
-            $justificacionMov = "Ingreso físico por Recepción de Compra #{$recepcionId} • Factura {$numFactura} (NCF: {$ncfProveedor})";
+            $justificacionMov = "Ingreso físico en {$almacenNombre} por Recepción de Compra #{$recepcionId} • Factura {$numFactura} (NCF: {$ncfProveedor})";
             $stmtMov->execute([$justificacionMov, $usuarioId, $recepcionId]);
-            $movimientoId = (int)$stmtMov->fetchColumn();
+            $movimientoId = (int) $stmtMov->fetchColumn();
 
-            // Sentencias para búsqueda / actualización / inserción de Lotes FEFO
             $stmtBuscarLote = $pdo->prepare("
-                SELECT id, cantidad_actual 
-                FROM inventario.lotes 
+                SELECT id, cantidad_actual
+                FROM inventario.lotes
                 WHERE producto_maestro_id = ? AND UPPER(numero_lote) = UPPER(?)
                 LIMIT 1
             ");
 
             $stmtActualizarLote = $pdo->prepare("
-                UPDATE inventario.lotes 
+                UPDATE inventario.lotes
                 SET cantidad_actual = cantidad_actual + ?,
                     fecha_vencimiento = ?
                 WHERE id = ?
@@ -499,8 +541,6 @@ try {
                 RETURNING id
             ");
 
-            // Sentencia para actualización atómica del stock físico en bodega (Almacén principal ID = 1)
-            $almacenId = 1;
             $stmtUpsertStock = $pdo->prepare("
                 INSERT INTO inventario.inventario_stock (
                     almacen_id,
@@ -513,7 +553,6 @@ try {
                 DO UPDATE SET stock_fisico_unidades = inventario.inventario_stock.stock_fisico_unidades + EXCLUDED.stock_fisico_unidades
             ");
 
-            // Sentencia para renglones del Kardex
             $stmtInsMovDet = $pdo->prepare("
                 INSERT INTO inventario.movimiento_inventario_detalles (
                     movimiento_id,
@@ -524,7 +563,6 @@ try {
                 ) VALUES (?, ?, ?, ?, ?)
             ");
 
-            // Sentencia para recalcular costo promedio ponderado en producto maestro
             $stmtActualizarCostoProm = $pdo->prepare("
                 UPDATE inventario.productos_maestro
                 SET costo_promedio = ROUND(
@@ -535,7 +573,6 @@ try {
                 WHERE id = ?
             ");
 
-            // Sentencia para amortizar orden de compra
             $stmtActualizarOcDet = $pdo->prepare("
                 UPDATE compras.orden_compra_detalles
                 SET cantidad_recibida_total = cantidad_recibida_total + ?
@@ -560,7 +597,7 @@ try {
                 $loteId = null;
 
                 if ($loteExistente) {
-                    $loteId = (int)$loteExistente['id'];
+                    $loteId = (int) $loteExistente['id'];
                     $stmtActualizarLote->execute([
                         $l['cantidad_recibida_buena'],
                         $l['fecha_vencimiento'],
@@ -573,10 +610,10 @@ try {
                         $l['fecha_vencimiento'],
                         $l['cantidad_recibida_buena']
                     ]);
-                    $loteId = (int)$stmtInsertarLote->fetchColumn();
+                    $loteId = (int) $stmtInsertarLote->fetchColumn();
                 }
 
-                // C. Incrementar existencia física en inventario_stock
+                // C. Incrementar existencia física en el almacén destino seleccionado
                 $stmtUpsertStock->execute([
                     $almacenId,
                     $l['producto_maestro_id'],
@@ -618,53 +655,64 @@ try {
                     WHERE orden_compra_id = ?
                 ");
                 $stmtCalcPend->execute([$ordenId]);
-                $saldoPend = (int)$stmtCalcPend->fetchColumn();
+                $saldoPend = (int) $stmtCalcPend->fetchColumn();
 
                 $nuevoEstadoOrden = ($saldoPend === 0) ? 'COMPLETADA' : 'RECIBIDA_PARCIAL';
                 $stmtUpdOc = $pdo->prepare("UPDATE compras.ordenes_compra SET estado = ? WHERE id = ?");
                 $stmtUpdOc->execute([$nuevoEstadoOrden, $ordenId]);
             }
 
-            // 3. Generar la Cuenta por Pagar (CxP) comercial
-            $stmtProvDias = $pdo->prepare("SELECT dias_credito_habitual FROM identidad.proveedores WHERE persona_id = ?");
-            $stmtProvDias->execute([$proveedorId]);
-            $diasHab = (int)($stmtProvDias->fetchColumn() ?: 30);
-
-            $diasPlazo = ($condicionPago === 'CONTADO') ? 0 : max(1, $diasHab);
-            $fechaVenc = date('Y-m-d', strtotime("+{$diasPlazo} days"));
-
-            $stmtInsCxp = $pdo->prepare("
-                INSERT INTO compras.cuentas_por_pagar (
-                    proveedor_id,
-                    recepcion_compra_id,
-                    monto_original,
-                    saldo_pendiente,
-                    fecha_emision,
-                    fecha_vencimiento,
-                    estado,
-                    moneda_id,
-                    tasa_cambio
-                ) VALUES (
-                    ?, ?, ?, ?,
-                    CURRENT_DATE, ?, 'PENDIENTE', 1, 1.0000
-                ) RETURNING id
+            // 3. Verificar si el trigger trg_recepcion_compra_cxp ya generó la Cuenta por Pagar (CxP)
+            $stmtBuscarCxp = $pdo->prepare("
+                SELECT id
+                FROM compras.cuentas_por_pagar
+                WHERE recepcion_compra_id = ?
+                LIMIT 1
             ");
-            $stmtInsCxp->execute([
-                $proveedorId,
-                $recepcionId,
-                $montoTotalFactura,
-                $montoTotalFactura,
-                $fechaVenc
-            ]);
-            $cxpId = (int)$stmtInsCxp->fetchColumn();
+            $stmtBuscarCxp->execute([$recepcionId]);
+            $cxpId = (int) ($stmtBuscarCxp->fetchColumn() ?: 0);
+
+            if ($cxpId <= 0) {
+                $stmtProvDias = $pdo->prepare("SELECT dias_credito_habitual FROM identidad.proveedores WHERE persona_id = ?");
+                $stmtProvDias->execute([$proveedorId]);
+                $diasHab = (int) ($stmtProvDias->fetchColumn() ?: 30);
+                $diasPlazo = ($condicionPago === 'CONTADO') ? 0 : max(1, $diasHab);
+                $fechaVenc = date('Y-m-d', strtotime("+{$diasPlazo} days"));
+
+                $stmtInsCxp = $pdo->prepare("
+                    INSERT INTO compras.cuentas_por_pagar (
+                        proveedor_id,
+                        recepcion_compra_id,
+                        monto_original,
+                        saldo_pendiente,
+                        fecha_emision,
+                        fecha_vencimiento,
+                        estado,
+                        moneda_id,
+                        tasa_cambio
+                    ) VALUES (
+                        ?, ?, ?, ?,
+                        CURRENT_DATE, ?, 'PENDIENTE', 1, 1.0000
+                    ) RETURNING id
+                ");
+                $stmtInsCxp->execute([
+                    $proveedorId,
+                    $recepcionId,
+                    $montoTotalFactura,
+                    $montoTotalFactura,
+                    $fechaVenc
+                ]);
+                $cxpId = (int) $stmtInsCxp->fetchColumn();
+            }
 
             $pdo->commit();
 
             echo json_encode([
                 'ok' => true,
-                'mensaje' => "Recepción #{$recepcionId} (Factura: {$numFactura}) procesada exitosamente. Se ha actualizado el inventario, Kardex, lotes y cuenta por pagar.",
+                'mensaje' => "Recepción #{$recepcionId} (Factura: {$numFactura}) procesada exitosamente en «{$almacenNombre}». Se actualizó el inventario, Kardex, lotes y cuenta por pagar.",
                 'recepcion_id' => $recepcionId,
-                'orden_id' => $ordenId
+                'orden_id' => $ordenId,
+                'almacen_id' => $almacenId
             ]);
             break;
 
@@ -676,10 +724,24 @@ try {
     if (isset($pdo) && $pdo->inTransaction()) {
         $pdo->rollBack();
     }
+
+    $msgDb = $e->getMessage();
+    $mensaje = 'No se pudo guardar la recepción por un error de validación en la base de datos.';
+
+    if ($e->getCode() === '23505') {
+        if (stripos($msgDb, 'uk_recepcion_factura') !== false) {
+            $mensaje = 'Ya existe una recepción registrada con ese N° de Factura Física para este proveedor. Por favor revisa el número de factura.';
+        } elseif (stripos($msgDb, 'uk_recepcion_ncf') !== false) {
+            $mensaje = 'Ya existe una recepción registrada con ese NCF para este proveedor. Por favor verifica el número de comprobante fiscal.';
+        } else {
+            $mensaje = 'Ya existe un registro duplicado para esta recepción. Verifica el N° de Factura, el NCF y los lotes ingresados.';
+        }
+    }
+
     echo json_encode([
         'ok' => false,
         'status' => 'error',
-        'mensaje' => 'Error de Base de Datos PostgreSQL: ' . $e->getMessage()
+        'mensaje' => $mensaje
     ]);
 } catch (Throwable $e) {
     if (isset($pdo) && $pdo->inTransaction()) {
@@ -691,3 +753,5 @@ try {
         'mensaje' => $e->getMessage()
     ]);
 }
+
+

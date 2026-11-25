@@ -103,10 +103,10 @@ function mostrarMensajeModal(opciones = {}) {
     if (esConfirmacion) {
         btnCancel.style.display = 'inline-block';
         btnCancel.textContent = textoCancelar || 'Cancelar';
-        btnCancel.onclick = function() {
+        btnCancel.onclick = function () {
             modal.style.display = 'none';
         };
-        btnOk.onclick = function() {
+        btnOk.onclick = function () {
             modal.style.display = 'none';
             if (typeof alConfirmar === 'function') {
                 alConfirmar();
@@ -114,7 +114,7 @@ function mostrarMensajeModal(opciones = {}) {
         };
     } else {
         btnCancel.style.display = 'none';
-        btnOk.onclick = function() {
+        btnOk.onclick = function () {
             modal.style.display = 'none';
             if (typeof alCerrar === 'function') {
                 alCerrar();
@@ -230,7 +230,9 @@ function filtrarProveedoresOc(query) {
     if (!dropdown) return;
 
     const q = (query || '').toLowerCase().trim();
-    const lista = Array.isArray(window.PROVEEDORES_LISTA) ? window.PROVEEDORES_LISTA : [];
+    const lista = (typeof PROVEEDORES_LISTA !== 'undefined' && Array.isArray(PROVEEDORES_LISTA))
+        ? PROVEEDORES_LISTA
+        : (Array.isArray(window.PROVEEDORES_LISTA) ? window.PROVEEDORES_LISTA : []);
 
     const filtrados = lista.filter(p => {
         if (!q) return true;
@@ -270,7 +272,9 @@ function seleccionarProveedorOc(proveedorId) {
 
     if (hidden) hidden.value = proveedorId;
 
-    const lista = Array.isArray(window.PROVEEDORES_LISTA) ? window.PROVEEDORES_LISTA : [];
+    const lista = (typeof PROVEEDORES_LISTA !== 'undefined' && Array.isArray(PROVEEDORES_LISTA))
+        ? PROVEEDORES_LISTA
+        : (Array.isArray(window.PROVEEDORES_LISTA) ? window.PROVEEDORES_LISTA : []);
     const p = lista.find(item => String(item.persona_id) === String(proveedorId));
 
     if (p) {
@@ -309,7 +313,7 @@ function limpiarProveedorSeleccionadoOc() {
 }
 
 // Cierre automático de dropdown de proveedor al hacer click afuera
-document.addEventListener('click', function(e) {
+document.addEventListener('click', function (e) {
     const box = document.getElementById('boxBusquedaProveedorOc');
     const dropdown = document.getElementById('dropdownProveedoresOc');
     if (dropdown && box && !box.contains(e.target)) {
@@ -389,9 +393,9 @@ function renderizarPanelResultados(lista) {
 
                 <div class="col-boton-accion">
                     ${yaAgregado
-                        ? `<button type="button" class="btn btn-sm btn-danger" onclick="quitarProductoDeOrden(${prodId})" style="padding: 4px 12px; font-size: 0.78rem; white-space: nowrap;">✕ Desagregar</button>`
-                        : `<button type="button" class="btn btn-sm btn-gold" onclick="agregarProductoAOrden(${prodId})" style="padding: 4px 12px; font-size: 0.78rem; white-space: nowrap;">+ Agregar</button>`
-                    }
+                ? `<button type="button" class="btn btn-sm btn-danger" onclick="quitarProductoDeOrden(${prodId})" style="padding: 4px 12px; font-size: 0.78rem; white-space: nowrap;">✕ Desagregar</button>`
+                : `<button type="button" class="btn btn-sm btn-gold" onclick="agregarProductoAOrden(${prodId})" style="padding: 4px 12px; font-size: 0.78rem; white-space: nowrap;">+ Agregar</button>`
+            }
                 </div>
             </div>
         `;

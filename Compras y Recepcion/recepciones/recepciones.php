@@ -12,12 +12,18 @@ require_once __DIR__ . '/../../config/conexion.php';
 $puedeRegistrar = usuarioPuedeRegistrarRecepcion();
 
 // Parámetro de orden precargada desde la URL
-$ordenIdPreseleccionada = (int)($_GET['orden_id'] ?? 0);
+$ordenIdPreseleccionada = (int) ($_GET['orden_id'] ?? 0);
 
-// Órdenes de compra disponibles para recibir
+// Colecciones base
 $ordenesPendientes = [];
-// Historial reciente de recepciones
 $historialRecepciones = [];
+$proveedores = [];
+$productos = [];
+$almacenes = [];
+
+$kpiTotalRecepciones = 0;
+$kpiTotalUnidades = 0;
+$kpiTotalMonto = 0.00;
 
 if ($pdo) {
     try {
@@ -31,8 +37,8 @@ if ($pdo) {
                    p.nombre_razon_social AS proveedor_nombre,
                    p.documento_identidad AS proveedor_rnc,
                    (
-                       SELECT COUNT(*) 
-                       FROM compras.orden_compra_detalles d 
+                       SELECT COUNT(*)
+                       FROM compras.orden_compra_detalles d
                        WHERE d.orden_compra_id = oc.id AND d.cantidad_pendiente > 0
                    ) AS lineas_pendientes
             FROM compras.ordenes_compra oc
@@ -78,11 +84,9 @@ if ($pdo) {
 
         // Totales KPI para resumen
         $kpiTotalRecepciones = count($historialRecepciones);
-        $kpiTotalUnidades = 0;
-        $kpiTotalMonto = 0.00;
         foreach ($historialRecepciones as $hr) {
-            $kpiTotalUnidades += (int)$hr['total_unidades'];
-            $kpiTotalMonto += (float)$hr['monto_total_factura'];
+            $kpiTotalUnidades += (int) $hr['total_unidades'];
+            $kpiTotalMonto += (float) $hr['monto_total_factura'];
         }
 
         // 3. Catálogo de Proveedores
@@ -115,6 +119,15 @@ if ($pdo) {
         ");
         $productos = $stmtProd->fetchAll(PDO::FETCH_ASSOC) ?: [];
 
+        // 5. Catálogo de Almacenes activos (prioriza Bodega para recepciones de compra)
+        $stmtAlm = $pdo->query("
+            SELECT id, nombre, ubicacion
+            FROM inventario.almacenes
+            WHERE activo = TRUE
+            ORDER BY CASE WHEN LOWER(nombre) LIKE '%bodega%' THEN 0 ELSE 1 END, id ASC
+        ");
+        $almacenes = $stmtAlm->fetchAll(PDO::FETCH_ASSOC) ?: [];
+
     } catch (Throwable $e) {
         $errorCarga = $e->getMessage();
     }
@@ -143,10 +156,12 @@ if ($pdo) {
             z-index: 9999;
             padding: 16px;
         }
+
         .modal-overlay.open,
         .modal-overlay.active {
             display: flex !important;
         }
+
         .modal-box {
             background: #ffffff;
             border-radius: 12px;
@@ -157,10 +172,19 @@ if ($pdo) {
             overflow: hidden;
             animation: modalIn 0.2s ease-out;
         }
+
         @keyframes modalIn {
-            from { opacity: 0; transform: translateY(-12px) scale(0.98); }
-            to { opacity: 1; transform: translateY(0) scale(1); }
+            from {
+                opacity: 0;
+                transform: translateY(-12px) scale(0.98);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0) scale(1);
+            }
         }
+
         .modal-header {
             display: flex;
             align-items: center;
@@ -170,6 +194,7 @@ if ($pdo) {
             border-bottom: 1px solid var(--border-light, #eae3d5);
             flex-shrink: 0;
         }
+
         .modal-title {
             font-family: var(--font-serif, 'Playfair Display', Georgia, serif);
             font-size: 1.15rem;
@@ -177,10 +202,12 @@ if ($pdo) {
             color: var(--text-dark, #251c16);
             margin: 0;
         }
+
         .modal-xl {
             width: 96% !important;
             max-width: 1180px !important;
         }
+
         .modal-close {
             background: none;
             border: none;
@@ -191,9 +218,11 @@ if ($pdo) {
             line-height: 1;
             transition: color 0.15s ease;
         }
+
         .modal-close:hover {
             color: var(--text-dark, #251c16);
         }
+
         .grid-split-orden {
             display: grid;
             grid-template-columns: 1fr 1.25fr;
@@ -201,11 +230,13 @@ if ($pdo) {
             margin-top: 10px;
             align-items: start;
         }
+
         @media (max-width: 920px) {
             .grid-split-orden {
                 grid-template-columns: 1fr !important;
             }
         }
+
         .card-producto-recepcion {
             background: #ffffff;
             border: 1px solid #eae3d5;
@@ -214,6 +245,7 @@ if ($pdo) {
             overflow: hidden;
             box-shadow: 0 1px 4px rgba(37, 28, 22, 0.03);
         }
+
         .card-producto-header {
             display: flex;
             align-items: center;
@@ -224,6 +256,7 @@ if ($pdo) {
             flex-wrap: wrap;
             gap: 10px;
         }
+
         .badge-pendiente {
             background-color: #fef9e7;
             color: #b78103;
@@ -233,6 +266,7 @@ if ($pdo) {
             padding: 2px 7px;
             border-radius: 4px;
         }
+
         .alerta-exceso {
             background-color: #ffebee;
             color: #c62828;
@@ -244,6 +278,7 @@ if ($pdo) {
             margin-top: 6px;
             display: none;
         }
+
         .radio-condicion-pago {
             display: inline-flex;
             align-items: center;
@@ -252,6 +287,7 @@ if ($pdo) {
             cursor: pointer;
             margin-right: 18px;
         }
+
         .item-catalogo-busqueda:hover {
             background: #fdf8f0 !important;
         }
@@ -302,60 +338,78 @@ if ($pdo) {
         <!-- CONTENIDO PRINCIPAL -->
         <main class="main-content">
 
-            <div class="page-header" style="margin-bottom: 14px; padding-bottom: 12px; border-bottom: 1px solid #eae3d5;">
+            <div class="page-header"
+                style="margin-bottom: 14px; padding-bottom: 12px; border-bottom: 1px solid #eae3d5;">
                 <div>
-                    <h1 class="page-title" style="font-family: var(--font-sans, 'DM Sans', sans-serif) !important; font-size: 1.55rem; font-weight: 700; color: var(--text-dark); margin-bottom: 2px;">Recepción de Mercancía (Check-in)</h1>
-                    <p class="page-subtitle" style="font-size: 0.82rem; color: var(--text-muted);">Ingreso físico con captura de factura, NCF, partición multi-lote y fechas de vencimiento FEFO</p>
+                    <h1 class="page-title"
+                        style="font-family: var(--font-sans, 'DM Sans', sans-serif) !important; font-size: 1.55rem; font-weight: 700; color: var(--text-dark); margin-bottom: 2px;">
+                        Recepción de Mercancía (Check-in)</h1>
+                    <p class="page-subtitle" style="font-size: 0.82rem; color: var(--text-muted);">Ingreso físico con
+                        captura de factura, NCF, almacén destino, partición multi-lote y fechas de vencimiento FEFO</p>
                 </div>
 
                 <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
-                    <button type="button" class="btn btn-gold btn-sm" onclick="abrirModalNuevaRecepcion()" style="height: 36px; padding: 0 14px; display: inline-flex; align-items: center; gap: 6px; font-weight: 700;">
+                    <button type="button" class="btn btn-gold btn-sm" onclick="abrirModalNuevaRecepcion()"
+                        style="height: 36px; padding: 0 14px; display: inline-flex; align-items: center; gap: 6px; font-weight: 700;">
                         <span>➕</span> Nueva Recepción Directa
                     </button>
-                    <button type="button" class="btn btn-secondary btn-sm" onclick="abrirModalImportarOrden()" style="height: 36px; padding: 0 14px; background: #fff; border: 1.5px solid #d4c1a7; display: inline-flex; align-items: center; gap: 6px;">
+                    <button type="button" class="btn btn-secondary btn-sm" onclick="abrirModalImportarOrden()"
+                        style="height: 36px; padding: 0 14px; background: #fff; border: 1.5px solid #d4c1a7; display: inline-flex; align-items: center; gap: 6px;">
                         <span>📋</span> Importar Orden de Compra
                         <?php if (count($ordenesPendientes) > 0): ?>
-                            <span class="badge-contador" style="background: #a66e2e; color: #fff; border-radius: 12px; padding: 1px 7px; font-size: 0.72rem; font-weight: 700;"><?= count($ordenesPendientes) ?></span>
+                            <span class="badge-contador"
+                                style="background: #a66e2e; color: #fff; border-radius: 12px; padding: 1px 7px; font-size: 0.72rem; font-weight: 700;"><?= count($ordenesPendientes) ?></span>
                         <?php endif; ?>
                     </button>
-                    <a href="../ordenes_compra/ordenes_compra.php" class="btn btn-secondary btn-sm" style="height: 36px; padding: 0 14px; background: #fff; border: 1px solid var(--border-light); text-decoration: none; display: inline-flex; align-items: center; gap: 6px;">
+                    <a href="../ordenes_compra/ordenes_compra.php" class="btn btn-secondary btn-sm"
+                        style="height: 36px; padding: 0 14px; background: #fff; border: 1px solid var(--border-light); text-decoration: none; display: inline-flex; align-items: center; gap: 6px;">
                         📥 Ver Órdenes de Compra
                     </a>
                 </div>
             </div>
 
             <?php if (!empty($errorCarga)): ?>
-                <div style="background: #ffebee; color: #b71c1c; border: 1px solid #ef9a9a; border-radius: 8px; padding: 12px 16px; margin-bottom: 16px; font-size: 0.9rem;">
+                <div
+                    style="background: #ffebee; color: #b71c1c; border: 1px solid #ef9a9a; border-radius: 8px; padding: 12px 16px; margin-bottom: 16px; font-size: 0.9rem;">
                     <strong>Error de carga:</strong>
                     <?= htmlspecialchars($errorCarga) ?>
                 </div>
             <?php endif; ?>
 
             <!-- RESUMEN / KPIS -->
-            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; margin-bottom: 18px;">
+            <div
+                style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; margin-bottom: 18px;">
                 <div style="background: #fff; border: 1px solid #e7dcc8; border-radius: 10px; padding: 14px 16px;">
-                    <div style="font-size: 0.74rem; color: #7a6b5d; font-weight: 700; text-transform: uppercase;">TOTAL RECEPCIONES</div>
+                    <div style="font-size: 0.74rem; color: #7a6b5d; font-weight: 700; text-transform: uppercase;">TOTAL
+                        RECEPCIONES</div>
                     <div style="font-size: 1.5rem; font-weight: 700; color: #211813; margin-top: 4px;">
                         <?= number_format($kpiTotalRecepciones) ?>
                     </div>
-                    <small style="color: var(--text-muted); font-size: 0.74rem;">Entradas a inventario registradas</small>
+                    <small style="color: var(--text-muted); font-size: 0.74rem;">Entradas a inventario
+                        registradas</small>
                 </div>
                 <div style="background: #fff; border: 1px solid #c8e6c9; border-radius: 10px; padding: 14px 16px;">
-                    <div style="font-size: 0.74rem; color: #2e7d52; font-weight: 700; text-transform: uppercase;">UNIDADES INGRESADAS</div>
-                    <div style="font-size: 1.5rem; font-weight: 700; color: #2e7d52; margin-top: 4px; font-family: var(--font-mono);">
+                    <div style="font-size: 0.74rem; color: #2e7d52; font-weight: 700; text-transform: uppercase;">
+                        UNIDADES INGRESADAS</div>
+                    <div
+                        style="font-size: 1.5rem; font-weight: 700; color: #2e7d52; margin-top: 4px; font-family: var(--font-mono);">
                         <?= number_format($kpiTotalUnidades) ?> u.
                     </div>
                     <small style="color: var(--text-muted); font-size: 0.74rem;">Botellas y cajas en Kardex</small>
                 </div>
                 <div style="background: #fff; border: 1px solid #eadecd; border-radius: 10px; padding: 14px 16px;">
-                    <div style="font-size: 0.74rem; color: var(--accent-gold); font-weight: 700; text-transform: uppercase;">TOTAL FACTURADO EN COMPRAS</div>
-                    <div style="font-size: 1.5rem; font-weight: 700; color: var(--accent-gold); margin-top: 4px; font-family: var(--font-mono);">
+                    <div
+                        style="font-size: 0.74rem; color: var(--accent-gold); font-weight: 700; text-transform: uppercase;">
+                        TOTAL FACTURADO EN COMPRAS</div>
+                    <div
+                        style="font-size: 1.5rem; font-weight: 700; color: var(--accent-gold); margin-top: 4px; font-family: var(--font-mono);">
                         RD$ <?= number_format($kpiTotalMonto, 2) ?>
                     </div>
                     <small style="color: var(--text-muted); font-size: 0.74rem;">Monto bruto ingresado</small>
                 </div>
                 <div style="background: #fff; border: 1px solid #f9e79f; border-radius: 10px; padding: 14px 16px;">
-                    <div style="font-size: 0.74rem; color: #b78103; font-weight: 700; text-transform: uppercase;">ÓRDENES POR RECIBIR</div>
+                    <div style="font-size: 0.74rem; color: #b78103; font-weight: 700; text-transform: uppercase;">
+                        ÓRDENES POR RECIBIR</div>
                     <div style="font-size: 1.5rem; font-weight: 700; color: #b78103; margin-top: 4px;">
                         <?= count($ordenesPendientes) ?>
                     </div>
@@ -367,7 +421,9 @@ if ($pdo) {
             <div class="table-card" style="margin-bottom: 16px; padding: 12px 16px;">
                 <div style="display: flex; gap: 12px; align-items: center;">
                     <div style="flex: 1;">
-                        <input type="text" id="inputBuscarTablaRecepciones" class="form-control" placeholder="🔍 Buscar en historial por N° recepción, factura física, NCF, proveedor..." oninput="filtrarTablaRecepciones()" style="height: 38px;" />
+                        <input type="text" id="inputBuscarTablaRecepciones" class="form-control"
+                            placeholder="🔍 Buscar en historial por N° recepción, factura física, NCF, proveedor..."
+                            oninput="filtrarTablaRecepciones()" style="height: 38px;" />
                     </div>
                 </div>
             </div>
@@ -377,7 +433,8 @@ if ($pdo) {
                 <div class="table-card-top">
                     <div class="table-card-info">
                         <h2 class="table-card-title">Historial de Recepciones Físicas Registradas</h2>
-                        <span class="badge-count" id="badgeTotalRecepciones"><?= count($historialRecepciones) ?> registros recientes</span>
+                        <span class="badge-count" id="badgeTotalRecepciones"><?= count($historialRecepciones) ?>
+                            registros recientes</span>
                     </div>
                 </div>
 
@@ -406,9 +463,10 @@ if ($pdo) {
                                 </tr>
                             <?php else: ?>
                                 <?php foreach ($historialRecepciones as $hr): ?>
-                                    <tr data-texto="<?= strtolower(htmlspecialchars($hr['id'] . ' ' . $hr['numero_factura_proveedor'] . ' ' . ($hr['ncf_proveedor'] ?? '') . ' ' . $hr['proveedor_nombre'] . ' ' . ($hr['numero_orden'] ?? ''))) ?>">
+                                    <tr
+                                        data-texto="<?= strtolower(htmlspecialchars($hr['id'] . ' ' . $hr['numero_factura_proveedor'] . ' ' . ($hr['ncf_proveedor'] ?? '') . ' ' . $hr['proveedor_nombre'] . ' ' . ($hr['numero_orden'] ?? ''))) ?>">
                                         <td style="font-weight: 700; font-family: var(--font-mono); color: var(--accent-gold);">
-                                            #<?= (int)$hr['id'] ?>
+                                            #<?= (int) $hr['id'] ?>
                                         </td>
                                         <td style="font-weight: 600;">
                                             <?= htmlspecialchars($hr['numero_factura_proveedor']) ?>
@@ -423,7 +481,8 @@ if ($pdo) {
                                             <?= htmlspecialchars($hr['numero_orden'] ?? 'Sin Orden') ?>
                                         </td>
                                         <td class="text-center">
-                                            <span style="font-size: 0.72rem; font-weight: 700; padding: 2px 6px; border-radius: 4px; background: <?= ($hr['condicion_pago'] === 'CONTADO') ? '#e8f5e9' : '#e3f2fd' ?>; color: <?= ($hr['condicion_pago'] === 'CONTADO') ? '#2e7d32' : '#1565c0' ?>;">
+                                            <span
+                                                style="font-size: 0.72rem; font-weight: 700; padding: 2px 6px; border-radius: 4px; background: <?= ($hr['condicion_pago'] === 'CONTADO') ? '#e8f5e9' : '#e3f2fd' ?>; color: <?= ($hr['condicion_pago'] === 'CONTADO') ? '#2e7d32' : '#1565c0' ?>;">
                                                 <?= htmlspecialchars($hr['condicion_pago']) ?>
                                             </span>
                                         </td>
@@ -431,13 +490,14 @@ if ($pdo) {
                                             <?= date('d/m/Y h:i A', strtotime($hr['fecha_recepcion'])) ?>
                                         </td>
                                         <td class="text-center" style="font-size: 0.8rem; font-family: var(--font-mono);">
-                                            <?= (int)$hr['total_unidades'] ?> u. (<?= (int)$hr['total_productos'] ?> prod)
+                                            <?= (int) $hr['total_unidades'] ?> u. (<?= (int) $hr['total_productos'] ?> prod)
                                         </td>
                                         <td class="text-right" style="font-family: var(--font-mono); font-weight: 700;">
-                                            RD$ <?= number_format((float)$hr['monto_total_factura'], 2) ?>
+                                            RD$ <?= number_format((float) $hr['monto_total_factura'], 2) ?>
                                         </td>
                                         <td class="text-center">
-                                            <button type="button" class="btn btn-sm btn-outline" onclick="verComprobanteRecepcion(<?= (int)$hr['id'] ?>)">
+                                            <button type="button" class="btn btn-sm btn-outline"
+                                                onclick="verComprobanteRecepcion(<?= (int) $hr['id'] ?>)">
                                                 👁️ Comprobante
                                             </button>
                                         </td>
@@ -460,80 +520,134 @@ if ($pdo) {
             <div class="modal-header">
                 <div>
                     <h3 class="modal-title">Recepción de Mercancía (Check-in)</h3>
-                    <small id="badgeModoRecepcion" style="color: var(--text-muted); font-size: 0.78rem;">Recepción directa sin orden obligatoria o importada desde orden de compra</small>
+                    <small id="badgeModoRecepcion" style="color: var(--text-muted); font-size: 0.78rem;">Recepción
+                        directa sin orden obligatoria o importada desde orden de compra</small>
                 </div>
                 <button type="button" class="modal-close" onclick="cerrarModalNuevaRecepcion()">&times;</button>
             </div>
 
-            <form id="formRecepcion" onsubmit="guardarRecepcion(event)" style="display: flex; flex-direction: column; overflow: hidden;">
+            <form id="formRecepcion" onsubmit="guardarRecepcion(event)"
+                style="display: flex; flex-direction: column; overflow: hidden;">
                 <input type="hidden" id="inputOrdenCompraId" name="orden_compra_id" value="" />
 
                 <div class="modal-body" style="padding: 12px 18px; max-height: calc(88vh - 120px); overflow-y: auto;">
-                    
+
                     <!-- BANNER ORDEN DE COMPRA VINCULADA -->
-                    <div id="bannerOrdenImportada" style="display: none; background: #faf4ea; border: 1.5px solid #d4c1a7; border-radius: 8px; padding: 10px 14px; margin-bottom: 12px; align-items: center; justify-content: space-between; gap: 12px;">
+                    <div id="bannerOrdenImportada"
+                        style="display: none; background: #faf4ea; border: 1.5px solid #d4c1a7; border-radius: 8px; padding: 10px 14px; margin-bottom: 12px; align-items: center; justify-content: space-between; gap: 12px;">
                         <div style="display: flex; align-items: center; gap: 10px;">
                             <span style="font-size: 1.3rem;">📋</span>
                             <div>
-                                <strong id="textoOrdenVinculada" style="font-size: 0.92rem; color: var(--text-dark);">OC-0000 — Suplidor</strong>
-                                <div id="subtextoOrdenVinculada" style="font-size: 0.74rem; color: var(--text-muted);">RNC: ... | Días Crédito: ...</div>
+                                <strong id="textoOrdenVinculada"
+                                    style="font-size: 0.92rem; color: var(--text-dark);">OC-0000 — Suplidor</strong>
+                                <div id="subtextoOrdenVinculada" style="font-size: 0.74rem; color: var(--text-muted);">
+                                    RNC: ... | Días Crédito: ...</div>
                             </div>
                         </div>
-                        <button type="button" class="btn btn-sm btn-secondary" onclick="desvincularOrdenCompra()" style="border: 1px solid #d0c2b0; font-size: 0.76rem; padding: 3px 8px;">
+                        <button type="button" class="btn btn-sm btn-secondary" onclick="desvincularOrdenCompra()"
+                            style="border: 1px solid #d0c2b0; font-size: 0.76rem; padding: 3px 8px;">
                             ✕ Quitar Vínculo
                         </button>
                     </div>
 
                     <!-- 1. Cabecera Compacta -->
-                    <div style="background: #faf8f5; border: 1px solid #eae3d5; border-radius: 8px; padding: 7px 12px; margin-bottom: 8px;">
-                        <div style="font-size: 0.68rem; font-weight: 700; color: var(--accent-gold); text-transform: uppercase; margin-bottom: 4px;">
-                            1. Datos del Proveedor y Factura Física (DGII 606)
+                    <div
+                        style="background: #faf8f5; border: 1px solid #eae3d5; border-radius: 8px; padding: 7px 12px; margin-bottom: 8px;">
+                        <div
+                            style="font-size: 0.68rem; font-weight: 700; color: var(--accent-gold); text-transform: uppercase; margin-bottom: 4px;">
+                            1. Datos del Proveedor, Almacén Destino y Factura Física (DGII 606)
                         </div>
-                        <div style="display: grid; grid-template-columns: 1.5fr 1fr 1fr 1fr; gap: 8px; align-items: start;">
+                        <div
+                            style="display: grid; grid-template-columns: 1.45fr 1fr 0.9fr 0.9fr 0.95fr; gap: 8px; align-items: start;">
                             <!-- SELECTOR BUSCABLE DE PROVEEDOR -->
                             <div class="form-group" style="margin: 0; position: relative;">
-                                <label class="form-label" style="font-size: 0.70rem; font-weight: 700; margin-bottom: 2px;">Proveedor *</label>
-                                <input type="hidden" id="selectProveedorRecepcion" name="proveedor_id" required value="" />
-                                
+                                <label class="form-label"
+                                    style="font-size: 0.70rem; font-weight: 700; margin-bottom: 2px;">Proveedor
+                                    *</label>
+                                <input type="hidden" id="selectProveedorRecepcion" name="proveedor_id" required
+                                    value="" />
+
                                 <div id="boxBusquedaProveedorRecep" style="position: relative;">
-                                    <input type="text" id="inputBuscarProveedorRecep" class="form-control" placeholder="🔍 Escriba nombre o RNC..." autocomplete="off" oninput="filtrarProveedoresRecep(this.value)" onfocus="abrirDropdownProveedoresRecep()" style="height: 30px; font-size: 0.80rem;" />
-                                    <div id="dropdownProveedoresRecep" style="display: none; position: absolute; top: 100%; left: 0; right: 0; max-height: 200px; overflow-y: auto; background: #ffffff; border: 1.5px solid #d4c1a7; border-radius: 6px; box-shadow: 0 4px 14px rgba(0,0,0,0.15); z-index: 1050; margin-top: 2px;">
+                                    <input type="text" id="inputBuscarProveedorRecep" class="form-control"
+                                        placeholder="🔍 Escriba nombre o RNC..." autocomplete="off"
+                                        oninput="filtrarProveedoresRecep(this.value)"
+                                        onfocus="abrirDropdownProveedoresRecep()"
+                                        style="height: 30px; font-size: 0.80rem;" />
+                                    <div id="dropdownProveedoresRecep"
+                                        style="display: none; position: absolute; top: 100%; left: 0; right: 0; max-height: 200px; overflow-y: auto; background: #ffffff; border: 1.5px solid #d4c1a7; border-radius: 6px; box-shadow: 0 4px 14px rgba(0,0,0,0.15); z-index: 1050; margin-top: 2px;">
                                         <!-- Dinámico -->
                                     </div>
                                 </div>
 
-                                <div id="badgeProveedorElegidoRecep" style="display: none; background: #fdf5ea; border: 1px solid #dfcaa4; border-radius: 6px; padding: 2px 8px; align-items: center; justify-content: space-between; height: 30px;">
-                                    <div style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 0.78rem; color: #211813;">
+                                <div id="badgeProveedorElegidoRecep"
+                                    style="display: none; background: #fdf5ea; border: 1px solid #dfcaa4; border-radius: 6px; padding: 2px 8px; align-items: center; justify-content: space-between; height: 30px;">
+                                    <div
+                                        style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 0.78rem; color: #211813;">
                                         <strong id="txtNombreProvRecep">—</strong>
-                                        <small id="txtDetalleProvRecep" style="color: #7a6b5d; margin-left: 6px; font-family: var(--font-mono);"></small>
+                                        <small id="txtDetalleProvRecep"
+                                            style="color: #7a6b5d; margin-left: 6px; font-family: var(--font-mono);"></small>
                                     </div>
-                                    <button type="button" class="btn btn-sm btn-secondary" id="btnCambiarProvRecep" onclick="limpiarProveedorSeleccionadoRecep()" style="padding: 1px 6px; font-size: 0.68rem; height: 20px; flex-shrink: 0;">✕ Cambiar</button>
+                                    <button type="button" class="btn btn-sm btn-secondary" id="btnCambiarProvRecep"
+                                        onclick="limpiarProveedorSeleccionadoRecep()"
+                                        style="padding: 1px 6px; font-size: 0.68rem; height: 20px; flex-shrink: 0;">✕
+                                        Cambiar</button>
                                 </div>
 
-                                <small id="infoProveedorRecepcion" style="color: var(--text-muted); font-size: 0.66rem; margin-top: 1px; display: block;">
+                                <small id="infoProveedorRecepcion"
+                                    style="color: var(--text-muted); font-size: 0.66rem; margin-top: 1px; display: block;">
                                     Días habituales: --
                                 </small>
                             </div>
 
+                            <!-- SELECTOR DE ALMACÉN DESTINO -->
                             <div class="form-group" style="margin: 0;">
-                                <label class="form-label" style="font-size: 0.70rem; font-weight: 700; margin-bottom: 2px;">N° Factura Física *</label>
-                                <input type="text" id="inputNumFactura" class="form-control" required maxlength="50" placeholder="Ej: FACT-98234" style="height: 30px; font-size: 0.80rem;" />
+                                <label class="form-label" for="selectAlmacenRecepcion"
+                                    style="font-size: 0.70rem; font-weight: 700; margin-bottom: 2px;">Almacén Destino
+                                    *</label>
+                                <select id="selectAlmacenRecepcion" name="almacen_id" class="form-control" required
+                                    style="height: 30px; font-size: 0.80rem;">
+                                    <?php if (empty($almacenes)): ?>
+                                        <option value="">-- Sin almacenes activos --</option>
+                                    <?php else: ?>
+                                        <?php foreach ($almacenes as $alm): ?>
+                                            <option value="<?= (int) $alm['id'] ?>">
+                                                <?= htmlspecialchars($alm['nombre']) ?>
+                                            </option>
+                                        <?php endforeach; ?>
+                                    <?php endif; ?>
+                                </select>
                             </div>
 
                             <div class="form-group" style="margin: 0;">
-                                <label class="form-label" style="font-size: 0.70rem; font-weight: 700; margin-bottom: 2px;">NCF Proveedor (DGII) *</label>
-                                <input type="text" id="inputNcf" class="form-control" style="font-family: var(--font-mono); text-transform: uppercase; height: 30px; font-size: 0.80rem;" required maxlength="13" placeholder="Ej: B0100000001" />
+                                <label class="form-label"
+                                    style="font-size: 0.70rem; font-weight: 700; margin-bottom: 2px;">N° Factura Física
+                                    *</label>
+                                <input type="text" id="inputNumFactura" class="form-control" required maxlength="50"
+                                    placeholder="Ej: FACT-98234" style="height: 30px; font-size: 0.80rem;" />
                             </div>
 
                             <div class="form-group" style="margin: 0;">
-                                <label class="form-label" style="font-size: 0.70rem; font-weight: 700; margin-bottom: 2px;">Condición de Pago *</label>
+                                <label class="form-label"
+                                    style="font-size: 0.70rem; font-weight: 700; margin-bottom: 2px;">NCF Proveedor
+                                    (DGII) *</label>
+                                <input type="text" id="inputNcf" class="form-control"
+                                    style="font-family: var(--font-mono); text-transform: uppercase; height: 30px; font-size: 0.80rem;"
+                                    required maxlength="13" placeholder="Ej: B0100000001" />
+                            </div>
+
+                            <div class="form-group" style="margin: 0;">
+                                <label class="form-label"
+                                    style="font-size: 0.70rem; font-weight: 700; margin-bottom: 2px;">Condición de Pago
+                                    *</label>
                                 <div style="display: flex; align-items: center; height: 30px; gap: 8px;">
                                     <label class="radio-condicion-pago" style="font-size: 0.75rem; margin: 0;">
-                                        <input type="radio" name="condicion_pago" value="CREDITO" checked onchange="actualizarNotaCondicionPago()" />
+                                        <input type="radio" name="condicion_pago" value="CREDITO" checked
+                                            onchange="actualizarNotaCondicionPago()" />
                                         <span>CRÉDITO</span>
                                     </label>
                                     <label class="radio-condicion-pago" style="font-size: 0.75rem; margin: 0;">
-                                        <input type="radio" name="condicion_pago" value="CONTADO" onchange="actualizarNotaCondicionPago()" />
+                                        <input type="radio" name="condicion_pago" value="CONTADO"
+                                            onchange="actualizarNotaCondicionPago()" />
                                         <span>CONTADO</span>
                                     </label>
                                 </div>
@@ -542,49 +656,66 @@ if ($pdo) {
                     </div>
 
                     <!-- 2. Detalle y Selección de Productos (Layout Split 2 Columnas Simétricas y Elevadas) -->
-                    <div class="grid-split-orden" style="display: grid; grid-template-columns: 1fr 1.18fr; gap: 12px; margin-top: 4px; align-items: stretch;">
-                        
+                    <div class="grid-split-orden"
+                        style="display: grid; grid-template-columns: 1fr 1.18fr; gap: 12px; margin-top: 4px; align-items: stretch;">
+
                         <!-- Columna Izquierda: Catálogo de Productos -->
-                        <div style="background: #faf8f5; border: 1.5px solid #dfcaa4; border-radius: 8px; padding: 8px 10px; display: flex; flex-direction: column; height: 290px; box-sizing: border-box; gap: 6px;">
-                            <div style="display: flex; justify-content: space-between; align-items: center; height: 22px; border-bottom: 1px solid #ebdcc5; padding-bottom: 4px;">
-                                <span style="font-size: 0.72rem; font-weight: 700; color: var(--accent-gold); text-transform: uppercase; letter-spacing: 0.3px; white-space: nowrap;">
+                        <div
+                            style="background: #faf8f5; border: 1.5px solid #dfcaa4; border-radius: 8px; padding: 8px 10px; display: flex; flex-direction: column; height: 290px; box-sizing: border-box; gap: 6px;">
+                            <div
+                                style="display: flex; justify-content: space-between; align-items: center; height: 22px; border-bottom: 1px solid #ebdcc5; padding-bottom: 4px;">
+                                <span
+                                    style="font-size: 0.72rem; font-weight: 700; color: var(--accent-gold); text-transform: uppercase; letter-spacing: 0.3px; white-space: nowrap;">
                                     Catálogo de Productos
                                 </span>
-                                <span id="lblEstadoCatalogo" style="font-size: 0.68rem; color: var(--text-muted); font-weight: 600; white-space: nowrap;">
+                                <span id="lblEstadoCatalogo"
+                                    style="font-size: 0.68rem; color: var(--text-muted); font-weight: 600; white-space: nowrap;">
                                     <?= count($productos) ?> en catálogo
                                 </span>
                             </div>
 
                             <input type="text" id="inputBuscarCatalogo" class="form-control"
-                                placeholder="🔍 Buscar nombre o SKU..."
-                                oninput="buscarProductosCatalogo(this.value)"
+                                placeholder="🔍 Buscar nombre o SKU..." oninput="buscarProductosCatalogo(this.value)"
                                 style="height: 30px; padding-left: 8px; font-size: 0.78rem; flex-shrink: 0;" />
 
-                            <div id="panelResultadosCatalogo" style="flex: 1; min-height: 0; overflow-y: auto; background: #ffffff; border: 1px solid #dfcaa4; border-radius: 6px; padding: 3px;">
+                            <div id="panelResultadosCatalogo"
+                                style="flex: 1; min-height: 0; overflow-y: auto; background: #ffffff; border: 1px solid #dfcaa4; border-radius: 6px; padding: 3px;">
                                 <!-- Items dinámicos -->
                             </div>
                         </div>
 
                         <!-- Columna Derecha: Productos en la Recepción (Bandeja) -->
-                        <div style="background: #faf8f5; border: 1.5px solid #dfcaa4; border-radius: 8px; padding: 8px 10px; display: flex; flex-direction: column; height: 290px; box-sizing: border-box; gap: 6px;">
-                            <div style="display: flex; justify-content: space-between; align-items: center; height: 22px; border-bottom: 1px solid #ebdcc5; padding-bottom: 4px;">
-                                <span style="font-size: 0.72rem; font-weight: 700; color: var(--accent-gold); text-transform: uppercase; letter-spacing: 0.3px; white-space: nowrap;">
+                        <div
+                            style="background: #faf8f5; border: 1.5px solid #dfcaa4; border-radius: 8px; padding: 8px 10px; display: flex; flex-direction: column; height: 290px; box-sizing: border-box; gap: 6px;">
+                            <div
+                                style="display: flex; justify-content: space-between; align-items: center; height: 22px; border-bottom: 1px solid #ebdcc5; padding-bottom: 4px;">
+                                <span
+                                    style="font-size: 0.72rem; font-weight: 700; color: var(--accent-gold); text-transform: uppercase; letter-spacing: 0.3px; white-space: nowrap;">
                                     Productos en la Recepción
                                 </span>
-                                <small style="color: var(--text-muted); font-size: 0.68rem; font-weight: 600; white-space: nowrap;">Use <strong>+ Lote</strong> para dividir</small>
+                                <small
+                                    style="color: var(--text-muted); font-size: 0.68rem; font-weight: 600; white-space: nowrap;">Use
+                                    <strong>+ Lote</strong> para dividir</small>
                             </div>
 
-                            <div id="contenedorLineasRecepcion" style="flex: 1; min-height: 0; overflow-y: auto; background: #ffffff; border: 1px solid #dfcaa4; border-radius: 6px;">
+                            <div id="contenedorLineasRecepcion"
+                                style="flex: 1; min-height: 0; overflow-y: auto; background: #ffffff; border: 1px solid #dfcaa4; border-radius: 6px;">
                                 <!-- Tabla compacta generada por JS -->
                             </div>
 
-                            <div style="background: #ffffff; border: 1px solid #dfcaa4; border-radius: 6px; padding: 4px 10px; display: flex; justify-content: space-between; align-items: center; font-weight: 700; min-height: 28px; box-sizing: border-box; flex-shrink: 0;">
+                            <div
+                                style="background: #ffffff; border: 1px solid #dfcaa4; border-radius: 6px; padding: 4px 10px; display: flex; justify-content: space-between; align-items: center; font-weight: 700; min-height: 28px; box-sizing: border-box; flex-shrink: 0;">
                                 <div style="display: flex; gap: 14px; font-size: 0.76rem; color: #5a3e24;">
-                                    <span>Total Líneas: <strong id="lblTotalLineasRecep" style="color: #211813;">0</strong></span>
-                                    <span>Total Unidades: <strong id="lblTotalUnidadesRecep" style="color: #211813; font-family: var(--font-mono);">0</strong> u.</span>
+                                    <span>Total Líneas: <strong id="lblTotalLineasRecep"
+                                            style="color: #211813;">0</strong></span>
+                                    <span>Total Unidades: <strong id="lblTotalUnidadesRecep"
+                                            style="color: #211813; font-family: var(--font-mono);">0</strong> u.</span>
                                 </div>
-                                <div style="font-size: 0.85rem; font-family: var(--font-mono); color: var(--accent-gold);">
-                                    <span style="font-size: 0.68rem; color: #7a6b5d; text-transform: uppercase; font-family: var(--font-sans); margin-right: 4px;">Total Facturado:</span>
+                                <div
+                                    style="font-size: 0.85rem; font-family: var(--font-mono); color: var(--accent-gold);">
+                                    <span
+                                        style="font-size: 0.68rem; color: #7a6b5d; text-transform: uppercase; font-family: var(--font-sans); margin-right: 4px;">Total
+                                        Facturado:</span>
                                     <span id="lblMontoTotalEstimadoRecep">RD$ 0.00</span>
                                 </div>
                             </div>
@@ -594,15 +725,21 @@ if ($pdo) {
                 </div>
 
                 <!-- Footer del Modal con Totales y Botones -->
-                <div class="modal-footer" style="padding: 10px 18px; background: #faf8f5; border-top: 1px solid var(--border-light); display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px;">
+                <div class="modal-footer"
+                    style="padding: 10px 18px; background: #faf8f5; border-top: 1px solid var(--border-light); display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px;">
                     <div style="display: flex; gap: 16px; font-size: 0.80rem; color: #5c5043;">
-                        <span>Total Unidades: <strong id="lblTotalUnidadesRecepcion" style="color: #211813; font-family: var(--font-mono);">0</strong> u.</span>
-                        <span>Total Productos: <strong id="lblTotalProductosRecepcion" style="color: #211813;">0</strong></span>
-                        <span>Total Facturado: <strong id="lblMontoTotalRecepcion" style="color: var(--accent-gold); font-family: var(--font-mono); font-size: 1.05rem;">RD$ 0.00</strong></span>
+                        <span>Total Unidades: <strong id="lblTotalUnidadesRecepcion"
+                                style="color: #211813; font-family: var(--font-mono);">0</strong> u.</span>
+                        <span>Total Productos: <strong id="lblTotalProductosRecepcion"
+                                style="color: #211813;">0</strong></span>
+                        <span>Total Facturado: <strong id="lblMontoTotalRecepcion"
+                                style="color: var(--accent-gold); font-family: var(--font-mono); font-size: 1.05rem;">RD$
+                                0.00</strong></span>
                     </div>
 
                     <div style="display: flex; gap: 10px;">
-                        <button type="button" class="btn btn-secondary" onclick="cerrarModalNuevaRecepcion()">Cancelar</button>
+                        <button type="button" class="btn btn-secondary"
+                            onclick="cerrarModalNuevaRecepcion()">Cancelar</button>
                         <?php if ($puedeRegistrar): ?>
                             <button type="submit" class="btn btn-gold" id="btnGuardarRecepcion" style="font-weight: 700;">
                                 💾 Registrar Recepción y Entrada a Inventario
@@ -625,27 +762,45 @@ if ($pdo) {
             <div class="modal-header">
                 <div>
                     <h3 class="modal-title">📋 Importar Orden de Compra a Check-in</h3>
-                    <small style="color: var(--text-muted); font-size: 0.78rem;">Seleccione una orden aprobada para verificar y recibir la mercancía en almacén</small>
+                    <small style="color: var(--text-muted); font-size: 0.78rem;">Seleccione una orden aprobada para
+                        verificar y recibir la mercancía en almacén</small>
                 </div>
-                <button type="button" class="btn-close" onclick="cerrarModalImportarOrden()" style="background:none; border:none; font-size:1.5rem; cursor:pointer; color:var(--text-muted);">&times;</button>
+                <button type="button" class="btn-close" onclick="cerrarModalImportarOrden()"
+                    style="background:none; border:none; font-size:1.5rem; cursor:pointer; color:var(--text-muted);">&times;</button>
             </div>
-            
+
             <div class="modal-body" style="padding: 16px 20px; max-height: 70vh; overflow-y: auto;">
                 <!-- Buscador de órdenes en el modal -->
                 <div style="margin-bottom: 14px;">
-                    <input type="text" id="filtroModalOrdenes" class="form-control" placeholder="🔍 Filtrar por número de orden, proveedor o RNC..." oninput="filtrarOrdenesModal(this.value)" style="height: 38px; font-size: 0.88rem; padding-left: 12px;" />
+                    <input type="text" id="filtroModalOrdenes" class="form-control"
+                        placeholder="🔍 Filtrar por número de orden, proveedor o RNC..."
+                        oninput="filtrarOrdenesModal(this.value)"
+                        style="height: 38px; font-size: 0.88rem; padding-left: 12px;" />
                 </div>
 
-                <div class="table-wrapper" style="border: 1px solid var(--border-light); border-radius: 6px; overflow: hidden;">
+                <div class="table-wrapper"
+                    style="border: 1px solid var(--border-light); border-radius: 6px; overflow: hidden;">
                     <table class="data-table" style="width: 100%; border-collapse: collapse;" id="tablaModalOrdenes">
                         <thead>
                             <tr style="background: var(--bg-table-header, #f6efe4); border-bottom: 1px solid #e4d5be;">
-                                <th style="padding: 10px 12px; text-align: left; font-size: 0.75rem; text-transform: uppercase;">N° Orden</th>
-                                <th style="padding: 10px 12px; text-align: left; font-size: 0.75rem; text-transform: uppercase;">Proveedor / RNC</th>
-                                <th style="padding: 10px 10px; text-align: center; font-size: 0.75rem; text-transform: uppercase;">Emisión</th>
-                                <th style="padding: 10px 10px; text-align: center; font-size: 0.75rem; text-transform: uppercase;">Líneas Pend.</th>
-                                <th style="padding: 10px 12px; text-align: right; font-size: 0.75rem; text-transform: uppercase;">Total Est.</th>
-                                <th style="padding: 10px 12px; text-align: center; font-size: 0.75rem; text-transform: uppercase;">Acción</th>
+                                <th
+                                    style="padding: 10px 12px; text-align: left; font-size: 0.75rem; text-transform: uppercase;">
+                                    N° Orden</th>
+                                <th
+                                    style="padding: 10px 12px; text-align: left; font-size: 0.75rem; text-transform: uppercase;">
+                                    Proveedor / RNC</th>
+                                <th
+                                    style="padding: 10px 10px; text-align: center; font-size: 0.75rem; text-transform: uppercase;">
+                                    Emisión</th>
+                                <th
+                                    style="padding: 10px 10px; text-align: center; font-size: 0.75rem; text-transform: uppercase;">
+                                    Líneas Pend.</th>
+                                <th
+                                    style="padding: 10px 12px; text-align: right; font-size: 0.75rem; text-transform: uppercase;">
+                                    Total Est.</th>
+                                <th
+                                    style="padding: 10px 12px; text-align: center; font-size: 0.75rem; text-transform: uppercase;">
+                                    Acción</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -657,30 +812,40 @@ if ($pdo) {
                                 </tr>
                             <?php else: ?>
                                 <?php foreach ($ordenesPendientes as $op): ?>
-                                    <tr class="fila-modal-orden" data-texto="<?= strtolower(htmlspecialchars($op['numero_orden'] . ' ' . $op['proveedor_nombre'] . ' ' . ($op['proveedor_rnc'] ?? ''))) ?>" style="border-bottom: 1px solid #f2ede4;">
+                                    <tr class="fila-modal-orden"
+                                        data-texto="<?= strtolower(htmlspecialchars($op['numero_orden'] . ' ' . $op['proveedor_nombre'] . ' ' . ($op['proveedor_rnc'] ?? ''))) ?>"
+                                        style="border-bottom: 1px solid #f2ede4;">
                                         <td style="padding: 10px 12px;">
-                                            <strong style="font-family: var(--font-mono); color: var(--accent-gold); font-size: 0.88rem;"><?= htmlspecialchars($op['numero_orden']) ?></strong>
+                                            <strong
+                                                style="font-family: var(--font-mono); color: var(--accent-gold); font-size: 0.88rem;"><?= htmlspecialchars($op['numero_orden']) ?></strong>
                                             <div style="font-size: 0.72rem; color: var(--text-muted);">
                                                 <?= ($op['estado'] === 'RECIBIDA_PARCIAL') ? '⚡ Entrega Parcial' : '⏳ Pendiente' ?>
                                             </div>
                                         </td>
                                         <td style="padding: 10px 12px;">
-                                            <div style="font-weight: 600; color: var(--text-dark); font-size: 0.88rem;"><?= htmlspecialchars($op['proveedor_nombre']) ?></div>
-                                            <div style="font-size: 0.75rem; color: var(--text-muted); font-family: var(--font-mono);">RNC: <?= htmlspecialchars($op['proveedor_rnc'] ?? 'N/A') ?></div>
+                                            <div style="font-weight: 600; color: var(--text-dark); font-size: 0.88rem;">
+                                                <?= htmlspecialchars($op['proveedor_nombre']) ?></div>
+                                            <div
+                                                style="font-size: 0.75rem; color: var(--text-muted); font-family: var(--font-mono);">
+                                                RNC: <?= htmlspecialchars($op['proveedor_rnc'] ?? 'N/A') ?></div>
                                         </td>
                                         <td style="padding: 10px 10px; text-align: center; font-size: 0.82rem; color: #5a4b3d;">
                                             <?= htmlspecialchars(date('d/m/Y', strtotime($op['fecha_emision']))) ?>
                                         </td>
                                         <td style="padding: 10px 10px; text-align: center;">
-                                            <span style="background: #eef5fb; color: #1e6091; font-weight: 700; border-radius: 10px; padding: 2px 8px; font-size: 0.78rem;">
-                                                <?= (int)$op['lineas_pendientes'] ?> líneas
+                                            <span
+                                                style="background: #eef5fb; color: #1e6091; font-weight: 700; border-radius: 10px; padding: 2px 8px; font-size: 0.78rem;">
+                                                <?= (int) $op['lineas_pendientes'] ?> líneas
                                             </span>
                                         </td>
-                                        <td style="padding: 10px 12px; text-align: right; font-family: var(--font-mono); font-weight: 700; font-size: 0.90rem; color: var(--text-dark);">
-                                            RD$ <?= number_format((float)$op['monto_total_estimado'], 2) ?>
+                                        <td
+                                            style="padding: 10px 12px; text-align: right; font-family: var(--font-mono); font-weight: 700; font-size: 0.90rem; color: var(--text-dark);">
+                                            RD$ <?= number_format((float) $op['monto_total_estimado'], 2) ?>
                                         </td>
                                         <td style="padding: 10px 12px; text-align: center;">
-                                            <button type="button" class="btn btn-sm btn-gold" onclick="importarOrdenDesdeModal(<?= (int)$op['id'] ?>)" style="padding: 6px 14px; font-size: 0.82rem; font-weight: 700;">
+                                            <button type="button" class="btn btn-sm btn-gold"
+                                                onclick="importarOrdenDesdeModal(<?= (int) $op['id'] ?>)"
+                                                style="padding: 6px 14px; font-size: 0.82rem; font-weight: 700;">
                                                 📥 Cargar
                                             </button>
                                         </td>
@@ -692,7 +857,8 @@ if ($pdo) {
                 </div>
             </div>
 
-            <div class="modal-footer" style="padding: 12px 20px; background: #faf8f5; border-top: 1px solid var(--border-light); display: flex; justify-content: flex-end;">
+            <div class="modal-footer"
+                style="padding: 12px 20px; background: #faf8f5; border-top: 1px solid var(--border-light); display: flex; justify-content: flex-end;">
                 <button type="button" class="btn btn-secondary" onclick="cerrarModalImportarOrden()">Cerrar</button>
             </div>
         </div>
@@ -706,11 +872,12 @@ if ($pdo) {
             <div class="modal-header">
                 <div>
                     <h3 class="modal-title" id="recModalTitulo">Comprobante de Recepción</h3>
-                    <small id="recModalSubtitulo" style="color: var(--text-muted); font-size: 0.78rem;">Entrada de mercancía a almacén y registro fiscal 606</small>
+                    <small id="recModalSubtitulo" style="color: var(--text-muted); font-size: 0.78rem;">Entrada de
+                        mercancía a almacén y registro fiscal 606</small>
                 </div>
                 <button type="button" class="modal-close" onclick="cerrarModalRecepcion()">&times;</button>
             </div>
-            
+
             <div class="modal-body" style="max-height: calc(85vh - 120px); overflow-y: auto;" id="cuerpoVerRecepcion">
                 <!-- Se llena dinámicamente vía fetch -->
             </div>
@@ -727,7 +894,7 @@ if ($pdo) {
         const CATALOGO_PRODUCTOS = <?= json_encode($productos, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
         const PROVEEDORES_LISTA = <?= json_encode($proveedores, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
     </script>
-    <script src="recepciones.js?v=27"></script>
+    <script src="recepciones.js?v=28"></script>
 </body>
 
 </html>

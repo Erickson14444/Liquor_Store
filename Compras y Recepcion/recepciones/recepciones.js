@@ -101,10 +101,10 @@ function mostrarMensajeModal(opciones = {}) {
     if (esConfirmacion) {
         btnCancel.style.display = 'inline-block';
         btnCancel.textContent = textoCancelar || 'Cancelar';
-        btnCancel.onclick = function() {
+        btnCancel.onclick = function () {
             modal.style.display = 'none';
         };
-        btnOk.onclick = function() {
+        btnOk.onclick = function () {
             modal.style.display = 'none';
             if (typeof alConfirmar === 'function') {
                 alConfirmar();
@@ -112,7 +112,7 @@ function mostrarMensajeModal(opciones = {}) {
         };
     } else {
         btnCancel.style.display = 'none';
-        btnOk.onclick = function() {
+        btnOk.onclick = function () {
             modal.style.display = 'none';
             if (typeof alCerrar === 'function') {
                 alCerrar();
@@ -196,6 +196,9 @@ function iniciarRecepcionDirecta() {
 
     limpiarProveedorSeleccionadoRecep();
 
+    const selAlm = document.getElementById('selectAlmacenRecepcion');
+    if (selAlm && selAlm.options.length > 0) selAlm.selectedIndex = 0;
+
     const banner = document.getElementById('bannerOrdenImportada');
     if (banner) banner.style.display = 'none';
 
@@ -240,7 +243,7 @@ function filtrarProveedoresRecep(query) {
     const lista = (typeof PROVEEDORES_LISTA !== 'undefined' && Array.isArray(PROVEEDORES_LISTA)) ? PROVEEDORES_LISTA : [];
     const q = (query || '').toLowerCase().trim();
 
-    const filtrados = q === '' 
+    const filtrados = q === ''
         ? lista.slice(0, 30)
         : lista.filter(p => {
             const nom = (p.nombre_razon_social || '').toLowerCase();
@@ -534,8 +537,8 @@ function desvincularOrdenCompra() {
     const inpOrden = document.getElementById('inputOrdenCompraId');
     if (inpOrden) inpOrden.value = '';
 
-    const selProv = document.getElementById('selectProveedorRecepcion');
-    if (selProv) selProv.disabled = false;
+    const btnCambiar = document.getElementById('btnCambiarProvRecep');
+    if (btnCambiar) btnCambiar.style.display = 'inline-block';
 
     const banner = document.getElementById('bannerOrdenImportada');
     if (banner) banner.style.display = 'none';
@@ -611,9 +614,9 @@ function buscarProductosCatalogo(query) {
 
                 <div class="col-boton-accion">
                     ${yaAgregado
-                        ? `<button type="button" class="btn btn-sm btn-danger" onclick="quitarProductoDeRecepcion(${prodId})" style="padding: 3px 10px; font-size: 0.76rem; white-space: nowrap;">✕ Quitar</button>`
-                        : `<button type="button" class="btn btn-sm btn-gold" onclick="agregarProductoARecepcion(${prodId})" style="padding: 3px 10px; font-size: 0.76rem; white-space: nowrap;">+ Agregar</button>`
-                    }
+                ? `<button type="button" class="btn btn-sm btn-danger" onclick="quitarProductoDeRecepcion(${prodId})" style="padding: 3px 10px; font-size: 0.76rem; white-space: nowrap;">✕ Quitar</button>`
+                : `<button type="button" class="btn btn-sm btn-gold" onclick="agregarProductoARecepcion(${prodId})" style="padding: 3px 10px; font-size: 0.76rem; white-space: nowrap;">+ Agregar</button>`
+            }
                 </div>
             </div>
         `;
@@ -713,23 +716,18 @@ function renderizarContenedorProductos() {
     }
 
     let filasHtml = '';
-    let totalUnidades = 0;
-    let totalMonto = 0;
 
     MAPA_PRODUCTOS_RECEPCION.forEach(item => {
         const prodId = item.id;
         const tieneOrden = (ORDEN_ACTUAL && item.pendiente < 999999);
-        const badgePendiente = tieneOrden 
-            ? `<span style="background: #fef9e7; color: #b78103; border: 1px solid #f9e79f; font-size: 0.68rem; font-weight: 700; padding: 1px 6px; border-radius: 4px; margin-left: 4px;">Pend: ${item.pendiente} u.</span>` 
+        const badgePendiente = tieneOrden
+            ? `<span style="background: #fef9e7; color: #b78103; border: 1px solid #f9e79f; font-size: 0.68rem; font-weight: 700; padding: 1px 6px; border-radius: 4px; margin-left: 4px;">Pend: ${item.pendiente} u.</span>`
             : '';
 
         item.lotes.forEach((lot, lotIdx) => {
             const cant = parseInt(lot.cant || 0) || 0;
             const costo = parseFloat(lot.costo || 0) || 0;
             const subtotal = cant * costo;
-            totalUnidades += cant;
-            totalMonto += subtotal;
-
             const esPrimerLote = (lotIdx === 0);
 
             filasHtml += `
@@ -859,7 +857,6 @@ function recalcularProducto(productoId) {
     if (!item) return;
 
     const filas = document.querySelectorAll(`.fila-lote[data-producto-id="${productoId}"]`);
-    let sumaCantProd = 0;
 
     filas.forEach(f => {
         const cantInp = f.querySelector('.input-lote-cant');
@@ -868,8 +865,6 @@ function recalcularProducto(productoId) {
 
         const cant = parseInt(cantInp?.value || 0) || 0;
         const costo = parseFloat(costoInp?.value || 0) || 0;
-
-        sumaCantProd += cant;
         const subtotal = cant * costo;
 
         if (subtotalSpan) {
@@ -933,6 +928,12 @@ async function guardarRecepcion(event) {
     const selProv = document.getElementById('selectProveedorRecepcion');
     const proveedorId = selProv ? selProv.value.trim() : '';
 
+    const selAlm = document.getElementById('selectAlmacenRecepcion');
+    const almacenId = selAlm && selAlm.value ? parseInt(selAlm.value, 10) : 0;
+    const almacenNombre = (selAlm && selAlm.selectedIndex >= 0)
+        ? selAlm.options[selAlm.selectedIndex].text.trim()
+        : '';
+
     const numFactura = document.getElementById('inputNumFactura').value.trim();
     const ncf = document.getElementById('inputNcf').value.trim();
     const btnGuardar = document.getElementById('btnGuardarRecepcion');
@@ -943,7 +944,17 @@ async function guardarRecepcion(event) {
             titulo: 'Proveedor Obligatorio',
             mensaje: 'Debe seleccionar el proveedor del cual se recibe la mercancía.'
         });
-        selProv?.focus();
+        document.getElementById('inputBuscarProveedorRecep')?.focus();
+        return;
+    }
+
+    if (!almacenId || almacenId <= 0) {
+        mostrarMensajeModal({
+            tipo: 'advertencia',
+            titulo: 'Almacén Destino Requerido',
+            mensaje: 'Debe seleccionar el almacén donde ingresará físicamente la mercancía.'
+        });
+        selAlm?.focus();
         return;
     }
 
@@ -1064,7 +1075,7 @@ async function guardarRecepcion(event) {
         tipo: 'pregunta',
         esConfirmacion: true,
         titulo: '¿Confirmar Recepción de Mercancía?',
-        mensaje: `Se registrará la entrada física a inventario (Kardex) y la obligación en Cuentas por Pagar.<br><br><strong>Factura:</strong> ${numFactura} | <strong>NCF:</strong> ${ncf}<br><strong>Condición:</strong> ${condicionPago} | <strong>Líneas:</strong> ${lineasPayload.length}`,
+        mensaje: `Se registrará la entrada física a inventario (Kardex) y la obligación en Cuentas por Pagar.<br><br><strong>Almacén Destino:</strong> ${almacenNombre}<br><strong>Factura:</strong> ${numFactura} | <strong>NCF:</strong> ${ncf}<br><strong>Condición:</strong> ${condicionPago} | <strong>Líneas:</strong> ${lineasPayload.length}`,
         textoBoton: 'Sí, Registrar Entrada',
         textoCancelar: 'Revisar',
         alConfirmar: async () => {
@@ -1078,6 +1089,7 @@ async function guardarRecepcion(event) {
                     accion: 'registrar_recepcion',
                     orden_compra_id: ordenId,
                     proveedor_id: proveedorId,
+                    almacen_id: almacenId,
                     numero_factura_proveedor: numFactura,
                     ncf_proveedor: ncf,
                     condicion_pago: condicionPago,
@@ -1158,7 +1170,6 @@ async function verComprobanteRecepcion(recepcionId) {
 
         let lineasHtml = '';
         let totalUnidades = 0;
-        let totalCosto = 0;
 
         det.forEach(d => {
             const cant = parseInt(d.cantidad_recibida_buena || 0);
@@ -1166,7 +1177,6 @@ async function verComprobanteRecepcion(recepcionId) {
             const subtotal = parseFloat(d.subtotal_linea || 0);
 
             totalUnidades += cant;
-            totalCosto += subtotal;
 
             lineasHtml += `
                 <tr>
