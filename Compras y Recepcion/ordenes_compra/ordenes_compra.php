@@ -191,7 +191,7 @@ $badgesEstado = [
         }
         .grid-split-orden {
             display: grid;
-            grid-template-columns: 360px 1fr;
+            grid-template-columns: 1fr 1.15fr;
             gap: 14px;
             margin-top: 10px;
             align-items: start;
@@ -476,23 +476,30 @@ $badgesEstado = [
                     
                     <!-- 1. Cabecera Compacta -->
                     <div style="background: #faf8f5; border: 1px solid #eae3d5; border-radius: 8px; padding: 7px 12px; margin-bottom: 8px;">
-                        <div style="font-size: 0.70rem; font-weight: 700; color: var(--accent-gold); text-transform: uppercase; margin-bottom: 4px;">
+                        <div style="font-size: 0.68rem; font-weight: 700; color: var(--accent-gold); text-transform: uppercase; margin-bottom: 4px;">
                             1. Datos de Cabecera
                         </div>
-                        <div style="display: grid; grid-template-columns: 2fr 1.2fr 1fr; gap: 10px; align-items: start;">
-                            <div class="form-group" style="margin: 0;">
+                        <div style="display: grid; grid-template-columns: 2fr 1.2fr 1fr; gap: 8px; align-items: start;">
+                            <div class="form-group" style="margin: 0; position: relative;">
                                 <label class="form-label" style="font-size: 0.70rem; font-weight: 700; color: #5c5043; margin-bottom: 2px;">Proveedor *</label>
-                                <select id="nuevaOrdenProveedor" name="proveedor_id" class="form-control" required onchange="actualizarInfoProveedor()" style="font-size: 0.82rem; height: 32px;">
-                                    <option value="">-- Seleccione Proveedor --</option>
-                                    <?php foreach ($proveedores as $prv): ?>
-                                        <option value="<?= htmlspecialchars($prv['persona_id']) ?>"
-                                                data-dias="<?= (int)$prv['dias_credito_habitual'] ?>"
-                                                data-rnc="<?= htmlspecialchars($prv['documento_identidad'] ?? '') ?>">
-                                            <?= htmlspecialchars($prv['nombre_razon_social']) ?> (<?= htmlspecialchars($prv['documento_identidad'] ?? 'S/RNC') ?>)
-                                        </option>
-                                    <?php endforeach; ?>
-                                </select>
-                                <small id="infoProveedorDias" style="color: var(--text-muted); font-size: 0.70rem; margin-top: 1px; display: block;">
+                                <input type="hidden" id="nuevaOrdenProveedor" name="proveedor_id" required value="" />
+                                
+                                <div id="boxBusquedaProveedorOc" style="position: relative;">
+                                    <input type="text" id="inputBuscarProveedorOc" class="form-control" placeholder="🔍 Escriba nombre o RNC del suplidor..." autocomplete="off" oninput="filtrarProveedoresOc(this.value)" onfocus="abrirDropdownProveedoresOc()" style="font-size: 0.80rem; height: 30px;" />
+                                    <div id="dropdownProveedoresOc" style="display: none; position: absolute; top: 100%; left: 0; right: 0; max-height: 200px; overflow-y: auto; background: #ffffff; border: 1.5px solid #d4c1a7; border-radius: 6px; box-shadow: 0 4px 14px rgba(0,0,0,0.15); z-index: 1050; margin-top: 2px;">
+                                        <!-- Dinámico vía JS -->
+                                    </div>
+                                </div>
+
+                                <div id="badgeProveedorElegidoOc" style="display: none; background: #fdf5ea; border: 1px solid #dfcaa4; border-radius: 6px; padding: 2px 8px; align-items: center; justify-content: space-between; height: 30px;">
+                                    <div style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 0.78rem; color: #211813;">
+                                        <strong id="badgeProveedorNombreOc">—</strong>
+                                        <small id="badgeProveedorRncOc" style="color: #7a6b5d; margin-left: 6px; font-family: var(--font-mono);"></small>
+                                    </div>
+                                    <button type="button" class="btn btn-sm btn-secondary" onclick="limpiarProveedorSeleccionadoOc()" style="padding: 1px 6px; font-size: 0.68rem; height: 20px; flex-shrink: 0;">✕ Cambiar</button>
+                                </div>
+
+                                <small id="infoProveedorDias" style="color: var(--text-muted); font-size: 0.66rem; margin-top: 1px; display: block;">
                                     Días de crédito habitual: --
                                 </small>
                             </div>
@@ -500,28 +507,28 @@ $badgesEstado = [
                             <div class="form-group" style="margin: 0;">
                                 <label class="form-label" style="font-size: 0.70rem; font-weight: 700; color: #5c5043; margin-bottom: 2px;">Número de Orden *</label>
                                 <div style="display: flex; gap: 4px;">
-                                    <input type="text" id="nuevaOrdenNumero" name="numero_orden" class="form-control" style="font-family: var(--font-mono); font-weight: 700; font-size: 0.82rem; height: 32px;" required maxlength="30" placeholder="OC-YYYYMMDD-0001" />
-                                    <button type="button" class="btn btn-secondary btn-sm" title="Generar correlativo" onclick="generarSiguienteNumeroOrden()" style="padding: 0 8px; flex-shrink: 0; height: 32px;">🔄</button>
+                                    <input type="text" id="nuevaOrdenNumero" name="numero_orden" class="form-control" style="font-family: var(--font-mono); font-weight: 700; font-size: 0.80rem; height: 30px;" required maxlength="30" placeholder="OC-YYYYMMDD-0001" />
+                                    <button type="button" class="btn btn-secondary btn-sm" title="Generar correlativo" onclick="generarSiguienteNumeroOrden()" style="padding: 0 8px; flex-shrink: 0; height: 30px;">🔄</button>
                                 </div>
                             </div>
 
                             <div class="form-group" style="margin: 0;">
                                 <label class="form-label" style="font-size: 0.70rem; font-weight: 700; color: #5c5043; margin-bottom: 2px;">Fecha Esperada</label>
-                                <input type="date" id="nuevaOrdenFechaEsperada" name="fecha_esperada" class="form-control" min="<?= date('Y-m-d') ?>" style="font-size: 0.82rem; height: 32px;" />
+                                <input type="date" id="nuevaOrdenFechaEsperada" name="fecha_esperada" class="form-control" min="<?= date('Y-m-d') ?>" style="font-size: 0.80rem; height: 30px;" />
                             </div>
                         </div>
                     </div>
 
-                    <!-- 2. Detalle y Selección de Productos (Layout Split 2 Columnas) -->
-                    <div class="grid-split-orden" style="margin-top: 6px;">
+                    <!-- 2. Detalle y Selección de Productos (Layout Split 2 Columnas Simétricas y Elevadas) -->
+                    <div class="grid-split-orden" style="display: grid; grid-template-columns: 1fr 1.18fr; gap: 12px; margin-top: 4px; align-items: stretch;">
                         
                         <!-- Columna Izquierda: Catálogo de Productos y Búsqueda -->
-                        <div style="background: #faf8f5; border: 1px solid #e4dacb; border-radius: 8px; padding: 8px 10px; display: flex; flex-direction: column; gap: 6px;">
-                            <div style="display: flex; justify-content: space-between; align-items: center;">
-                                <span style="font-size: 0.72rem; font-weight: 700; color: var(--accent-gold); text-transform: uppercase;">
+                        <div style="background: #faf8f5; border: 1.5px solid #dfcaa4; border-radius: 8px; padding: 8px 10px; display: flex; flex-direction: column; height: 290px; box-sizing: border-box; gap: 6px;">
+                            <div style="display: flex; justify-content: space-between; align-items: center; height: 22px; border-bottom: 1px solid #ebdcc5; padding-bottom: 4px;">
+                                <span style="font-size: 0.72rem; font-weight: 700; color: var(--accent-gold); text-transform: uppercase; letter-spacing: 0.3px; white-space: nowrap;">
                                     Catálogo de Productos
                                 </span>
-                                <span id="lblEstadoCatalogo" style="font-size: 0.70rem; color: var(--text-muted);">
+                                <span id="lblEstadoCatalogo" style="font-size: 0.68rem; color: var(--text-muted); font-weight: 600; white-space: nowrap;">
                                     <?= count($productos) ?> en catálogo
                                 </span>
                             </div>
@@ -530,49 +537,48 @@ $badgesEstado = [
                             <input type="text" id="inputBuscarCatalogo" class="form-control"
                                 placeholder="🔍 Buscar nombre o SKU..."
                                 oninput="buscarProductosCatalogo(this.value)"
-                                style="height: 32px; padding-left: 8px; font-size: 0.80rem;" />
+                                style="height: 30px; padding-left: 8px; font-size: 0.78rem; flex-shrink: 0;" />
 
                             <!-- Panel de Productos Scrolleable -->
-                            <div id="panelResultadosCatalogo" style="max-height: 220px; overflow-y: auto; background: #ffffff; border: 1px solid #dfcaa4; border-radius: 6px; padding: 3px;">
+                            <div id="panelResultadosCatalogo" style="flex: 1; min-height: 0; overflow-y: auto; background: #ffffff; border: 1px solid #dfcaa4; border-radius: 6px; padding: 3px;">
                                 <!-- Items dinámicos con botones Agregar / Desagregar -->
                             </div>
                         </div>
 
-                        <!-- Columna Derecha: Productos Agregados a la Orden -->
-                        <div style="display: flex; flex-direction: column; gap: 6px;">
-                            <div style="display: flex; justify-content: space-between; align-items: center;">
-                                <span style="font-size: 0.72rem; font-weight: 700; color: var(--accent-gold); text-transform: uppercase;">
-                                    Productos en la Orden (Ajusta Cantidad y Costo)
+                        <!-- Columna Derecha: Productos Agregados a la Orden (Bandeja) -->
+                        <div style="background: #faf8f5; border: 1.5px solid #dfcaa4; border-radius: 8px; padding: 8px 10px; display: flex; flex-direction: column; height: 290px; box-sizing: border-box; gap: 6px;">
+                            <div style="display: flex; justify-content: space-between; align-items: center; height: 22px; border-bottom: 1px solid #ebdcc5; padding-bottom: 4px;">
+                                <span style="font-size: 0.72rem; font-weight: 700; color: var(--accent-gold); text-transform: uppercase; letter-spacing: 0.3px; white-space: nowrap;">
+                                    Productos en la Orden
                                 </span>
-                                <small style="color: var(--text-muted); font-size: 0.70rem;">Define la cantidad a solicitar</small>
+                                <small style="color: var(--text-muted); font-size: 0.68rem; font-weight: 600; white-space: nowrap;">Define cantidades</small>
                             </div>
 
-                            <div style="border: 1px solid #e2dacb; border-radius: 8px; overflow: hidden; background: #ffffff; box-shadow: 0 1px 3px rgba(0,0,0,0.03);">
-                                <div style="max-height: 215px; min-height: 160px; overflow-y: auto;">
-                                    <table class="table-compacta-orden" id="tablaDetalleNuevaOrden">
-                                        <thead>
-                                            <tr>
-                                                <th style="width: 44%;">Producto Seleccionado</th>
-                                                <th style="width: 16%; text-align: center;">Cantidad *</th>
-                                                <th style="width: 20%; text-align: right;">Costo Pactado (RD$) *</th>
-                                                <th style="width: 14%; text-align: right;">Subtotal</th>
-                                                <th style="width: 6%; text-align: center;"></th>
-                                            </tr>
-                                        </thead>
-                                        <tbody id="tbodyLineasNuevaOrden">
-                                            <!-- Filas de productos agregados -->
-                                        </tbody>
-                                    </table>
+                            <div style="flex: 1; min-height: 0; overflow-y: auto; background: #ffffff; border: 1px solid #dfcaa4; border-radius: 6px;">
+                                <table class="table-compacta-orden" id="tablaDetalleNuevaOrden" style="width: 100%; border-collapse: collapse; margin: 0;">
+                                    <thead style="position: sticky; top: 0; z-index: 5;">
+                                        <tr style="background: #f6efe4; white-space: nowrap;">
+                                            <th style="width: 38%; padding: 5px 6px; font-size: 0.68rem; font-weight: 700; color: #5a3e24; text-transform: uppercase; white-space: nowrap;">Producto Seleccionado</th>
+                                            <th style="width: 15%; text-align: center; padding: 5px 4px; font-size: 0.68rem; font-weight: 700; color: #5a3e24; text-transform: uppercase; white-space: nowrap;">Cantidad *</th>
+                                            <th style="width: 22%; text-align: right; padding: 5px 4px; font-size: 0.68rem; font-weight: 700; color: #5a3e24; text-transform: uppercase; white-space: nowrap;">Costo (RD$) *</th>
+                                            <th style="width: 19%; text-align: right; padding: 5px 4px; font-size: 0.68rem; font-weight: 700; color: #5a3e24; text-transform: uppercase; white-space: nowrap;">Subtotal</th>
+                                            <th style="width: 6%; text-align: center; padding: 5px 4px;"></th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="tbodyLineasNuevaOrden">
+                                        <!-- Filas de productos agregados -->
+                                    </tbody>
+                                </table>
+                            </div>
+
+                            <div style="background: #ffffff; border: 1px solid #dfcaa4; border-radius: 6px; padding: 4px 10px; display: flex; justify-content: space-between; align-items: center; font-weight: 700; min-height: 28px; box-sizing: border-box; flex-shrink: 0;">
+                                <div style="display: flex; gap: 14px; font-size: 0.76rem; color: #5a3e24;">
+                                    <span>Total Líneas: <strong id="lblTotalLineas" style="color: #211813;">0</strong></span>
+                                    <span>Total Unidades: <strong id="lblTotalUnidades" style="color: #211813; font-family: var(--font-mono);">0</strong> u.</span>
                                 </div>
-                                <div style="background: #faf6ee; border-top: 1px solid #e5d8c3; padding: 6px 12px; display: flex; justify-content: space-between; align-items: center; font-weight: 700;">
-                                    <div style="display: flex; gap: 16px; font-size: 0.80rem; color: #5a3e24;">
-                                        <span>Total Líneas: <strong id="lblTotalLineas" style="color: #211813;">0</strong></span>
-                                        <span>Total Unidades: <strong id="lblTotalUnidades" style="color: #211813; font-family: var(--font-mono);">0</strong> u.</span>
-                                    </div>
-                                    <div style="font-size: 0.90rem; font-family: var(--font-mono); color: var(--accent-gold);">
-                                        <span style="font-size: 0.72rem; color: #7a6b5d; text-transform: uppercase; font-family: var(--font-sans); margin-right: 4px;">Total Estimado:</span>
-                                        <span id="lblMontoTotalEstimado">RD$ 0.00</span>
-                                    </div>
+                                <div style="font-size: 0.85rem; font-family: var(--font-mono); color: var(--accent-gold);">
+                                    <span style="font-size: 0.68rem; color: #7a6b5d; text-transform: uppercase; font-family: var(--font-sans); margin-right: 4px;">Total Estimado:</span>
+                                    <span id="lblMontoTotalEstimado">RD$ 0.00</span>
                                 </div>
                             </div>
                         </div>
@@ -614,11 +620,12 @@ $badgesEstado = [
         </div>
     </div>
 
-    <!-- Script de Productos para JS -->
+    <!-- Script de Productos y Proveedores para JS -->
     <script>
         const CATALOGO_PRODUCTOS = <?= json_encode($productos, JSON_UNESCAPED_UNICODE) ?>;
+        const PROVEEDORES_LISTA = <?= json_encode($proveedores, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
     </script>
-    <script src="ordenes_compra.js?v=45"></script>
+    <script src="ordenes_compra.js?v=48"></script>
 </body>
 
 </html>

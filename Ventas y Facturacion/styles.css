@@ -55,9 +55,9 @@ body {
 
 /* ==================== TOPBAR ==================== */
 .topbar {
-  height: 54px;
+  height: 56px;
   background-color: var(--bg-topbar);
-  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -87,8 +87,8 @@ body {
 .brand-title {
   font-family: var(--font-serif);
   color: var(--accent-gold-light);
-  font-size: 1.05rem;
-  letter-spacing: 0.5px;
+  font-size: 1.15rem;
+  letter-spacing: 0.6px;
   font-weight: 700;
 }
 
@@ -118,13 +118,13 @@ body {
 }
 
 .user-avatar {
-  width: 34px;
-  height: 34px;
+  width: 36px;
+  height: 36px;
   border-radius: 50%;
-  background-color: var(--accent-gold);
+  background: linear-gradient(135deg, var(--accent-gold) 0%, #804f1a 100%);
   color: #ffffff;
   font-weight: 700;
-  font-size: 0.78rem;
+  font-size: 0.82rem;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -188,7 +188,7 @@ body {
 .app-layout {
   display: flex;
   flex: 1;
-  min-height: calc(100vh - 54px);
+  min-height: calc(100vh - 56px);
   width: 100%;
   position: relative;
   align-items: stretch;
@@ -513,13 +513,18 @@ body {
   transition: all 0.15s ease;
 }
 
+.btn-primary,
 .btn-gold {
   background-color: var(--accent-gold);
-  color: #ffffff;
+  border: 1px solid var(--accent-gold-hover);
+  color: #ffffff !important;
 }
 
+.btn-primary:hover,
 .btn-gold:hover {
   background-color: var(--accent-gold-hover);
+  border-color: var(--accent-gold-hover);
+  color: #ffffff !important;
 }
 
 .btn-beige {
@@ -2068,7 +2073,7 @@ body {
 
 .pos-config-row-clean {
   display: grid;
-  grid-template-columns: minmax(0, 1.4fr) minmax(0, 0.95fr) minmax(0, 0.95fr);
+  grid-template-columns: minmax(0, 1.25fr) minmax(0, 0.9fr) minmax(0, 1.25fr);
   gap: 14px;
   align-items: end;
   width: 100%;
@@ -2105,9 +2110,13 @@ body {
 
 .pos-btn-add-client {
   white-space: nowrap;
-  height: 40px;
-  padding: 0 13px;
+  height: 35px;
+  padding: 0 12px;
+  font-size: 0.82rem;
   font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   background-color: var(--bg-btn-beige);
   color: var(--text-dark);
   border: 1px solid var(--border-input);
@@ -2115,6 +2124,7 @@ body {
   cursor: pointer;
   flex-shrink: 0;
   transition: all 0.18s ease;
+  box-sizing: border-box;
 }
 
 .pos-btn-add-client:hover {

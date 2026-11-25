@@ -288,7 +288,7 @@ function alCambiarCondicionVenta() {
   const cond = document.getElementById('selectCondicionVenta')?.value || 'CONTADO';
   const btn = document.getElementById('btnGuardarFactura');
   if (btn && window.POS_PUEDE_FACTURAR) {
-    btn.textContent = (cond === 'CREDITO') ? '📋 Emitir Factura a Crédito' : '💳 Cobrar / Emitir Factura';
+    btn.textContent = (cond === 'CREDITO') ? '📋 Emitir Factura a Crédito' : '💳 Emitir Factura';
   }
 }
 

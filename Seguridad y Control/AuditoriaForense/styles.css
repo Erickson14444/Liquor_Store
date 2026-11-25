@@ -1,0 +1,213 @@
+/* ============================================================================
+ * ESTILOS DE AUDITORÍA FORENSE
+ * Ubicación: Seguridad y Control/AuditoriaForense/styles.css
+ * ============================================================================ */
+
+/* KPIs Forenses */
+.aud-kpi-container {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+@media (max-width: 1100px) {
+  .aud-kpi-container {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 600px) {
+  .aud-kpi-container {
+    grid-template-columns: 1fr;
+  }
+}
+
+.aud-kpi-card {
+  background: #ffffff;
+  border: 1px solid var(--border-light, #eae3d5);
+  border-radius: var(--radius-md, 8px);
+  padding: 16px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  box-shadow: 0 2px 8px rgba(37, 28, 22, 0.04);
+}
+
+.aud-kpi-icon {
+  width: 48px;
+  height: 48px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.5rem;
+  flex-shrink: 0;
+}
+
+.aud-kpi-icon.dark   { background: #251c16; color: #e5b36a; }
+.aud-kpi-icon.blue   { background: #edf4fb; color: #1e6091; }
+.aud-kpi-icon.orange { background: #fdf2e9; color: #d35400; }
+.aud-kpi-icon.purple { background: #f5eef8; color: #7d3c98; }
+
+.aud-kpi-data h4 {
+  font-size: 0.78rem;
+  color: var(--text-muted, #8c8173);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 4px;
+  font-weight: 700;
+}
+
+.aud-kpi-data .aud-kpi-value {
+  font-family: var(--font-mono, monospace);
+  font-size: 1.3rem;
+  font-weight: 800;
+  color: var(--text-dark, #251c16);
+}
+
+.aud-kpi-data .aud-kpi-sub {
+  font-size: 0.74rem;
+  color: var(--text-muted, #8c8173);
+  margin-top: 2px;
+}
+
+/* Barra de Filtros */
+.aud-filter-bar {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  margin-bottom: 16px;
+  background: #ffffff;
+  padding: 14px 18px;
+  border-radius: var(--radius-md, 8px);
+  border: 1px solid var(--border-light, #eae3d5);
+  box-shadow: 0 1px 4px rgba(37, 28, 22, 0.03);
+}
+
+.aud-filter-group {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.aud-filter-group label {
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--text-muted, #8c8173);
+  text-transform: uppercase;
+}
+
+/* Badges de Acción y Tablas */
+.badge-tabla {
+  font-family: var(--font-mono, monospace);
+  font-size: 0.76rem;
+  font-weight: 600;
+  background: #f4efe6;
+  color: #5c432d;
+  border: 1px solid #e0d4c1;
+  padding: 2px 7px;
+  border-radius: 4px;
+}
+
+.badge-accion {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  border-radius: 4px;
+  font-size: 0.74rem;
+  font-weight: 800;
+  font-family: var(--font-mono, monospace);
+  letter-spacing: 0.3px;
+}
+
+.badge-accion.insert { background: #eef8f2; color: #2e7d52; border: 1px solid #c2e5d1; }
+.badge-accion.update { background: #edf4fb; color: #1e6091; border: 1px solid #c7ddf2; }
+.badge-accion.delete { background: #fdf0ee; color: #d45448; border: 1px solid #f9ccc7; }
+.badge-accion.override { background: #fdf2e9; color: #d35400; border: 1px solid #fad7a0; }
+.badge-accion.fiscal { background: #f5eef8; color: #7d3c98; border: 1px solid #d7bde2; }
+
+.badge-override-pin {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: #fdf5ea;
+  color: #8c4c15;
+  border: 1px solid #edd5b2;
+  padding: 2px 6px;
+  border-radius: 10px;
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+
+/* Modal Inspector Forense */
+.json-viewer-box {
+  background: #1e1e1e;
+  color: #d4d4d4;
+  font-family: var(--font-mono, monospace);
+  font-size: 0.82rem;
+  padding: 12px 14px;
+  border-radius: 6px;
+  max-height: 320px;
+  overflow-y: auto;
+  white-space: pre-wrap;
+  word-break: break-all;
+  border: 1px solid #333;
+}
+
+.diff-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+  margin-top: 12px;
+}
+
+@media (max-width: 800px) {
+  .diff-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.diff-col h5 {
+  font-size: 0.78rem;
+  font-weight: 800;
+  color: var(--text-muted, #8c8173);
+  text-transform: uppercase;
+  margin-bottom: 6px;
+  display: flex;
+  justify-content: space-between;
+}
+
+.diff-tag-antes { color: #d45448; }
+.diff-tag-despues { color: #2e7d52; }
+
+/* Tabla de Cambios Resaltados */
+.diff-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.82rem;
+  margin-top: 10px;
+}
+
+.diff-table th {
+  background: #f8f5ef;
+  padding: 6px 10px;
+  text-align: left;
+  font-weight: 700;
+  border-bottom: 2px solid var(--border-light);
+  font-size: 0.74rem;
+  color: #7a6e60;
+  text-transform: uppercase;
+}
+
+.diff-table td {
+  padding: 6px 10px;
+  border-bottom: 1px solid #eee;
+  font-family: var(--font-mono, monospace);
+}
+
+.diff-table tr:hover td {
+  background: #fffcf8;
+}

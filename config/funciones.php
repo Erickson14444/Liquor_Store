@@ -403,6 +403,17 @@ if (!function_exists('usuarioPuedeAccederCxc')) {
     }
 }
 
+if (!function_exists('usuarioPuedeAccederNotasDebito')) {
+    function usuarioPuedeAccederNotasDebito(): bool
+    {
+        global $sesionEsSupervisor;
+        return usuarioEsAdministrador()
+            || $sesionEsSupervisor
+            || usuarioTienePermiso('EMITIR_NOTA_DEBITO')
+            || usuarioTienePermiso('GESTIONAR_CXC');
+    }
+}
+
 if (!function_exists('usuarioPuedeAccederDelivery')) {
     function usuarioPuedeAccederDelivery(): bool
     {
@@ -457,6 +468,16 @@ if (!function_exists('usuarioPuedeAccederCompras')) {
         return usuarioEsAdministrador()
             || usuarioTienePermiso('CREAR_ORDEN_COMPRA')
             || usuarioTienePermiso('REGISTRAR_RECEPCION_COMPRA')
+            || usuarioTienePermiso('GESTIONAR_CXP');
+    }
+}
+
+if (!function_exists('usuarioPuedeAccederCxp')) {
+    function usuarioPuedeAccederCxp(): bool
+    {
+        global $sesionEsSupervisor;
+        return usuarioEsAdministrador()
+            || $sesionEsSupervisor
             || usuarioTienePermiso('GESTIONAR_CXP');
     }
 }

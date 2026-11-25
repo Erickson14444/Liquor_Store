@@ -20,6 +20,12 @@ document.addEventListener('DOMContentLoaded', () => {
   actualizarContadoresKPI();
   renderizarCupones();
 
+  // Activar por defecto la pestaña de Cupones
+  const tabCup = document.getElementById('tabBtnAuditCupones');
+  if (tabCup) {
+    cambiarVistaAuditoria('CUPONES', tabCup);
+  }
+
   // Cerrar modales con tecla Escape
   document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') {
@@ -29,6 +35,49 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 });
+
+/**
+ * Cambia la vista de auditoría entre Cupones de Descuento y Promociones en Curso (2 Pestañas)
+ */
+function cambiarVistaAuditoria(modo, btn) {
+  const tabs = [
+    document.getElementById('tabBtnAuditCupones'),
+    document.getElementById('tabBtnAuditDescuentos')
+  ];
+  tabs.forEach(t => {
+    if (t) {
+      t.style.background = '#fbf9f5';
+      t.style.color = 'var(--text-muted)';
+      t.style.border = '1px solid var(--border-light)';
+      t.style.borderBottom = 'none';
+    }
+  });
+
+  if (btn) {
+    btn.style.background = '#ffffff';
+    btn.style.color = 'var(--text-dark)';
+    btn.style.border = '1.5px solid #d4c1a7';
+    btn.style.borderBottom = 'none';
+  }
+
+  const contCupones = document.getElementById('contenedorTablaCupones');
+  const contDescuentos = document.getElementById('contenedorTablaDescuentos');
+  const titulo = document.getElementById('tituloTablaAuditoria');
+  const subtitulo = document.getElementById('subtituloTablaAuditoria');
+
+  if (modo === 'DESCUENTOS') {
+    if (contCupones) contCupones.style.display = 'none';
+    if (contDescuentos) contDescuentos.style.display = 'block';
+    return;
+  }
+
+  // Modo Cupones
+  if (contDescuentos) contDescuentos.style.display = 'none';
+  if (contCupones) contCupones.style.display = 'block';
+
+  if (titulo) titulo.textContent = 'Auditoría Integral de Cupones Emitidos';
+  if (subtitulo) subtitulo.textContent = 'Trazabilidad de cupones, emisión, saldo y canje en facturación POS';
+}
 
 /**
  * Filtro interactivo mediante las tarjetas KPI superiores
@@ -437,10 +486,14 @@ function abrirModalEmision() {
   if (inpFecha) inpFecha.value = `${yyyy}-${mm}-${dd}`;
 
   modalEmision.style.display = 'flex';
+  modalEmision.classList.add('open');
 }
 
 function cerrarModalEmision() {
-  if (modalEmision) modalEmision.style.display = 'none';
+  if (modalEmision) {
+    modalEmision.style.display = 'none';
+    modalEmision.classList.remove('open');
+  }
 }
 
 function generarCodigoAleatorioInput() {
@@ -551,10 +604,14 @@ function verDetalleCupon(cuponId) {
   }
 
   modalDetalle.style.display = 'flex';
+  modalDetalle.classList.add('open');
 }
 
 function cerrarModalDetalle() {
-  if (modalDetalle) modalDetalle.style.display = 'none';
+  if (modalDetalle) {
+    modalDetalle.style.display = 'none';
+    modalDetalle.classList.remove('open');
+  }
 }
 
 /**
@@ -578,10 +635,14 @@ function imprimirTicketCupon(cuponId) {
   setEl('tktBarcode', escapeHtml(c.codigo_cupon));
 
   modalTicket.style.display = 'flex';
+  modalTicket.classList.add('open');
 }
 
 function cerrarModalTicket() {
-  if (modalTicket) modalTicket.style.display = 'none';
+  if (modalTicket) {
+    modalTicket.style.display = 'none';
+    modalTicket.classList.remove('open');
+  }
 }
 
 function ejecutarImpresionTicket() {

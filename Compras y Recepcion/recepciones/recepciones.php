@@ -76,6 +76,45 @@ if ($pdo) {
         ");
         $historialRecepciones = $stmtHist->fetchAll(PDO::FETCH_ASSOC) ?: [];
 
+        // Totales KPI para resumen
+        $kpiTotalRecepciones = count($historialRecepciones);
+        $kpiTotalUnidades = 0;
+        $kpiTotalMonto = 0.00;
+        foreach ($historialRecepciones as $hr) {
+            $kpiTotalUnidades += (int)$hr['total_unidades'];
+            $kpiTotalMonto += (float)$hr['monto_total_factura'];
+        }
+
+        // 3. Catálogo de Proveedores
+        $stmtProv = $pdo->query("
+            SELECT pr.persona_id,
+                   p.nombre_razon_social,
+                   p.nombre_comercial,
+                   p.documento_identidad AS rnc,
+                   pr.dias_credito_habitual
+            FROM identidad.proveedores pr
+            JOIN identidad.personas p ON p.persona_id = pr.persona_id
+            ORDER BY p.nombre_razon_social ASC
+        ");
+        $proveedores = $stmtProv->fetchAll(PDO::FETCH_ASSOC) ?: [];
+
+        // 4. Catálogo de Productos Maestro
+        $stmtProd = $pdo->query("
+            SELECT pm.id,
+                   pm.sku,
+                   COALESCE(
+                       NULLIF(NULLIF(TRIM(pm.nombre), ''), 'Producto sin nombre asignado'),
+                       (SELECT descripcion_presentacion FROM inventario.producto_codigos_barra WHERE producto_maestro_id = pm.id ORDER BY factor_multiplicador ASC LIMIT 1),
+                       pm.sku
+                   ) AS nombre,
+                   pm.costo_promedio,
+                   pm.precio_base_unidad
+            FROM inventario.productos_maestro pm
+            WHERE pm.id > 0
+            ORDER BY pm.nombre ASC, pm.sku ASC
+        ");
+        $productos = $stmtProd->fetchAll(PDO::FETCH_ASSOC) ?: [];
+
     } catch (Throwable $e) {
         $errorCarga = $e->getMessage();
     }
@@ -88,13 +127,90 @@ if ($pdo) {
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>House &amp; Ice • Recepción de Mercancía</title>
-    <link rel="stylesheet" href="../styles.css?v=20" />
+    <link rel="stylesheet" href="../styles.css?v=22" />
     <style>
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            background: rgba(28, 20, 14, 0.6);
+            backdrop-filter: blur(4px);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 9999;
+            padding: 16px;
+        }
+        .modal-overlay.open,
+        .modal-overlay.active {
+            display: flex !important;
+        }
+        .modal-box {
+            background: #ffffff;
+            border-radius: 12px;
+            box-shadow: 0 16px 40px rgba(0, 0, 0, 0.25);
+            max-height: 90vh;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            animation: modalIn 0.2s ease-out;
+        }
+        @keyframes modalIn {
+            from { opacity: 0; transform: translateY(-12px) scale(0.98); }
+            to { opacity: 1; transform: translateY(0) scale(1); }
+        }
+        .modal-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 14px 20px;
+            background-color: var(--bg-table-header, #f6efe4);
+            border-bottom: 1px solid var(--border-light, #eae3d5);
+            flex-shrink: 0;
+        }
+        .modal-title {
+            font-family: var(--font-serif, 'Playfair Display', Georgia, serif);
+            font-size: 1.15rem;
+            font-weight: 700;
+            color: var(--text-dark, #251c16);
+            margin: 0;
+        }
+        .modal-xl {
+            width: 96% !important;
+            max-width: 1180px !important;
+        }
+        .modal-close {
+            background: none;
+            border: none;
+            font-size: 1.5rem;
+            color: var(--text-muted, #8c8173);
+            cursor: pointer;
+            padding: 0 4px;
+            line-height: 1;
+            transition: color 0.15s ease;
+        }
+        .modal-close:hover {
+            color: var(--text-dark, #251c16);
+        }
+        .grid-split-orden {
+            display: grid;
+            grid-template-columns: 1fr 1.25fr;
+            gap: 14px;
+            margin-top: 10px;
+            align-items: start;
+        }
+        @media (max-width: 920px) {
+            .grid-split-orden {
+                grid-template-columns: 1fr !important;
+            }
+        }
         .card-producto-recepcion {
             background: #ffffff;
             border: 1px solid #eae3d5;
             border-radius: 8px;
-            margin-bottom: 16px;
+            margin-bottom: 14px;
             overflow: hidden;
             box-shadow: 0 1px 4px rgba(37, 28, 22, 0.03);
         }
@@ -102,7 +218,7 @@ if ($pdo) {
             display: flex;
             align-items: center;
             justify-content: space-between;
-            padding: 10px 16px;
+            padding: 8px 14px;
             background: #fbf9f5;
             border-bottom: 1px solid #eae3d5;
             flex-wrap: wrap;
@@ -112,20 +228,20 @@ if ($pdo) {
             background-color: #fef9e7;
             color: #b78103;
             border: 1px solid #f9e79f;
-            font-size: 0.76rem;
+            font-size: 0.74rem;
             font-weight: 700;
-            padding: 3px 8px;
+            padding: 2px 7px;
             border-radius: 4px;
         }
         .alerta-exceso {
             background-color: #ffebee;
             color: #c62828;
             border: 1px solid #ffcdd2;
-            padding: 6px 12px;
+            padding: 5px 10px;
             border-radius: 4px;
-            font-size: 0.8rem;
+            font-size: 0.78rem;
             font-weight: 600;
-            margin-top: 8px;
+            margin-top: 6px;
             display: none;
         }
         .radio-condicion-pago {
@@ -135,6 +251,9 @@ if ($pdo) {
             font-weight: 600;
             cursor: pointer;
             margin-right: 18px;
+        }
+        .item-catalogo-busqueda:hover {
+            background: #fdf8f0 !important;
         }
     </style>
 </head>
@@ -183,14 +302,23 @@ if ($pdo) {
         <!-- CONTENIDO PRINCIPAL -->
         <main class="main-content">
 
-            <div class="page-header">
+            <div class="page-header" style="margin-bottom: 14px; padding-bottom: 12px; border-bottom: 1px solid #eae3d5;">
                 <div>
-                    <h1 class="page-title">Recepción de Mercancía (Check-in)</h1>
-                    <p class="page-subtitle">Ingreso físico con captura de factura, NCF, partición multi-lote y fechas de vencimiento FEFO</p>
+                    <h1 class="page-title" style="font-family: var(--font-sans, 'DM Sans', sans-serif) !important; font-size: 1.55rem; font-weight: 700; color: var(--text-dark); margin-bottom: 2px;">Recepción de Mercancía (Check-in)</h1>
+                    <p class="page-subtitle" style="font-size: 0.82rem; color: var(--text-muted);">Ingreso físico con captura de factura, NCF, partición multi-lote y fechas de vencimiento FEFO</p>
                 </div>
 
-                <div style="display: flex; gap: 10px;">
-                    <a href="../ordenes_compra/ordenes_compra.php" class="btn btn-secondary" style="text-decoration: none;">
+                <div style="display: flex; gap: 8px; align-items: center; flex-wrap: wrap;">
+                    <button type="button" class="btn btn-gold btn-sm" onclick="abrirModalNuevaRecepcion()" style="height: 36px; padding: 0 14px; display: inline-flex; align-items: center; gap: 6px; font-weight: 700;">
+                        <span>➕</span> Nueva Recepción Directa
+                    </button>
+                    <button type="button" class="btn btn-secondary btn-sm" onclick="abrirModalImportarOrden()" style="height: 36px; padding: 0 14px; background: #fff; border: 1.5px solid #d4c1a7; display: inline-flex; align-items: center; gap: 6px;">
+                        <span>📋</span> Importar Orden de Compra
+                        <?php if (count($ordenesPendientes) > 0): ?>
+                            <span class="badge-contador" style="background: #a66e2e; color: #fff; border-radius: 12px; padding: 1px 7px; font-size: 0.72rem; font-weight: 700;"><?= count($ordenesPendientes) ?></span>
+                        <?php endif; ?>
+                    </button>
+                    <a href="../ordenes_compra/ordenes_compra.php" class="btn btn-secondary btn-sm" style="height: 36px; padding: 0 14px; background: #fff; border: 1px solid var(--border-light); text-decoration: none; display: inline-flex; align-items: center; gap: 6px;">
                         📥 Ver Órdenes de Compra
                     </a>
                 </div>
@@ -203,139 +331,58 @@ if ($pdo) {
                 </div>
             <?php endif; ?>
 
-            <!-- ================================================================= -->
-            <!-- FORMULARIO DE CHECK-IN / ENTRADA DE CAMIÓN                        -->
-            <!-- ================================================================= -->
-            <form id="formRecepcion" onsubmit="guardarRecepcion(event)" class="table-card" style="padding: 20px; margin-bottom: 24px;">
-                
-                <!-- PASO 1: SELECCIONAR ORDEN -->
-                <div class="form-section-bar">
-                    <span class="form-section-label">1. Selección de Orden de Compra Pendiente</span>
-                    <span style="font-size: 0.75rem; color: var(--text-muted);">Solo órdenes en estado PENDIENTE o RECIBIDA_PARCIAL</span>
+            <!-- RESUMEN / KPIS -->
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; margin-bottom: 18px;">
+                <div style="background: #fff; border: 1px solid #e7dcc8; border-radius: 10px; padding: 14px 16px;">
+                    <div style="font-size: 0.74rem; color: #7a6b5d; font-weight: 700; text-transform: uppercase;">TOTAL RECEPCIONES</div>
+                    <div style="font-size: 1.5rem; font-weight: 700; color: #211813; margin-top: 4px;">
+                        <?= number_format($kpiTotalRecepciones) ?>
+                    </div>
+                    <small style="color: var(--text-muted); font-size: 0.74rem;">Entradas a inventario registradas</small>
                 </div>
-
-                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 10px;">
-                    <div class="form-group">
-                        <label class="form-label">Orden de Compra a Recibir *</label>
-                        <select id="selectOrdenCompra" class="form-control" required onchange="alCambiarOrdenSeleccionada()">
-                            <option value="">-- Seleccione una Orden de Compra --</option>
-                            <?php foreach ($ordenesPendientes as $op): ?>
-                                <option value="<?= (int)$op['id'] ?>"
-                                        data-proveedor="<?= htmlspecialchars($op['proveedor_nombre']) ?>"
-                                        data-rnc="<?= htmlspecialchars($op['proveedor_rnc'] ?? '') ?>"
-                                        data-numero="<?= htmlspecialchars($op['numero_orden']) ?>"
-                                        data-lineas="<?= (int)$op['lineas_pendientes'] ?>"
-                                        <?= ($ordenIdPreseleccionada === (int)$op['id']) ? 'selected' : '' ?>>
-                                    <?= htmlspecialchars($op['numero_orden']) ?> — <?= htmlspecialchars($op['proveedor_nombre']) ?> (<?= $op['lineas_pendientes'] ?> líneas pendientes)
-                                </option>
-                            <?php endforeach; ?>
-                        </select>
+                <div style="background: #fff; border: 1px solid #c8e6c9; border-radius: 10px; padding: 14px 16px;">
+                    <div style="font-size: 0.74rem; color: #2e7d52; font-weight: 700; text-transform: uppercase;">UNIDADES INGRESADAS</div>
+                    <div style="font-size: 1.5rem; font-weight: 700; color: #2e7d52; margin-top: 4px; font-family: var(--font-mono);">
+                        <?= number_format($kpiTotalUnidades) ?> u.
                     </div>
-
-                    <!-- Ficha Resumen de la Orden -->
-                    <div id="cajaInfoOrden" style="background: #fdfcf9; border: 1px solid #e7dcc8; border-radius: 6px; padding: 10px 14px; display: none;">
-                        <div style="font-size: 0.72rem; color: var(--text-muted); text-transform: uppercase;">Proveedor de la Orden</div>
-                        <div id="infoOrdenProveedor" style="font-weight: 700; color: var(--text-dark);">--</div>
-                        <small id="infoOrdenRnc" style="color: var(--text-muted);">RNC: --</small>
-                    </div>
+                    <small style="color: var(--text-muted); font-size: 0.74rem;">Botellas y cajas en Kardex</small>
                 </div>
-
-                <!-- PASO 2: CABECERA DE FACTURA FÍSICA -->
-                <div class="form-section-bar" style="margin-top: 20px;">
-                    <span class="form-section-label">2. Datos de la Factura Física del Suplidor (Comprobante Fiscal)</span>
+                <div style="background: #fff; border: 1px solid #eadecd; border-radius: 10px; padding: 14px 16px;">
+                    <div style="font-size: 0.74rem; color: var(--accent-gold); font-weight: 700; text-transform: uppercase;">TOTAL FACTURADO EN COMPRAS</div>
+                    <div style="font-size: 1.5rem; font-weight: 700; color: var(--accent-gold); margin-top: 4px; font-family: var(--font-mono);">
+                        RD$ <?= number_format($kpiTotalMonto, 2) ?>
+                    </div>
+                    <small style="color: var(--text-muted); font-size: 0.74rem;">Monto bruto ingresado</small>
                 </div>
-
-                <div style="display: grid; grid-template-columns: 1fr 1fr 1.2fr; gap: 16px; margin-top: 10px;">
-                    <div class="form-group">
-                        <label class="form-label">Número de Factura Física *</label>
-                        <input type="text" id="inputNumFactura" class="form-control" required maxlength="50" placeholder="Ej: FACT-98234" />
+                <div style="background: #fff; border: 1px solid #f9e79f; border-radius: 10px; padding: 14px 16px;">
+                    <div style="font-size: 0.74rem; color: #b78103; font-weight: 700; text-transform: uppercase;">ÓRDENES POR RECIBIR</div>
+                    <div style="font-size: 1.5rem; font-weight: 700; color: #b78103; margin-top: 4px;">
+                        <?= count($ordenesPendientes) ?>
                     </div>
+                    <small style="color: var(--text-muted); font-size: 0.74rem;">Pendientes o parciales</small>
+                </div>
+            </div>
 
-                    <div class="form-group">
-                        <label class="form-label">NCF del Proveedor (DGII) *</label>
-                        <input type="text" id="inputNcf" class="form-control" style="font-family: var(--font-mono); text-transform: uppercase;" required maxlength="13" placeholder="Ej: B0100000001" />
-                    </div>
-
-                    <div class="form-group">
-                        <label class="form-label">Condición de Pago *</label>
-                        <div style="display: flex; align-items: center; height: 35px; gap: 12px;">
-                            <label class="radio-condicion-pago">
-                                <input type="radio" name="condicion_pago" value="CREDITO" checked onchange="actualizarNotaCondicionPago()" />
-                                <span>CRÉDITO</span>
-                            </label>
-                            <label class="radio-condicion-pago">
-                                <input type="radio" name="condicion_pago" value="CONTADO" onchange="actualizarNotaCondicionPago()" />
-                                <span>CONTADO</span>
-                            </label>
-                        </div>
-                        <small id="notaCondicionPago" style="color: #1976d2; font-size: 0.72rem;">
-                            ℹ️ Crédito: Se creará una cuenta por pagar con vencimiento según los días habituales del proveedor.
-                        </small>
+            <!-- CARD DE BÚSQUEDA Y FILTRADO DEL HISTORIAL -->
+            <div class="table-card" style="margin-bottom: 16px; padding: 12px 16px;">
+                <div style="display: flex; gap: 12px; align-items: center;">
+                    <div style="flex: 1;">
+                        <input type="text" id="inputBuscarTablaRecepciones" class="form-control" placeholder="🔍 Buscar en historial por N° recepción, factura física, NCF, proveedor..." oninput="filtrarTablaRecepciones()" style="height: 38px;" />
                     </div>
                 </div>
+            </div>
 
-                <!-- PASO 3: DETALLE MULTI-LOTE -->
-                <div class="form-section-bar" style="margin-top: 24px;">
-                    <span class="form-section-label">3. Detalle de Mercancía, Cantidades Recibidas y Lotes FEFO</span>
-                    <span style="font-size: 0.75rem; color: var(--text-muted);">
-                        Puede usar <strong>+ Dividir Lote</strong> para registrar varios lotes de un mismo producto.
-                    </span>
-                </div>
-
-                <div id="contenedorLineasRecepcion" style="margin-top: 12px;">
-                    <div style="text-align: center; padding: 24px; color: var(--text-muted); background: #fbf9f5; border: 1px dashed #e2dacb; border-radius: 8px;">
-                        Seleccione una orden de compra arriba para cargar los productos con saldo pendiente.
-                    </div>
-                </div>
-
-                <!-- PASO 4: TOTALES Y CONFIRMACIÓN -->
-                <div id="cajaTotalesRecepcion" style="display: none; border-top: 2px solid #e7dcc8; padding-top: 16px; margin-top: 20px;">
-                    <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 16px;">
-                        <div>
-                            <div style="font-size: 0.85rem; color: #5c5043;">
-                                Total Unidades a Ingresar al Kardex: <strong id="lblTotalUnidadesRecepcion">0</strong> u.
-                            </div>
-                            <div style="font-size: 0.85rem; color: #5c5043;">
-                                Total Productos con Mercancía: <strong id="lblTotalProductosRecepcion">0</strong>
-                            </div>
-                        </div>
-
-                        <div style="display: flex; align-items: center; gap: 20px;">
-                            <div style="text-align: right;">
-                                <div style="font-size: 0.72rem; color: var(--text-muted); text-transform: uppercase;">MONTO TOTAL FACTURADO</div>
-                                <div id="lblMontoTotalRecepcion" style="font-size: 1.45rem; font-weight: 700; color: var(--accent-gold); font-family: var(--font-mono);">
-                                    RD$ 0.00
-                                </div>
-                            </div>
-
-                            <?php if ($puedeRegistrar): ?>
-                                <button type="submit" class="btn btn-gold" id="btnGuardarRecepcion" style="font-size: 0.95rem; padding: 10px 24px;">
-                                    💾 Registrar Recepción y Entrada a Inventario
-                                </button>
-                            <?php else: ?>
-                                <button type="button" class="btn btn-secondary" disabled>
-                                    Sin Permisos para Recibir
-                                </button>
-                            <?php endif; ?>
-                        </div>
-                    </div>
-                </div>
-
-            </form>
-
-            <!-- ================================================================= -->
-            <!-- HISTORIAL RECIENTE DE RECEPCIONES                                 -->
-            <!-- ================================================================= -->
+            <!-- HISTORIAL RECIENTE DE RECEPCIONES -->
             <div class="table-card">
                 <div class="table-card-top">
                     <div class="table-card-info">
                         <h2 class="table-card-title">Historial de Recepciones Físicas Registradas</h2>
-                        <span class="badge-count"><?= count($historialRecepciones) ?> registros recientes</span>
+                        <span class="badge-count" id="badgeTotalRecepciones"><?= count($historialRecepciones) ?> registros recientes</span>
                     </div>
                 </div>
 
                 <div class="table-wrapper">
-                    <table class="data-table">
+                    <table class="data-table" id="tablaHistorialRecepciones">
                         <thead>
                             <tr>
                                 <th># Recepción</th>
@@ -359,7 +406,7 @@ if ($pdo) {
                                 </tr>
                             <?php else: ?>
                                 <?php foreach ($historialRecepciones as $hr): ?>
-                                    <tr>
+                                    <tr data-texto="<?= strtolower(htmlspecialchars($hr['id'] . ' ' . $hr['numero_factura_proveedor'] . ' ' . ($hr['ncf_proveedor'] ?? '') . ' ' . $hr['proveedor_nombre'] . ' ' . ($hr['numero_orden'] ?? ''))) ?>">
                                         <td style="font-weight: 700; font-family: var(--font-mono); color: var(--accent-gold);">
                                             #<?= (int)$hr['id'] ?>
                                         </td>
@@ -406,9 +453,255 @@ if ($pdo) {
     </div>
 
     <!-- ===================================================================== -->
+    <!-- MODAL 1: NUEVA RECEPCIÓN DE MERCANCÍA (CHECK-IN)                      -->
+    <!-- ===================================================================== -->
+    <div class="modal-overlay" id="modalNuevaRecepcion" style="display: none;">
+        <div class="modal-box modal-xl">
+            <div class="modal-header">
+                <div>
+                    <h3 class="modal-title">Recepción de Mercancía (Check-in)</h3>
+                    <small id="badgeModoRecepcion" style="color: var(--text-muted); font-size: 0.78rem;">Recepción directa sin orden obligatoria o importada desde orden de compra</small>
+                </div>
+                <button type="button" class="modal-close" onclick="cerrarModalNuevaRecepcion()">&times;</button>
+            </div>
+
+            <form id="formRecepcion" onsubmit="guardarRecepcion(event)" style="display: flex; flex-direction: column; overflow: hidden;">
+                <input type="hidden" id="inputOrdenCompraId" name="orden_compra_id" value="" />
+
+                <div class="modal-body" style="padding: 12px 18px; max-height: calc(88vh - 120px); overflow-y: auto;">
+                    
+                    <!-- BANNER ORDEN DE COMPRA VINCULADA -->
+                    <div id="bannerOrdenImportada" style="display: none; background: #faf4ea; border: 1.5px solid #d4c1a7; border-radius: 8px; padding: 10px 14px; margin-bottom: 12px; align-items: center; justify-content: space-between; gap: 12px;">
+                        <div style="display: flex; align-items: center; gap: 10px;">
+                            <span style="font-size: 1.3rem;">📋</span>
+                            <div>
+                                <strong id="textoOrdenVinculada" style="font-size: 0.92rem; color: var(--text-dark);">OC-0000 — Suplidor</strong>
+                                <div id="subtextoOrdenVinculada" style="font-size: 0.74rem; color: var(--text-muted);">RNC: ... | Días Crédito: ...</div>
+                            </div>
+                        </div>
+                        <button type="button" class="btn btn-sm btn-secondary" onclick="desvincularOrdenCompra()" style="border: 1px solid #d0c2b0; font-size: 0.76rem; padding: 3px 8px;">
+                            ✕ Quitar Vínculo
+                        </button>
+                    </div>
+
+                    <!-- 1. Cabecera Compacta -->
+                    <div style="background: #faf8f5; border: 1px solid #eae3d5; border-radius: 8px; padding: 7px 12px; margin-bottom: 8px;">
+                        <div style="font-size: 0.68rem; font-weight: 700; color: var(--accent-gold); text-transform: uppercase; margin-bottom: 4px;">
+                            1. Datos del Proveedor y Factura Física (DGII 606)
+                        </div>
+                        <div style="display: grid; grid-template-columns: 1.5fr 1fr 1fr 1fr; gap: 8px; align-items: start;">
+                            <!-- SELECTOR BUSCABLE DE PROVEEDOR -->
+                            <div class="form-group" style="margin: 0; position: relative;">
+                                <label class="form-label" style="font-size: 0.70rem; font-weight: 700; margin-bottom: 2px;">Proveedor *</label>
+                                <input type="hidden" id="selectProveedorRecepcion" name="proveedor_id" required value="" />
+                                
+                                <div id="boxBusquedaProveedorRecep" style="position: relative;">
+                                    <input type="text" id="inputBuscarProveedorRecep" class="form-control" placeholder="🔍 Escriba nombre o RNC..." autocomplete="off" oninput="filtrarProveedoresRecep(this.value)" onfocus="abrirDropdownProveedoresRecep()" style="height: 30px; font-size: 0.80rem;" />
+                                    <div id="dropdownProveedoresRecep" style="display: none; position: absolute; top: 100%; left: 0; right: 0; max-height: 200px; overflow-y: auto; background: #ffffff; border: 1.5px solid #d4c1a7; border-radius: 6px; box-shadow: 0 4px 14px rgba(0,0,0,0.15); z-index: 1050; margin-top: 2px;">
+                                        <!-- Dinámico -->
+                                    </div>
+                                </div>
+
+                                <div id="badgeProveedorElegidoRecep" style="display: none; background: #fdf5ea; border: 1px solid #dfcaa4; border-radius: 6px; padding: 2px 8px; align-items: center; justify-content: space-between; height: 30px;">
+                                    <div style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 0.78rem; color: #211813;">
+                                        <strong id="txtNombreProvRecep">—</strong>
+                                        <small id="txtDetalleProvRecep" style="color: #7a6b5d; margin-left: 6px; font-family: var(--font-mono);"></small>
+                                    </div>
+                                    <button type="button" class="btn btn-sm btn-secondary" id="btnCambiarProvRecep" onclick="limpiarProveedorSeleccionadoRecep()" style="padding: 1px 6px; font-size: 0.68rem; height: 20px; flex-shrink: 0;">✕ Cambiar</button>
+                                </div>
+
+                                <small id="infoProveedorRecepcion" style="color: var(--text-muted); font-size: 0.66rem; margin-top: 1px; display: block;">
+                                    Días habituales: --
+                                </small>
+                            </div>
+
+                            <div class="form-group" style="margin: 0;">
+                                <label class="form-label" style="font-size: 0.70rem; font-weight: 700; margin-bottom: 2px;">N° Factura Física *</label>
+                                <input type="text" id="inputNumFactura" class="form-control" required maxlength="50" placeholder="Ej: FACT-98234" style="height: 30px; font-size: 0.80rem;" />
+                            </div>
+
+                            <div class="form-group" style="margin: 0;">
+                                <label class="form-label" style="font-size: 0.70rem; font-weight: 700; margin-bottom: 2px;">NCF Proveedor (DGII) *</label>
+                                <input type="text" id="inputNcf" class="form-control" style="font-family: var(--font-mono); text-transform: uppercase; height: 30px; font-size: 0.80rem;" required maxlength="13" placeholder="Ej: B0100000001" />
+                            </div>
+
+                            <div class="form-group" style="margin: 0;">
+                                <label class="form-label" style="font-size: 0.70rem; font-weight: 700; margin-bottom: 2px;">Condición de Pago *</label>
+                                <div style="display: flex; align-items: center; height: 30px; gap: 8px;">
+                                    <label class="radio-condicion-pago" style="font-size: 0.75rem; margin: 0;">
+                                        <input type="radio" name="condicion_pago" value="CREDITO" checked onchange="actualizarNotaCondicionPago()" />
+                                        <span>CRÉDITO</span>
+                                    </label>
+                                    <label class="radio-condicion-pago" style="font-size: 0.75rem; margin: 0;">
+                                        <input type="radio" name="condicion_pago" value="CONTADO" onchange="actualizarNotaCondicionPago()" />
+                                        <span>CONTADO</span>
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 2. Detalle y Selección de Productos (Layout Split 2 Columnas Simétricas y Elevadas) -->
+                    <div class="grid-split-orden" style="display: grid; grid-template-columns: 1fr 1.18fr; gap: 12px; margin-top: 4px; align-items: stretch;">
+                        
+                        <!-- Columna Izquierda: Catálogo de Productos -->
+                        <div style="background: #faf8f5; border: 1.5px solid #dfcaa4; border-radius: 8px; padding: 8px 10px; display: flex; flex-direction: column; height: 290px; box-sizing: border-box; gap: 6px;">
+                            <div style="display: flex; justify-content: space-between; align-items: center; height: 22px; border-bottom: 1px solid #ebdcc5; padding-bottom: 4px;">
+                                <span style="font-size: 0.72rem; font-weight: 700; color: var(--accent-gold); text-transform: uppercase; letter-spacing: 0.3px; white-space: nowrap;">
+                                    Catálogo de Productos
+                                </span>
+                                <span id="lblEstadoCatalogo" style="font-size: 0.68rem; color: var(--text-muted); font-weight: 600; white-space: nowrap;">
+                                    <?= count($productos) ?> en catálogo
+                                </span>
+                            </div>
+
+                            <input type="text" id="inputBuscarCatalogo" class="form-control"
+                                placeholder="🔍 Buscar nombre o SKU..."
+                                oninput="buscarProductosCatalogo(this.value)"
+                                style="height: 30px; padding-left: 8px; font-size: 0.78rem; flex-shrink: 0;" />
+
+                            <div id="panelResultadosCatalogo" style="flex: 1; min-height: 0; overflow-y: auto; background: #ffffff; border: 1px solid #dfcaa4; border-radius: 6px; padding: 3px;">
+                                <!-- Items dinámicos -->
+                            </div>
+                        </div>
+
+                        <!-- Columna Derecha: Productos en la Recepción (Bandeja) -->
+                        <div style="background: #faf8f5; border: 1.5px solid #dfcaa4; border-radius: 8px; padding: 8px 10px; display: flex; flex-direction: column; height: 290px; box-sizing: border-box; gap: 6px;">
+                            <div style="display: flex; justify-content: space-between; align-items: center; height: 22px; border-bottom: 1px solid #ebdcc5; padding-bottom: 4px;">
+                                <span style="font-size: 0.72rem; font-weight: 700; color: var(--accent-gold); text-transform: uppercase; letter-spacing: 0.3px; white-space: nowrap;">
+                                    Productos en la Recepción
+                                </span>
+                                <small style="color: var(--text-muted); font-size: 0.68rem; font-weight: 600; white-space: nowrap;">Use <strong>+ Lote</strong> para dividir</small>
+                            </div>
+
+                            <div id="contenedorLineasRecepcion" style="flex: 1; min-height: 0; overflow-y: auto; background: #ffffff; border: 1px solid #dfcaa4; border-radius: 6px;">
+                                <!-- Tabla compacta generada por JS -->
+                            </div>
+
+                            <div style="background: #ffffff; border: 1px solid #dfcaa4; border-radius: 6px; padding: 4px 10px; display: flex; justify-content: space-between; align-items: center; font-weight: 700; min-height: 28px; box-sizing: border-box; flex-shrink: 0;">
+                                <div style="display: flex; gap: 14px; font-size: 0.76rem; color: #5a3e24;">
+                                    <span>Total Líneas: <strong id="lblTotalLineasRecep" style="color: #211813;">0</strong></span>
+                                    <span>Total Unidades: <strong id="lblTotalUnidadesRecep" style="color: #211813; font-family: var(--font-mono);">0</strong> u.</span>
+                                </div>
+                                <div style="font-size: 0.85rem; font-family: var(--font-mono); color: var(--accent-gold);">
+                                    <span style="font-size: 0.68rem; color: #7a6b5d; text-transform: uppercase; font-family: var(--font-sans); margin-right: 4px;">Total Facturado:</span>
+                                    <span id="lblMontoTotalEstimadoRecep">RD$ 0.00</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                </div>
+
+                <!-- Footer del Modal con Totales y Botones -->
+                <div class="modal-footer" style="padding: 10px 18px; background: #faf8f5; border-top: 1px solid var(--border-light); display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px;">
+                    <div style="display: flex; gap: 16px; font-size: 0.80rem; color: #5c5043;">
+                        <span>Total Unidades: <strong id="lblTotalUnidadesRecepcion" style="color: #211813; font-family: var(--font-mono);">0</strong> u.</span>
+                        <span>Total Productos: <strong id="lblTotalProductosRecepcion" style="color: #211813;">0</strong></span>
+                        <span>Total Facturado: <strong id="lblMontoTotalRecepcion" style="color: var(--accent-gold); font-family: var(--font-mono); font-size: 1.05rem;">RD$ 0.00</strong></span>
+                    </div>
+
+                    <div style="display: flex; gap: 10px;">
+                        <button type="button" class="btn btn-secondary" onclick="cerrarModalNuevaRecepcion()">Cancelar</button>
+                        <?php if ($puedeRegistrar): ?>
+                            <button type="submit" class="btn btn-gold" id="btnGuardarRecepcion" style="font-weight: 700;">
+                                💾 Registrar Recepción y Entrada a Inventario
+                            </button>
+                        <?php else: ?>
+                            <button type="button" class="btn btn-secondary" disabled>Sin Permisos</button>
+                        <?php endif; ?>
+                    </div>
+                </div>
+
+            </form>
+        </div>
+    </div>
+
+    <!-- ===================================================================== -->
+    <!-- MODAL: IMPORTAR ORDEN DE COMPRA (CHECK-IN)                           -->
+    <!-- ===================================================================== -->
+    <div class="modal-overlay" id="modalImportarOrdenCompra" style="display: none;">
+        <div class="modal-box" style="max-width: 820px; width: 95%;">
+            <div class="modal-header">
+                <div>
+                    <h3 class="modal-title">📋 Importar Orden de Compra a Check-in</h3>
+                    <small style="color: var(--text-muted); font-size: 0.78rem;">Seleccione una orden aprobada para verificar y recibir la mercancía en almacén</small>
+                </div>
+                <button type="button" class="btn-close" onclick="cerrarModalImportarOrden()" style="background:none; border:none; font-size:1.5rem; cursor:pointer; color:var(--text-muted);">&times;</button>
+            </div>
+            
+            <div class="modal-body" style="padding: 16px 20px; max-height: 70vh; overflow-y: auto;">
+                <!-- Buscador de órdenes en el modal -->
+                <div style="margin-bottom: 14px;">
+                    <input type="text" id="filtroModalOrdenes" class="form-control" placeholder="🔍 Filtrar por número de orden, proveedor o RNC..." oninput="filtrarOrdenesModal(this.value)" style="height: 38px; font-size: 0.88rem; padding-left: 12px;" />
+                </div>
+
+                <div class="table-wrapper" style="border: 1px solid var(--border-light); border-radius: 6px; overflow: hidden;">
+                    <table class="data-table" style="width: 100%; border-collapse: collapse;" id="tablaModalOrdenes">
+                        <thead>
+                            <tr style="background: var(--bg-table-header, #f6efe4); border-bottom: 1px solid #e4d5be;">
+                                <th style="padding: 10px 12px; text-align: left; font-size: 0.75rem; text-transform: uppercase;">N° Orden</th>
+                                <th style="padding: 10px 12px; text-align: left; font-size: 0.75rem; text-transform: uppercase;">Proveedor / RNC</th>
+                                <th style="padding: 10px 10px; text-align: center; font-size: 0.75rem; text-transform: uppercase;">Emisión</th>
+                                <th style="padding: 10px 10px; text-align: center; font-size: 0.75rem; text-transform: uppercase;">Líneas Pend.</th>
+                                <th style="padding: 10px 12px; text-align: right; font-size: 0.75rem; text-transform: uppercase;">Total Est.</th>
+                                <th style="padding: 10px 12px; text-align: center; font-size: 0.75rem; text-transform: uppercase;">Acción</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <?php if (empty($ordenesPendientes)): ?>
+                                <tr>
+                                    <td colspan="6" class="text-center" style="padding: 30px; color: var(--text-muted);">
+                                        No hay órdenes de compra pendientes o en recepción parcial.
+                                    </td>
+                                </tr>
+                            <?php else: ?>
+                                <?php foreach ($ordenesPendientes as $op): ?>
+                                    <tr class="fila-modal-orden" data-texto="<?= strtolower(htmlspecialchars($op['numero_orden'] . ' ' . $op['proveedor_nombre'] . ' ' . ($op['proveedor_rnc'] ?? ''))) ?>" style="border-bottom: 1px solid #f2ede4;">
+                                        <td style="padding: 10px 12px;">
+                                            <strong style="font-family: var(--font-mono); color: var(--accent-gold); font-size: 0.88rem;"><?= htmlspecialchars($op['numero_orden']) ?></strong>
+                                            <div style="font-size: 0.72rem; color: var(--text-muted);">
+                                                <?= ($op['estado'] === 'RECIBIDA_PARCIAL') ? '⚡ Entrega Parcial' : '⏳ Pendiente' ?>
+                                            </div>
+                                        </td>
+                                        <td style="padding: 10px 12px;">
+                                            <div style="font-weight: 600; color: var(--text-dark); font-size: 0.88rem;"><?= htmlspecialchars($op['proveedor_nombre']) ?></div>
+                                            <div style="font-size: 0.75rem; color: var(--text-muted); font-family: var(--font-mono);">RNC: <?= htmlspecialchars($op['proveedor_rnc'] ?? 'N/A') ?></div>
+                                        </td>
+                                        <td style="padding: 10px 10px; text-align: center; font-size: 0.82rem; color: #5a4b3d;">
+                                            <?= htmlspecialchars(date('d/m/Y', strtotime($op['fecha_emision']))) ?>
+                                        </td>
+                                        <td style="padding: 10px 10px; text-align: center;">
+                                            <span style="background: #eef5fb; color: #1e6091; font-weight: 700; border-radius: 10px; padding: 2px 8px; font-size: 0.78rem;">
+                                                <?= (int)$op['lineas_pendientes'] ?> líneas
+                                            </span>
+                                        </td>
+                                        <td style="padding: 10px 12px; text-align: right; font-family: var(--font-mono); font-weight: 700; font-size: 0.90rem; color: var(--text-dark);">
+                                            RD$ <?= number_format((float)$op['monto_total_estimado'], 2) ?>
+                                        </td>
+                                        <td style="padding: 10px 12px; text-align: center;">
+                                            <button type="button" class="btn btn-sm btn-gold" onclick="importarOrdenDesdeModal(<?= (int)$op['id'] ?>)" style="padding: 6px 14px; font-size: 0.82rem; font-weight: 700;">
+                                                📥 Cargar
+                                            </button>
+                                        </td>
+                                    </tr>
+                                <?php endforeach; ?>
+                            <?php endif; ?>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div class="modal-footer" style="padding: 12px 20px; background: #faf8f5; border-top: 1px solid var(--border-light); display: flex; justify-content: flex-end;">
+                <button type="button" class="btn btn-secondary" onclick="cerrarModalImportarOrden()">Cerrar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ===================================================================== -->
     <!-- MODAL DE COMPROBANTE DE RECEPCIÓN (HISTORIAL)                         -->
     <!-- ===================================================================== -->
-    <div class="modal-overlay" id="modalVerRecepcion">
+    <div class="modal-overlay" id="modalVerRecepcion" style="display: none;">
         <div class="modal-box modal-xl">
             <div class="modal-header">
                 <div>
@@ -428,11 +721,13 @@ if ($pdo) {
         </div>
     </div>
 
-    <!-- Script inicial para precarga de orden por GET si aplica -->
+    <!-- Script inicial para precarga de orden por GET si aplica y catálogos -->
     <script>
         const ORDEN_ID_INICIAL = <?= $ordenIdPreseleccionada ?>;
+        const CATALOGO_PRODUCTOS = <?= json_encode($productos, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
+        const PROVEEDORES_LISTA = <?= json_encode($proveedores, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
     </script>
-    <script src="recepciones.js?v=20"></script>
+    <script src="recepciones.js?v=27"></script>
 </body>
 
 </html>

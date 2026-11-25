@@ -66,6 +66,32 @@ if ($pdo) {
             ORDER BY (CASE WHEN estado = 'ACTIVA' THEN 1 ELSE 2 END), id DESC
         ")->fetchAll(PDO::FETCH_ASSOC) ?: [];
 
+        // 4b. Auditoría de Descuentos & Promociones en curso
+        $stmtDescuentos = $pdo->query("
+            SELECT pc.id,
+                   pc.nombre_promocion,
+                   pc.tipo_promocion,
+                   pc.fecha_inicio,
+                   pc.fecha_fin,
+                   pc.monto_minimo_factura,
+                   pc.estado,
+                   TO_CHAR(pc.fecha_inicio, 'DD/MM/YYYY') AS fecha_inicio_fmt,
+                   TO_CHAR(pc.fecha_fin, 'DD/MM/YYYY') AS fecha_fin_fmt,
+                   COALESCE((
+                       SELECT STRING_AGG(DISTINCT 
+                           CASE 
+                               WHEN pd.beneficio_porcentaje > 0 THEN pd.beneficio_porcentaje::text || '% desc.'
+                               WHEN pd.beneficio_monto_fijo > 0 THEN 'RD$ ' || pd.beneficio_monto_fijo::text || ' desc.'
+                               ELSE 'Combo / Regalo'
+                           END, ', ')
+                       FROM promociones.promociones_detalles pd
+                       WHERE pd.promocion_id = pc.id
+                   ), 'Descuento general') AS regla_beneficio
+            FROM promociones.promociones_campanas pc
+            ORDER BY (CASE WHEN pc.estado = 'ACTIVA' THEN 1 ELSE 2 END), pc.fecha_inicio DESC, pc.id DESC
+        ");
+        $descuentosEnCurso = $stmtDescuentos->fetchAll(PDO::FETCH_ASSOC) ?: [];
+
         // 5. Catálogo de clientes registrados
         $clientes = $pdo->query("
             SELECT c.persona_id AS cliente_id, c.codigo_cliente, p.nombre_razon_social, p.documento_identidad
@@ -367,6 +393,69 @@ $tipoMsg = $_GET['tipo'] ?? 'exito';
         padding: 0 !important;
       }
     }
+
+    /* MODALES FLOTANTES CENTRADOS AL MEDIO DE LA PANTALLA */
+    .modal-backdrop,
+    .modal-overlay {
+      position: fixed !important;
+      top: 0 !important;
+      left: 0 !important;
+      right: 0 !important;
+      bottom: 0 !important;
+      width: 100vw !important;
+      height: 100vh !important;
+      background-color: rgba(33, 24, 19, 0.65) !important;
+      display: none;
+      align-items: center !important;
+      justify-content: center !important;
+      z-index: 99999 !important;
+      padding: 16px !important;
+      box-sizing: border-box !important;
+    }
+    .modal-backdrop.open,
+    .modal-overlay.open {
+      display: flex !important;
+    }
+    .modal-content,
+    .modal-box {
+      background-color: #ffffff !important;
+      border: 1px solid #dfcaa4 !important;
+      border-radius: 12px !important;
+      box-shadow: 0 20px 50px rgba(0, 0, 0, 0.35) !important;
+      max-height: calc(96vh - 24px) !important;
+      overflow-y: auto !important;
+      display: flex !important;
+      flex-direction: column !important;
+      animation: modalFadeIn 0.2s ease-out !important;
+      margin: auto !important;
+      position: relative !important;
+      width: 100% !important;
+    }
+    @keyframes modalFadeIn {
+      from {
+        opacity: 0;
+        transform: translateY(-16px) scale(0.97);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+      }
+    }
+    .btn-close {
+      background: none;
+      border: none;
+      font-size: 1.6rem;
+      line-height: 1;
+      color: #8c7f70;
+      cursor: pointer;
+      padding: 2px 8px;
+      border-radius: 4px;
+      transition: background 0.15s, color 0.15s;
+    }
+    .btn-close:hover {
+      color: #211813;
+      background: #f0e6d6;
+    }
   </style>
 </head>
 <body>
@@ -533,14 +622,24 @@ $tipoMsg = $_GET['tipo'] ?? 'exito';
         </button>
       </div>
 
-      <!-- TABLA DE AUDITORÍA Y TRAZABILIDAD -->
-      <div class="table-card">
+      <!-- PESTAÑAS DE VISTA Y AUDITORÍA (2 PESTAÑAS PRINCIPALES) -->
+      <div style="display: flex; gap: 8px; margin-bottom: 14px; border-bottom: 2px solid #e7dcc8; padding-bottom: 2px; flex-wrap: wrap;">
+        <button type="button" class="btn btn-secondary" id="tabBtnAuditCupones" onclick="cambiarVistaAuditoria('CUPONES', this)" style="padding: 8px 18px; font-weight: 700; border-radius: 8px 8px 0 0; background: #ffffff; color: var(--text-dark); border: 1.5px solid #d4c1a7; border-bottom: none; cursor: pointer;">
+          <span>🎟️</span> Cupones de Descuento
+        </button>
+        <button type="button" class="btn btn-secondary" id="tabBtnAuditDescuentos" onclick="cambiarVistaAuditoria('DESCUENTOS', this)" style="padding: 8px 18px; font-weight: 700; border-radius: 8px 8px 0 0; background: #fbf9f5; color: var(--text-muted); border: 1px solid var(--border-light); border-bottom: none; cursor: pointer;">
+          <span>🏷️</span> Promociones &amp; Descuentos en Curso (<?= count($descuentosEnCurso) ?>)
+        </button>
+      </div>
+
+      <!-- TABLA DE AUDITORÍA Y TRAZABILIDAD (CUPONES) -->
+      <div class="table-card" id="contenedorTablaCupones">
         <div class="table-card-top">
           <div class="table-card-info">
-            <h2 class="table-card-title">Matriz de Cupones Emitidos</h2>
-            <span class="badge-count" id="badgeContadorCupones"><?= count($cupones) ?> cupones</span>
+            <h2 class="table-card-title" id="tituloTablaAuditoria">Matriz de Cupones Emitidos</h2>
+            <span class="badge-count" id="badgeContadorCupones"><?= count($cupones) ?> registros</span>
           </div>
-          <div style="font-size: 0.8rem; color: #8a7b70;">
+          <div style="font-size: 0.8rem; color: #8a7b70;" id="subtituloTablaAuditoria">
             Mostrando trazabilidad de emisión y canje en facturación
           </div>
         </div>
@@ -561,6 +660,80 @@ $tipoMsg = $_GET['tipo'] ?? 'exito';
             </thead>
             <tbody id="tablaCuponesBody">
               <!-- Renderizado dinámico vía JavaScript -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- TABLA DE AUDITORÍA DE DESCUENTOS Y PROMOCIONES EN CURSO -->
+      <div class="table-card" id="contenedorTablaDescuentos" style="display: none;">
+        <div class="table-card-top">
+          <div class="table-card-info">
+            <h2 class="table-card-title">Auditoría de Descuentos &amp; Promociones Activas</h2>
+            <span class="badge-count"><?= count($descuentosEnCurso) ?> campañas registradas</span>
+          </div>
+          <div style="font-size: 0.8rem; color: #8a7b70;">
+            Políticas comerciales vigentes aplicables en facturación POS y ventas
+          </div>
+        </div>
+
+        <div class="table-wrapper">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th style="min-width: 200px;">Nombre de la Campaña / Promoción</th>
+                <th style="min-width: 140px;">Tipo de Descuento</th>
+                <th style="min-width: 180px;">Regla / Beneficio Aplicado</th>
+                <th class="text-right" style="min-width: 130px;">Monto Mínimo</th>
+                <th class="text-center" style="min-width: 180px;">Período de Vigencia</th>
+                <th class="text-center" style="min-width: 100px;">Estado</th>
+                <th class="text-center" style="min-width: 110px;">Acción</th>
+              </tr>
+            </thead>
+            <tbody>
+              <?php if (empty($descuentosEnCurso)): ?>
+                <tr>
+                  <td colspan="7" class="text-center" style="padding: 30px; color: var(--text-muted);">
+                    No se han configurado promociones o campañas en curso.
+                  </td>
+                </tr>
+              <?php else: ?>
+                <?php foreach ($descuentosEnCurso as $desc): ?>
+                  <tr>
+                    <td>
+                      <strong style="color: var(--text-dark); font-size: 0.90rem;"><?= htmlspecialchars($desc['nombre_promocion']) ?></strong>
+                    </td>
+                    <td>
+                      <span class="badge-status status-usado" style="font-size: 0.72rem;">
+                        <?= htmlspecialchars($desc['tipo_promocion']) ?>
+                      </span>
+                    </td>
+                    <td style="font-size: 0.84rem; color: #5a4b3d;">
+                      <?= htmlspecialchars($desc['regla_beneficio']) ?>
+                    </td>
+                    <td class="text-right" style="font-family: monospace; font-weight: 700;">
+                      RD$ <?= number_format((float)$desc['monto_minimo_factura'], 2) ?>
+                    </td>
+                    <td class="text-center" style="font-size: 0.82rem;">
+                      <span style="color: #2e7d52;"><?= htmlspecialchars($desc['fecha_inicio_fmt']) ?></span>
+                      al
+                      <span style="color: #b78103;"><?= htmlspecialchars($desc['fecha_fin_fmt'] ?: 'Sin término') ?></span>
+                    </td>
+                    <td class="text-center">
+                      <?php if ($desc['estado'] === 'ACTIVA'): ?>
+                        <span class="badge-status status-disponible">● ACTIVA</span>
+                      <?php else: ?>
+                        <span class="badge-status status-anulado">INACTIVA</span>
+                      <?php endif; ?>
+                    </td>
+                    <td class="text-center">
+                      <a href="promociones.php" class="btn btn-action-cupon btn-view" style="text-decoration: none;">
+                        ⚙️ Reglas
+                      </a>
+                    </td>
+                  </tr>
+                <?php endforeach; ?>
+              <?php endif; ?>
             </tbody>
           </table>
         </div>
@@ -813,7 +986,8 @@ $tipoMsg = $_GET['tipo'] ?? 'exito';
   <!-- SERIALIZACIÓN DE DATOS PARA JAVASCRIPT -->
   <script>
     window.CUPONES_DATA = <?= json_encode($cupones, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP | JSON_UNESCAPED_UNICODE) ?>;
+    window.DESCUENTOS_DATA = <?= json_encode($descuentosEnCurso, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP | JSON_UNESCAPED_UNICODE) ?>;
   </script>
-  <script src="cupones.js?v=20"></script>
+  <script src="cupones.js?v=21"></script>
 </body>
 </html>

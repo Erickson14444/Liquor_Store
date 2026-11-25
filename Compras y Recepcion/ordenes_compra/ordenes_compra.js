@@ -174,7 +174,7 @@ function abrirModalNuevaOrden() {
     const inputBuscar = document.getElementById('inputBuscarCatalogo');
     if (inputBuscar) inputBuscar.value = '';
 
-    actualizarInfoProveedor();
+    limpiarProveedorSeleccionadoOc();
     generarSiguienteNumeroOrden();
     renderizarTablaOrden();
 
@@ -215,23 +215,107 @@ async function generarSiguienteNumeroOrden() {
 }
 
 /**
- * Actualiza la información de apoyo del proveedor (días de crédito)
+ * LÓGICA DE BÚSQUEDA Y SELECCIÓN INTERACTIVA DE PROVEEDORES (ÓRDENES DE COMPRA)
  */
-function actualizarInfoProveedor() {
-    const select = document.getElementById('nuevaOrdenProveedor');
-    const lbl = document.getElementById('infoProveedorDias');
-    if (!select || !lbl) return;
+function abrirDropdownProveedoresOc() {
+    const dropdown = document.getElementById('dropdownProveedoresOc');
+    if (!dropdown) return;
+    const input = document.getElementById('inputBuscarProveedorOc');
+    filtrarProveedoresOc(input ? input.value : '');
+    dropdown.style.display = 'block';
+}
 
-    const opt = select.selectedOptions[0];
-    if (opt && opt.value) {
-        const dias = opt.dataset.dias || '0';
-        lbl.textContent = `Días de crédito habitual del suplidor: ${dias} días`;
-        lbl.style.color = '#2e7d52';
+function filtrarProveedoresOc(query) {
+    const dropdown = document.getElementById('dropdownProveedoresOc');
+    if (!dropdown) return;
+
+    const q = (query || '').toLowerCase().trim();
+    const lista = Array.isArray(window.PROVEEDORES_LISTA) ? window.PROVEEDORES_LISTA : [];
+
+    const filtrados = lista.filter(p => {
+        if (!q) return true;
+        const nombre = (p.nombre_razon_social || '').toLowerCase();
+        const doc = (p.documento_identidad || p.rnc || '').toLowerCase();
+        return nombre.includes(q) || doc.includes(q);
+    });
+
+    if (filtrados.length === 0) {
+        dropdown.innerHTML = '<div style="padding: 10px 14px; color: var(--text-muted); font-size: 0.80rem; text-align: center;">No se encontraron suplidores coincidentes</div>';
     } else {
-        lbl.textContent = 'Días de crédito habitual: --';
-        lbl.style.color = 'var(--text-muted)';
+        dropdown.innerHTML = filtrados.slice(0, 40).map(p => {
+            const dias = parseInt(p.dias_credito_habitual || 0, 10);
+            const rnc = p.documento_identidad || p.rnc || 'S/RNC';
+            return `
+                <div class="opcion-prov-item" onclick="seleccionarProveedorOc('${p.persona_id}')" style="padding: 8px 12px; cursor: pointer; border-bottom: 1px solid #f2ede4; display: flex; justify-content: space-between; align-items: center; transition: background 0.15s;" onmouseover="this.style.background='#faf4ea'" onmouseout="this.style.background='transparent'">
+                    <div>
+                        <strong style="font-size: 0.82rem; color: #211813;">${p.nombre_razon_social}</strong>
+                        <div style="font-size: 0.72rem; color: #7a6b5d; font-family: var(--font-mono);">RNC: ${rnc}</div>
+                    </div>
+                    <span style="font-size: 0.70rem; background: #eef5fb; color: #1e6091; font-weight: 600; padding: 2px 6px; border-radius: 4px;">${dias} d. crédito</span>
+                </div>
+            `;
+        }).join('');
+    }
+    dropdown.style.display = 'block';
+}
+
+function seleccionarProveedorOc(proveedorId) {
+    const hidden = document.getElementById('nuevaOrdenProveedor');
+    const box = document.getElementById('boxBusquedaProveedorOc');
+    const badge = document.getElementById('badgeProveedorElegidoOc');
+    const badgeNombre = document.getElementById('badgeProveedorNombreOc');
+    const badgeRnc = document.getElementById('badgeProveedorRncOc');
+    const lblDias = document.getElementById('infoProveedorDias');
+    const dropdown = document.getElementById('dropdownProveedoresOc');
+
+    if (hidden) hidden.value = proveedorId;
+
+    const lista = Array.isArray(window.PROVEEDORES_LISTA) ? window.PROVEEDORES_LISTA : [];
+    const p = lista.find(item => String(item.persona_id) === String(proveedorId));
+
+    if (p) {
+        if (badgeNombre) badgeNombre.textContent = p.nombre_razon_social || '';
+        const rnc = p.documento_identidad || p.rnc || 'S/RNC';
+        const dias = parseInt(p.dias_credito_habitual || 0, 10);
+        if (badgeRnc) badgeRnc.textContent = `(${rnc} • ${dias} días crédito)`;
+        if (lblDias) {
+            lblDias.textContent = `Días de crédito habitual del suplidor: ${dias} días`;
+            lblDias.style.color = '#2e7d52';
+        }
+    }
+
+    if (box) box.style.display = 'none';
+    if (badge) badge.style.display = 'flex';
+    if (dropdown) dropdown.style.display = 'none';
+}
+
+function limpiarProveedorSeleccionadoOc() {
+    const hidden = document.getElementById('nuevaOrdenProveedor');
+    const box = document.getElementById('boxBusquedaProveedorOc');
+    const badge = document.getElementById('badgeProveedorElegidoOc');
+    const input = document.getElementById('inputBuscarProveedorOc');
+    const lblDias = document.getElementById('infoProveedorDias');
+    const dropdown = document.getElementById('dropdownProveedoresOc');
+
+    if (hidden) hidden.value = '';
+    if (input) input.value = '';
+    if (badge) badge.style.display = 'none';
+    if (box) box.style.display = 'block';
+    if (dropdown) dropdown.style.display = 'none';
+    if (lblDias) {
+        lblDias.textContent = 'Días de crédito habitual: --';
+        lblDias.style.color = 'var(--text-muted)';
     }
 }
+
+// Cierre automático de dropdown de proveedor al hacer click afuera
+document.addEventListener('click', function(e) {
+    const box = document.getElementById('boxBusquedaProveedorOc');
+    const dropdown = document.getElementById('dropdownProveedoresOc');
+    if (dropdown && box && !box.contains(e.target)) {
+        dropdown.style.display = 'none';
+    }
+});
 
 /**
  * Busca productos en el catálogo según el texto ingresado.

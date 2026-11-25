@@ -1,0 +1,323 @@
+/* ============================================================================
+ * ESTILOS DE NOTAS DE DÉBITO (NCF B03) • HOUSE & ICE
+ * Ubicación: Ventas y Facturacion/NotasDebito/styles.css
+ * ============================================================================ */
+
+/* Botón café con letras blancas */
+.btn-primary,
+.page-header .btn-primary {
+  background-color: #a66e2e !important;
+  border-color: #8e5c23 !important;
+  color: #ffffff !important;
+  font-weight: 700 !important;
+}
+
+.btn-primary:hover,
+.page-header .btn-primary:hover {
+  background-color: #8e5c23 !important;
+  border-color: #794a15 !important;
+  color: #ffffff !important;
+}
+
+/* Contenedor de 4 KPIs */
+.nd-kpi-container {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+@media (max-width: 1100px) {
+  .nd-kpi-container {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 600px) {
+  .nd-kpi-container {
+    grid-template-columns: 1fr;
+  }
+}
+
+.nd-kpi-card {
+  background: #ffffff;
+  border: 1px solid var(--border-light, #eae3d5);
+  border-radius: var(--radius-md, 8px);
+  padding: 16px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  box-shadow: 0 2px 8px rgba(37, 28, 22, 0.04);
+}
+
+.nd-kpi-icon {
+  width: 48px;
+  height: 48px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.5rem;
+  flex-shrink: 0;
+}
+
+.nd-kpi-icon.gold { background: #fdf5ea; color: #a66e2e; }
+.nd-kpi-icon.blue { background: #edf4fb; color: #1e6091; }
+.nd-kpi-icon.orange { background: #fdf2e9; color: #d35400; }
+.nd-kpi-icon.green { background: #eef8f2; color: #2e7d52; }
+
+.nd-kpi-data h4 {
+  font-size: 0.78rem;
+  color: var(--text-muted, #8c8173);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 4px;
+  font-weight: 700;
+}
+
+.nd-kpi-data .nd-kpi-value {
+  font-family: var(--font-mono, monospace);
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: var(--text-dark, #251c16);
+}
+
+.nd-kpi-data .nd-kpi-sub {
+  font-size: 0.74rem;
+  color: var(--text-muted, #8c8173);
+  margin-top: 2px;
+}
+
+/* Filtros */
+.nd-filter-bar {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  margin-bottom: 16px;
+  background: #ffffff;
+  padding: 14px 18px;
+  border-radius: var(--radius-md, 8px);
+  border: 1px solid var(--border-light, #eae3d5);
+  box-shadow: 0 1px 4px rgba(37, 28, 22, 0.03);
+}
+
+.nd-filter-group {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.nd-filter-group label {
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--text-muted, #8c8173);
+  text-transform: uppercase;
+}
+
+/* Badges NCF y Estado */
+.badge-ncf-b03 {
+  font-family: var(--font-mono, monospace);
+  font-size: 0.8rem;
+  font-weight: 700;
+  background: #fdf5ea;
+  color: #8c4c15;
+  border: 1px solid #edd5b2;
+  padding: 3px 8px;
+  border-radius: 4px;
+}
+
+.badge-ncf-mod {
+  font-family: var(--font-mono, monospace);
+  font-size: 0.76rem;
+  font-weight: 600;
+  background: #f0f4f8;
+  color: #244b7a;
+  border: 1px solid #c9d8e8;
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+/* Tarjeta informativa de factura origen seleccionada */
+.factura-selected-card {
+  background: #faf7f2;
+  border: 1px solid #e2dacb;
+  border-left: 4px solid var(--accent-gold, #a66e2e);
+  border-radius: 6px;
+  padding: 12px 16px;
+  margin-top: 8px;
+  margin-bottom: 14px;
+  display: none;
+}
+
+.factura-selected-card.active {
+  display: block;
+}
+
+/* ============================================================================
+ * VENTANAS MODALES COMPACTAS Y ELEGANTES
+ * ============================================================================ */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(25, 18, 12, 0.55);
+  backdrop-filter: blur(3px);
+  -webkit-backdrop-filter: blur(3px);
+  display: none;
+  align-items: center;
+  justify-content: center;
+  z-index: 1200;
+  padding: 16px;
+}
+
+.modal-overlay.active {
+  display: flex;
+}
+
+.modal-dialog {
+  background: #ffffff;
+  border-radius: var(--radius-md, 8px);
+  width: 95%;
+  max-width: 860px !important;
+  max-height: 94vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.25);
+  border: 1px solid var(--border-light, #eae3d5);
+  margin: auto;
+}
+
+.modal-dialog.modal-lg {
+  max-width: 960px !important;
+}
+
+.modal-dialog form {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  margin: 0;
+}
+
+.modal-header {
+  padding: 12px 18px;
+  background: #faf7f2;
+  border-bottom: 1px solid var(--border-light, #eae3d5);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-shrink: 0;
+}
+
+.modal-header h3 {
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--text-dark, #251c16);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+}
+
+.modal-close-btn {
+  background: none;
+  border: none;
+  font-size: 1.4rem;
+  line-height: 1;
+  color: var(--text-muted, #8c8173);
+  cursor: pointer;
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+.modal-close-btn:hover {
+  color: var(--accent-danger, #d45448);
+  background: rgba(0, 0, 0, 0.05);
+}
+
+.modal-body {
+  padding: 12px 18px;
+  overflow-y: auto;
+  max-height: calc(94vh - 120px);
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.modal-body > * {
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.modal-body .form-control {
+  box-sizing: border-box;
+}
+
+.modal-footer {
+  padding: 10px 18px;
+  background: #faf7f2;
+  border-top: 1px solid var(--border-light, #eae3d5);
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  flex-shrink: 0;
+}
+
+/* Líneas de cargo compactas en el modal */
+.nd-line-item {
+  display: grid;
+  grid-template-columns: 2fr 1.3fr 60px 95px 50px 95px 32px;
+  gap: 6px;
+  align-items: center;
+  background: #ffffff;
+  border: 1px solid var(--border-light, #eae3d5);
+  border-radius: 6px;
+  padding: 6px 8px;
+  margin-bottom: 6px;
+}
+
+@media (max-width: 768px) {
+  .modal-dialog {
+    max-width: 95% !important;
+  }
+  .nd-line-item {
+    grid-template-columns: 1fr;
+  }
+}
+
+.nd-totales-strip {
+  display: flex;
+  justify-content: flex-end;
+  gap: 20px;
+  background: #faf7f2;
+  border: 1px solid #e7dcc8;
+  border-radius: 8px;
+  padding: 12px 18px;
+  margin-top: 12px;
+}
+
+.nd-totales-strip .tot-item {
+  text-align: right;
+}
+
+.nd-totales-strip .tot-item small {
+  display: block;
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--text-muted, #8c8173);
+  text-transform: uppercase;
+}
+
+.nd-totales-strip .tot-item strong {
+  font-family: var(--font-mono, monospace);
+  font-size: 1.15rem;
+  color: var(--text-dark, #251c16);
+}
