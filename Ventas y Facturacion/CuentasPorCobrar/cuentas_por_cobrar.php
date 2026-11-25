@@ -97,6 +97,8 @@ if ($pdo) {
                    p.nombre_razon_social, p.documento_identidad, p.telefono_principal
             FROM identidad.clientes c
             JOIN identidad.personas p ON p.persona_id = c.persona_id
+            WHERE NOT EXISTS (SELECT 1 FROM identidad.empleados e WHERE e.persona_id = c.persona_id)
+              AND NOT EXISTS (SELECT 1 FROM seguridad.usuarios u WHERE u.persona_id = c.persona_id)
             ORDER BY p.nombre_razon_social ASC
         ");
         $clientesList = $stmtCl ? $stmtCl->fetchAll(PDO::FETCH_ASSOC) : [];
@@ -285,8 +287,8 @@ if ($pdo) {
                     </p>
                 </div>
                 <div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
-                    <button type="button" class="btn btn-secondary" onclick="abrirModalCargoNotaDebito()" style="background: #ffffff; color: var(--text-dark); border: 1px solid var(--border-light); font-weight: 600;">
-                        <span>➕</span> Registrar Cargo / Nota Débito (B03)
+                    <button type="button" class="btn btn-primary" onclick="abrirModalCargoNotaDebito()" style="background: #a66e2e; color: #ffffff !important; border: 1px solid #8e5c23; font-weight: 700; box-shadow: 0 2px 8px rgba(166, 110, 46, 0.35); display: inline-flex; align-items: center; gap: 8px; padding: 9px 18px; border-radius: 6px;">
+                        <span style="font-weight: 900; font-size: 1.1rem; color: #ffffff !important;">➕</span> <span style="color: #ffffff !important; font-weight: 700;">Registrar Cargo a Cliente</span>
                     </button>
                     <button type="button" class="btn btn-primary" id="btnTopCobrarSeleccion" onclick="abrirModalCobro()" style="display: none; background: #a66e2e; color: #ffffff !important; font-weight: 700;">
                         <span>💳</span> Cobrar Selección (<span id="txtTopCantSeleccionadas">0</span>)
@@ -899,26 +901,35 @@ if ($pdo) {
     </div>
 
     <!-- ========================================================================= -->
-    <!-- MODAL 3: REGISTRAR CARGO / NOTA DE DÉBITO B03 (FASE 1)                   -->
+    <!-- MODAL 3: REGISTRAR CARGO A CLIENTE (FASE 1)                           -->
     <!-- ========================================================================= -->
     <div class="modal-overlay" id="modalCargo">
-        <div class="modal-dialog">
+        <div class="modal-dialog" style="max-width: 540px;">
             <div class="modal-header">
-                <h3><span>📄</span> Registrar Cargo / Nota de Débito (B03)</h3>
+                <h3><span>📄</span> Registrar Cargo a Cliente</h3>
                 <button type="button" class="modal-close-btn" onclick="cerrarModal('modalCargo')">&times;</button>
             </div>
             <form id="formCargo" onsubmit="procesarRegistroCargo(event)">
-                <div class="modal-body">
-                    <div class="form-group" style="margin-bottom: 12px;">
-                        <label class="form-label">Cliente Corporativo / VIP <span style="color:red;">*</span></label>
-                        <select name="cliente_id" class="form-control" required>
-                            <option value="">-- Seleccione Cliente --</option>
-                            <?php foreach ($clientesList as $cl): ?>
-                                <option value="<?= htmlspecialchars($cl['persona_id']) ?>">
-                                    <?= htmlspecialchars($cl['nombre_razon_social']) ?> (RNC/Céd: <?= htmlspecialchars($cl['documento_identidad'] ?: 'S/D') ?>)
-                                </option>
-                            <?php endforeach; ?>
-                        </select>
+                <div class="modal-body" style="overflow: visible;">
+                    <!-- SELECTOR BUSCABLE DE CLIENTE -->
+                    <div class="form-group" style="margin-bottom: 14px; position: relative;">
+                        <label class="form-label">Cliente Registrado <span style="color:red;">*</span></label>
+                        <input type="hidden" name="cliente_id" id="cxcCargoClienteId" required value="" />
+                        
+                        <div id="boxBusquedaClienteCxc" style="position: relative;">
+                            <input type="text" id="inputBuscarClienteCxc" class="form-control" placeholder="🔍 Escriba nombre, RNC/Cédula o tipo de cliente..." autocomplete="off" oninput="filtrarClientesCxc(this.value)" onfocus="abrirDropdownClientesCxc()" style="height: 36px; font-size: 0.85rem;" />
+                            <div id="dropdownClientesCxc" style="display: none; position: absolute; top: 100%; left: 0; right: 0; max-height: 200px; overflow-y: auto; background: #ffffff; border: 1.5px solid #d4c1a7; border-radius: 6px; box-shadow: 0 8px 24px rgba(0,0,0,0.22); z-index: 1050; margin-top: 2px;">
+                                <!-- Inyectado dinámicamente -->
+                            </div>
+                        </div>
+
+                        <div id="badgeClienteElegidoCxc" style="display: none; background: #fdf5ea; border: 1px solid #dfcaa4; border-radius: 6px; padding: 4px 10px; align-items: center; justify-content: space-between; height: 36px;">
+                            <div style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 0.84rem; color: #211813;">
+                                <strong id="txtNombreClienteCxc">—</strong>
+                                <small id="txtDetalleClienteCxc" style="color: #7a6b5d; margin-left: 6px;"></small>
+                            </div>
+                            <button type="button" class="btn btn-sm btn-secondary" onclick="limpiarClienteSeleccionadoCxc()" style="padding: 1px 6px; font-size: 0.72rem; height: 22px; flex-shrink: 0;">✕ Cambiar</button>
+                        </div>
                     </div>
 
                     <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px;">
@@ -944,7 +955,7 @@ if ($pdo) {
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" onclick="cerrarModal('modalCargo')">Cancelar</button>
-                    <button type="submit" class="btn btn-primary" id="btnGuardarCargo">Emitir Nota de Débito</button>
+                    <button type="submit" class="btn btn-primary" id="btnGuardarCargo">Guardar Cargo a Cliente</button>
                 </div>
             </form>
         </div>
@@ -970,11 +981,12 @@ if ($pdo) {
 
     <!-- SCRIPT DE DATOS Y LÓGICA DE NEGOCIO -->
     <script>
+        const CLIENTES_LISTA   = <?= json_encode($clientesList, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
         const CATALOGO_METODOS = <?= json_encode($metodosPagoList) ?>;
         const CATALOGO_BANCOS  = <?= json_encode($cuentasBancarias) ?>;
         const SESION_CAJA_ACTIVA = <?= json_encode($sesionCajaActiva) ?>;
     </script>
-    <script src="cuentas_por_cobrar.js?v=2"></script>
+    <script src="cuentas_por_cobrar.js?v=4"></script>
 </body>
 
 </html>

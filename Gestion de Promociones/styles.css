@@ -55,9 +55,9 @@ body {
 
 /* ==================== TOPBAR ==================== */
 .topbar {
-  height: 54px;
+  height: 56px;
   background-color: var(--bg-topbar);
-  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -87,8 +87,8 @@ body {
 .brand-title {
   font-family: var(--font-serif);
   color: var(--accent-gold-light);
-  font-size: 1.05rem;
-  letter-spacing: 0.5px;
+  font-size: 1.15rem;
+  letter-spacing: 0.6px;
   font-weight: 700;
 }
 
@@ -118,13 +118,13 @@ body {
 }
 
 .user-avatar {
-  width: 34px;
-  height: 34px;
+  width: 36px;
+  height: 36px;
   border-radius: 50%;
-  background-color: var(--accent-gold);
+  background: linear-gradient(135deg, var(--accent-gold) 0%, #804f1a 100%);
   color: #ffffff;
   font-weight: 700;
-  font-size: 0.78rem;
+  font-size: 0.82rem;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -188,7 +188,7 @@ body {
 .app-layout {
   display: flex;
   flex: 1;
-  min-height: calc(100vh - 54px);
+  min-height: calc(100vh - 56px);
   width: 100%;
   position: relative;
   align-items: stretch;

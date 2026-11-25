@@ -350,65 +350,68 @@ $ncfProximoB03 = $secuenciaB03
             <form id="formEmitirNd" onsubmit="guardarNotaDebito(event)">
                 <div class="modal-body">
                     <!-- FASE 1: Búsqueda y Selección de la Factura Origen -->
-                    <div style="background: #fdfaf5; border: 1px solid #ebd9bf; border-radius: 8px; padding: 14px; margin-bottom: 14px;">
-                        <h4 style="font-size: 0.88rem; color: #7a4e1d; margin-bottom: 8px;">
+                    <div style="background: #fdfaf5; border: 1px solid #ebd9bf; border-radius: 8px; padding: 10px 14px; margin-bottom: 10px;">
+                        <h4 style="font-size: 0.86rem; color: #7a4e1d; margin-bottom: 6px; font-weight: 700;">
                             Paso 1: Localizar Factura Origen a Modificar (Cruce Formato 607 DGII)
                         </h4>
                         <div style="position: relative;">
-                            <input type="text" id="inputBuscarFactura" class="form-control" placeholder="Buscar por número de factura, NCF (B01, B02) o cliente..." autocomplete="off" oninput="buscarFacturasOrigen()" />
+                            <input type="text" id="inputBuscarFactura" class="form-control" placeholder="Buscar por número de factura, NCF (B01, B02) o cliente..." autocomplete="off" oninput="buscarFacturasOrigen()" style="height: 36px; font-size: 0.85rem;" />
                             <div id="resultadosBusquedaFacturas" style="display: none; position: absolute; top: 100%; left: 0; right: 0; background: #fff; border: 1px solid #d4c7b8; border-radius: 6px; box-shadow: 0 6px 16px rgba(0,0,0,0.15); z-index: 100; max-height: 220px; overflow-y: auto;"></div>
                         </div>
 
                         <!-- Card de Factura Seleccionada -->
-                        <div id="cardFacturaSeleccionada" class="factura-selected-card">
+                        <div id="cardFacturaSeleccionada" class="factura-selected-card" style="margin-top: 8px;">
                             <input type="hidden" name="factura_id" id="ndFacturaId" value="" />
                             <div style="display: flex; justify-content: space-between; align-items: flex-start;">
                                 <div>
-                                    <div style="font-size: 0.95rem; font-weight: 700; color: #251c16;">
+                                    <div style="font-size: 0.92rem; font-weight: 700; color: #251c16;">
                                         Factura #<span id="txtFacNumero">-</span> • NCF: <span id="txtFacNcf" class="badge-ncf-mod">-</span>
                                     </div>
-                                    <div style="font-size: 0.82rem; color: #555; margin-top: 3px;">
+                                    <div style="font-size: 0.80rem; color: #555; margin-top: 2px;">
                                         Cliente: <strong id="txtFacCliente">-</strong> (Doc: <span id="txtFacDoc">-</span>)
                                     </div>
-                                    <div style="font-size: 0.78rem; color: #888; margin-top: 2px;">
-                                        Fecha: <span id="txtFacFecha">-</span> • Monto Original Facturado: <strong>RD$ <span id="txtFacMonto">0.00</span></strong>
+                                    <div style="font-size: 0.76rem; color: #888; margin-top: 1px;">
+                                        Fecha: <span id="txtFacFecha">-</span> • Monto Original: <strong>RD$ <span id="txtFacMonto">0.00</span></strong>
                                     </div>
                                 </div>
-                                <button type="button" class="btn btn-sm btn-secondary" onclick="deseleccionarFactura()" style="padding: 3px 8px; font-size: 0.75rem;">
+                                <button type="button" class="btn btn-sm btn-secondary" onclick="deseleccionarFactura()" style="padding: 2px 8px; font-size: 0.75rem;">
                                     ✕ Cambiar
                                 </button>
                             </div>
                         </div>
                     </div>
 
-                    <!-- FASE 2: Concepto Legal y Motivo -->
-                    <div style="margin-bottom: 14px;">
-                        <label class="form-label">Plantilla de Concepto Rápido / Motivo Legal:</label>
-                        <select id="selectPresetConcepto" class="form-control" style="margin-bottom: 8px;" onchange="aplicarPresetConcepto()">
-                            <option value="">-- Seleccionar motivo estándar --</option>
-                            <option value="Penalidad por cheque devuelto sin fondos + comisión bancaria">Penalidad por cheque devuelto sin fondos (Banco)</option>
-                            <option value="Recargo por mora e intereses financieros (atraso mayor a 60 días)">Recargo por mora e intereses por atraso</option>
-                            <option value="Ajuste por corrección de sub-facturación de precio pactado">Corrección por sub-facturación de precio pactado</option>
-                            <option value="OTRO">Otro concepto personalizado</option>
-                        </select>
-
-                        <label class="form-label">Concepto Legal DGII <span style="color:red;">*</span> (Se estampará en la Nota de Débito):</label>
-                        <textarea name="concepto_cargo" id="ndConceptoCargo" class="form-control" rows="2" placeholder="Describa el motivo legal del recargo para el Formato 607..." required></textarea>
+                    <!-- FASE 2: Concepto Legal y Motivo (Organizado en 2 columnas para no desbordar) -->
+                    <div style="display: grid; grid-template-columns: 1fr 1.35fr; gap: 12px; margin-bottom: 10px;">
+                        <div>
+                            <label class="form-label" style="font-size: 0.78rem; font-weight: 700; color: #4a3c31; margin-bottom: 4px;">Plantilla de Concepto Rápido / Motivo Legal:</label>
+                            <select id="selectPresetConcepto" class="form-control" onchange="aplicarPresetConcepto()" style="height: 38px; font-size: 0.82rem;">
+                                <option value="">-- Seleccionar motivo estándar --</option>
+                                <option value="Penalidad por cheque devuelto sin fondos + comisión bancaria">Penalidad por cheque devuelto sin fondos (Banco)</option>
+                                <option value="Recargo por mora e intereses financieros (atraso mayor a 60 días)">Recargo por mora e intereses por atraso</option>
+                                <option value="Ajuste por corrección de sub-facturación de precio pactado">Corrección por sub-facturación de precio pactado</option>
+                                <option value="OTRO">Otro concepto personalizado</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="form-label" style="font-size: 0.78rem; font-weight: 700; color: #4a3c31; margin-bottom: 4px;">Concepto Legal DGII <span style="color:red;">*</span> (Estampado en Nota de Débito):</label>
+                            <textarea name="concepto_cargo" id="ndConceptoCargo" class="form-control" rows="2" style="min-height: 38px; resize: vertical; font-size: 0.82rem;" placeholder="Describa el motivo legal del recargo para el Formato 607..." required></textarea>
+                        </div>
                     </div>
 
                     <!-- FASE 3: Desglose de Líneas de Cargos -->
-                    <div style="background: #ffffff; border: 1px solid var(--border-light); border-radius: 8px; padding: 14px; margin-bottom: 14px;">
-                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
-                            <h4 style="font-size: 0.88rem; color: #4a3c31; font-weight: 700;">
+                    <div style="background: #ffffff; border: 1px solid var(--border-light); border-radius: 8px; padding: 10px 14px; margin-bottom: 10px;">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+                            <h4 style="font-size: 0.86rem; color: #4a3c31; font-weight: 700;">
                                 Desglose de Recargos / Cargos Adicionales
                             </h4>
-                            <button type="button" class="btn btn-sm btn-outline" onclick="agregarLineaCargo()" style="font-weight: 600;">
+                            <button type="button" class="btn btn-sm btn-outline" onclick="agregarLineaCargo()" style="font-weight: 600; padding: 4px 10px; font-size: 0.78rem;">
                                 ➕ Agregar Cargo
                             </button>
                         </div>
 
                         <!-- Encabezados de columnas -->
-                        <div style="display: grid; grid-template-columns: 1.8fr 1.1fr 55px 80px 48px 80px 28px; gap: 6px; font-size: 0.7rem; font-weight: 700; color: #8c8173; text-transform: uppercase; margin-bottom: 4px; padding: 0 6px;">
+                        <div style="display: grid; grid-template-columns: 2fr 1.3fr 60px 95px 50px 95px 32px; gap: 6px; font-size: 0.70rem; font-weight: 700; color: #8c8173; text-transform: uppercase; margin-bottom: 4px; padding: 0 6px;">
                             <div>Descripción Cargo <span style="color:red;">*</span></div>
                             <div>Producto (Opcional)</div>
                             <div class="text-center">Cant.</div>
@@ -423,7 +426,7 @@ $ncfProximoB03 = $secuenciaB03
                         </div>
 
                         <!-- Totales calculados -->
-                        <div class="nd-totales-strip">
+                        <div class="nd-totales-strip" style="padding: 8px 14px; margin-top: 8px;">
                             <div class="tot-item">
                                 <small>Subtotal Bruto</small>
                                 <strong id="lblNdSubtotal">RD$ 0.00</strong>
@@ -440,14 +443,14 @@ $ncfProximoB03 = $secuenciaB03
                     </div>
 
                     <!-- FASE 4: Condiciones de CxC y Autorización con PIN -->
-                    <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; background: #faf7f2; border: 1px solid #ebd9bf; border-radius: 8px; padding: 12px;">
+                    <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; background: #faf7f2; border: 1px solid #ebd9bf; border-radius: 8px; padding: 10px 14px;">
                         <div class="form-group">
-                            <label class="form-label">Plazo de Cobro (Días de Crédito):</label>
-                            <input type="number" name="dias_credito" id="ndDiasCredito" class="form-control" value="30" min="1" max="180" />
+                            <label class="form-label" style="font-size: 0.78rem; font-weight: 700; margin-bottom: 3px;">Plazo de Cobro (Días Crédito):</label>
+                            <input type="number" name="dias_credito" id="ndDiasCredito" class="form-control" value="30" min="1" max="180" style="height: 34px; font-size: 0.85rem;" />
                         </div>
                         <div class="form-group">
-                            <label class="form-label">Supervisor Aprobador <span style="color:red;">*</span>:</label>
-                            <select name="supervisor_id" id="ndSupervisorId" class="form-control" required>
+                            <label class="form-label" style="font-size: 0.78rem; font-weight: 700; margin-bottom: 3px;">Supervisor Aprobador <span style="color:red;">*</span>:</label>
+                            <select name="supervisor_id" id="ndSupervisorId" class="form-control" required style="height: 34px; font-size: 0.82rem;">
                                 <option value="">-- Seleccionar supervisor --</option>
                                 <?php foreach ($supervisoresList as $sup): ?>
                                     <option value="<?= htmlspecialchars($sup['usuario_id']) ?>">
@@ -457,16 +460,16 @@ $ncfProximoB03 = $secuenciaB03
                             </select>
                         </div>
                         <div class="form-group">
-                            <label class="form-label">PIN de Supervisor <span style="color:red;">*</span>:</label>
-                            <input type="password" name="pin_autorizacion" id="ndPinAutorizacion" class="form-control" placeholder="••••" maxlength="6" required autocomplete="off" />
+                            <label class="form-label" style="font-size: 0.78rem; font-weight: 700; margin-bottom: 3px;">PIN Supervisor <span style="color:red;">*</span>:</label>
+                            <input type="password" name="pin_autorizacion" id="ndPinAutorizacion" class="form-control" placeholder="••••" maxlength="6" required autocomplete="off" style="height: 34px; font-size: 0.85rem;" />
                         </div>
                     </div>
                 </div>
 
-                <div class="modal-footer">
+                <div class="modal-footer" style="padding: 10px 18px; background: #faf7f2; border-top: 1px solid var(--border-light, #eae3d5); display: flex; align-items: center; justify-content: flex-end; gap: 10px; flex-shrink: 0;">
                     <button type="button" class="btn btn-secondary" onclick="cerrarModal('modalEmitirNd')">Cancelar</button>
-                    <button type="submit" class="btn btn-primary" id="btnGuardarNd" style="background: #a66e2e; color: #ffffff !important; font-weight: 700;">
-                        <span>🔒</span> Emitir Nota de Débito Fiscal (B03)
+                    <button type="submit" class="btn btn-primary" id="btnGuardarNd" style="background: #a66e2e; color: #ffffff !important; font-weight: 700; padding: 8px 20px;">
+                        <span>🔒</span> Emitir Nota de Débito Fiscal (NCF B03)
                     </button>
                 </div>
             </form>

@@ -77,6 +77,23 @@ if ($pdo) {
         $kpiEgresosMesMto = $stmtEgrMes ? (float)$stmtEgrMes->fetchColumn() : 0.00;
     } catch (Throwable $e) {}
 
+    // Retenciones fiscales DGII pendientes de liquidación
+    $kpiRetencionesPendientesMto = 0.00;
+    $kpiRetencionesPendientesCnt = 0;
+    try {
+        $stmtRetPend = $pdo->query("
+            SELECT COALESCE(SUM(monto_retenido), 0) AS total_monto,
+                   COUNT(*) AS total_filas
+            FROM compras.comprobante_egreso_retenciones
+            WHERE estado = 'PENDIENTE'
+        ");
+        $retRow = $stmtRetPend ? $stmtRetPend->fetch(PDO::FETCH_ASSOC) : null;
+        if ($retRow) {
+            $kpiRetencionesPendientesMto = (float)$retRow['total_monto'];
+            $kpiRetencionesPendientesCnt = (int)$retRow['total_filas'];
+        }
+    } catch (Throwable $e) {}
+
     // 2. Catálogos
     try {
         $stmtPr = $pdo->query("
@@ -236,8 +253,8 @@ if ($pdo) {
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>House &amp; Ice • Cuentas por Pagar (CxP)</title>
-    <link rel="stylesheet" href="../styles.css?v=31" />
-    <link rel="stylesheet" href="styles.css?v=7" />
+    <link rel="stylesheet" href="../styles.css?v=32" />
+    <link rel="stylesheet" href="styles.css?v=12" />
 </head>
 
 <body>
@@ -275,20 +292,26 @@ if ($pdo) {
         <main class="main-content">
 
             <!-- BANNER DE ENCABEZADO -->
-            <section class="welcome-banner" style="margin-bottom: 20px;">
-                <div class="welcome-text">
-                    <h1>🏛️ Cuentas por Pagar (CxP) y Retenciones DGII</h1>
-                    <p>Administración de obligaciones hacia suplidores, proyección de tesorería, retenciones fiscales y desembolsos auditados.</p>
+            <div class="page-header" style="margin-bottom: 20px;">
+                <div>
+                    <h1 class="page-title">🏛️ Cuentas por Pagar (CxP) y Retenciones DGII</h1>
+                    <p class="page-subtitle">Administración de obligaciones hacia suplidores, proyección de tesorería, retenciones fiscales y desembolsos auditados.</p>
                 </div>
                 <div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
-                    <button type="button" class="btn btn-secondary" onclick="abrirModalGastoManual()" style="background: #ffffff; color: var(--text-dark); border: 1px solid var(--border-light);">
+                    <button type="button" class="btn btn-secondary" onclick="abrirModalLiquidarDGII()" style="background: #ffffff; color: var(--text-dark); border: 1.5px solid #d4c1a7; display: inline-flex; align-items: center; gap: 8px; font-weight: 600;">
+                        <span>🏛️</span> Liquidar Retenciones DGII
+                        <?php if ($kpiRetencionesPendientesCnt > 0): ?>
+                            <span class="badge-count" style="background: #b78103; color: #fff; padding: 2px 8px; border-radius: 12px; font-size: 0.74rem; font-weight: 700;">RD$ <?= number_format($kpiRetencionesPendientesMto, 2) ?></span>
+                        <?php endif; ?>
+                    </button>
+                    <button type="button" class="btn btn-secondary" onclick="abrirModalGastoManual()" style="background: #ffffff; color: var(--text-dark); border: 1px solid var(--border-light); display: inline-flex; align-items: center; gap: 6px;">
                         <span>➕</span> Registrar Gasto / Servicio
                     </button>
                     <button type="button" class="btn btn-primary" onclick="abrirModalDesembolso()" id="btnDesembolsoTop">
                         <span>💳</span> Liquidar Selección (<span id="countSeleccionadasTop">0</span>)
                     </button>
                 </div>
-            </section>
+            </div>
 
             <!-- TARJETAS DE INDICADORES (KPIS: 4 TARJETAS) -->
             <div class="cxp-kpi-container">
@@ -731,16 +754,24 @@ if ($pdo) {
                     </p>
 
                     <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 14px;">
-                        <div class="form-group">
+                        <div class="form-group" style="position: relative;">
                             <label class="form-label">Suplidor / Prestador <span style="color:red;">*</span></label>
-                            <select name="proveedor_id" class="form-control" required onchange="alCambiarProveedorGasto(this)">
-                                <option value="">-- Seleccionar Suplidor --</option>
-                                <?php foreach ($proveedoresList as $pr): ?>
-                                    <option value="<?= htmlspecialchars($pr['persona_id']) ?>" data-dias="<?= (int)$pr['dias_credito_habitual'] ?>">
-                                        <?= htmlspecialchars($pr['nombre_razon_social']) ?> (RNC: <?= htmlspecialchars($pr['documento_identidad']) ?>)
-                                    </option>
-                                <?php endforeach; ?>
-                            </select>
+                            <input type="hidden" name="proveedor_id" id="suplidorGastoId" required value="" />
+                            
+                            <div id="boxBusquedaProveedorCxp" style="position: relative;">
+                                <input type="text" id="inputBuscarProveedorCxp" class="form-control" placeholder="🔍 Escriba nombre o RNC del suplidor..." autocomplete="off" oninput="filtrarProveedoresCxp(this.value)" onfocus="abrirDropdownProveedoresCxp()" />
+                                <div id="dropdownProveedoresCxp" style="display: none; position: absolute; top: 100%; left: 0; right: 0; max-height: 200px; overflow-y: auto; background: #ffffff; border: 1.5px solid #d4c1a7; border-radius: 6px; box-shadow: 0 4px 14px rgba(0,0,0,0.15); z-index: 1050; margin-top: 2px;">
+                                    <!-- Dinámico vía JS -->
+                                </div>
+                            </div>
+
+                            <div id="badgeProveedorElegidoCxp" style="display: none; background: #fdf5ea; border: 1px solid #dfcaa4; border-radius: 6px; padding: 4px 8px; align-items: center; justify-content: space-between; min-height: 38px;">
+                                <div style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 0.82rem; color: #211813;">
+                                    <strong id="badgeProveedorNombreCxp">—</strong>
+                                    <small id="badgeProveedorRncCxp" style="color: #7a6b5d; margin-left: 6px; font-family: var(--font-mono);"></small>
+                                </div>
+                                <button type="button" class="btn btn-sm btn-secondary" onclick="limpiarProveedorSeleccionadoCxp()" style="padding: 1px 6px; font-size: 0.70rem; height: 22px; flex-shrink: 0;">✕ Cambiar</button>
+                            </div>
                         </div>
 
                         <div class="form-group">
@@ -1030,13 +1061,86 @@ if ($pdo) {
         </div>
     </div>
 
+    <!-- ========================================================================= -->
+    <!-- MODAL 5: LIQUIDACIÓN DE RETENCIONES DGII (TRANSFERENCIA BANCARIA)         -->
+    <!-- ========================================================================= -->
+    <div class="modal-overlay" id="modalLiquidarRetencionesDGII">
+        <div class="modal-dialog">
+            <div class="modal-header">
+                <h3><span>🏛️</span> Liquidar Retenciones Fiscales DGII</h3>
+                <button type="button" class="modal-close-btn" onclick="cerrarModal('modalLiquidarRetencionesDGII')">&times;</button>
+            </div>
+            <form id="formLiquidarRetencionesDGII" onsubmit="procesarLiquidacionDGII(event)">
+                <div class="modal-body">
+                    <div style="background: #fdfaf4; border: 1.5px solid #d4c1a7; border-radius: 8px; padding: 12px 16px; margin-bottom: 16px; display: flex; justify-content: space-between; align-items: center;">
+                        <div>
+                            <div style="font-size: 0.72rem; text-transform: uppercase; font-weight: 700; color: var(--accent-gold);">Total Retenciones Acumuladas</div>
+                            <div style="font-size: 1.25rem; font-weight: 700; font-family: var(--font-mono); color: #b78103;" id="txtModalTotalRetencionesDGII">
+                                RD$ <?= number_format($kpiRetencionesPendientesMto, 2) ?>
+                            </div>
+                            <div style="font-size: 0.75rem; color: var(--text-muted);"><?= $kpiRetencionesPendientesCnt ?> retenciones pendientes de liquidar a DGII</div>
+                        </div>
+                        <span style="font-size: 2rem;">🏛️</span>
+                    </div>
+
+                    <div class="form-group" style="margin-bottom: 12px;">
+                        <label class="form-label">Cuenta Bancaria de Salida <span style="color:red;">*</span></label>
+                        <select name="cuenta_bancaria_id" id="dgiiCuentaBancaria" class="form-control" required>
+                            <option value="">-- Seleccionar Cuenta Bancaria --</option>
+                            <?php foreach ($cuentasBancarias as $cta): ?>
+                                <option value="<?= $cta['id'] ?>">
+                                    <?= htmlspecialchars($cta['nombre_banco']) ?> — <?= htmlspecialchars($cta['numero_cuenta']) ?> (<?= htmlspecialchars($cta['tipo_cuenta']) ?>)
+                                </option>
+                            <?php endforeach; ?>
+                        </select>
+                    </div>
+
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px;">
+                        <div class="form-group">
+                            <label class="form-label">No. Autorización / Ref. DGII <span style="color:red;">*</span></label>
+                            <input type="text" name="numero_autorizacion" id="dgiiNumAutorizacion" class="form-control" placeholder="Ej: DGII-AUT-202611-987" required />
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Período Fiscal (Año-Mes) <span style="color:red;">*</span></label>
+                            <input type="month" name="periodo_fiscal" id="dgiiPeriodoFiscal" class="form-control" value="<?= date('Y-m') ?>" required />
+                        </div>
+                    </div>
+
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px;">
+                        <div class="form-group">
+                            <label class="form-label">Método de Pago <span style="color:red;">*</span></label>
+                            <input type="text" class="form-control" value="TRANSFERENCIA BANCARIA (SALIDA)" readonly style="background: #faf8f5; font-weight: 600;" />
+                            <input type="hidden" name="metodo_pago" value="TRANSFERENCIA" />
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Fecha de Liquidación <span style="color:red;">*</span></label>
+                            <input type="date" name="fecha_pago" id="dgiiFechaPago" class="form-control" value="<?= date('Y-m-d') ?>" required />
+                        </div>
+                    </div>
+
+                    <div style="background: #faf8f5; border: 1px solid #ebdcc5; border-radius: 6px; padding: 10px 12px; font-size: 0.78rem; color: #554436;">
+                        ℹ️ <strong>Impacto Contable y Bancario:</strong> Esta operación registrará un egreso con tipo <code>TRANSFERENCIA_SALIDA</code> en <code>tesoreria.movimientos_bancarios</code> y marcará las retenciones fiscales de compras como <code>LIQUIDADA</code>. <strong>No afecta el arqueo ciego ni la caja de ventas.</strong>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" onclick="cerrarModal('modalLiquidarRetencionesDGII')">Cancelar</button>
+                    <button type="submit" class="btn btn-primary" id="btnGuardarLiquidacionDGII" style="background: #a66e2e;">
+                        🏛️ Liquidar y Registrar Transferencia
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
     <!-- SCRIPTS JS -->
     <script>
         const CATALOGO_METODOS = <?= json_encode($metodosPagoList) ?>;
         const CATALOGO_BANCOS  = <?= json_encode($cuentasBancarias) ?>;
         const CATALOGO_RETENCIONES = <?= json_encode($retencionesList) ?>;
+        window.PROVEEDORES_LISTA = <?= json_encode($proveedoresList, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
+        const PROVEEDORES_LISTA = window.PROVEEDORES_LISTA;
     </script>
-    <script src="cuentas_por_pagar.js?v=7"></script>
+    <script src="cuentas_por_pagar.js?v=11"></script>
 </body>
 
 </html>

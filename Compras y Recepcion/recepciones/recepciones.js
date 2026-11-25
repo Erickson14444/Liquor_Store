@@ -1,20 +1,21 @@
 /**
  * ============================================================================
- * JavaScript: Recepciones de Compra (Entregas Parciales y Multi-Lote)
+ * JavaScript: Recepciones de Compra (Directas y con Orden de Compra Multi-Lote)
  * House & Ice • Sistema Administrativo (ERP Licorero)
  * Ubicación: Compras y Recepcion/recepciones/recepciones.js
  * ============================================================================
  */
 
 let ORDEN_ACTUAL = null;
-let LINEAS_ORDEN_ACTUAL = [];
+const MAPA_CATALOGO_CACHE = new Map();
+const MAPA_PRODUCTOS_RECEPCION = new Map();
 
 /**
  * Muestra un modal de mensaje o confirmación centrado, compacto y con el estilo visual institucional de House & Ice
  */
 function mostrarMensajeModal(opciones = {}) {
     const {
-        tipo = 'info', // 'exito', 'error', 'advertencia', 'pregunta', 'info'
+        tipo = 'info',
         titulo = '',
         mensaje = '',
         detalle = '',
@@ -124,24 +125,252 @@ function mostrarMensajeModal(opciones = {}) {
 }
 
 document.addEventListener('DOMContentLoaded', function () {
-    // Si viene orden_id preseleccionada desde la URL (por ejemplo desde Órdenes de Compra)
+    // 1. Precargar caché de catálogo
+    if (typeof CATALOGO_PRODUCTOS !== 'undefined' && Array.isArray(CATALOGO_PRODUCTOS)) {
+        CATALOGO_PRODUCTOS.forEach(p => {
+            if (p && p.id) MAPA_CATALOGO_CACHE.set(parseInt(p.id), p);
+        });
+    }
+
+    // 2. Renderizar panel inicial de catálogo
+    buscarProductosCatalogo('');
+
+    // 3. Si viene orden preseleccionada por GET
     if (typeof ORDEN_ID_INICIAL !== 'undefined' && ORDEN_ID_INICIAL > 0) {
-        const select = document.getElementById('selectOrdenCompra');
-        if (select) {
-            select.value = ORDEN_ID_INICIAL;
-            alCambiarOrdenSeleccionada();
-        }
+        importarOrdenDesdeModal(ORDEN_ID_INICIAL);
     }
 });
+
+/**
+ * Abre el modal para registrar una nueva recepción
+ */
+function abrirModalNuevaRecepcion(limpiar = true) {
+    if (limpiar) {
+        iniciarRecepcionDirecta();
+    }
+    const modal = document.getElementById('modalNuevaRecepcion');
+    if (modal) {
+        modal.style.display = 'flex';
+        modal.classList.add('open');
+    }
+}
+
+/**
+ * Cierra el modal de nueva recepción
+ */
+function cerrarModalNuevaRecepcion() {
+    const modal = document.getElementById('modalNuevaRecepcion');
+    if (modal) {
+        modal.style.display = 'none';
+        modal.classList.remove('open');
+    }
+}
+
+/**
+ * Filtro de búsqueda en la tabla de historial de recepciones
+ */
+function filtrarTablaRecepciones() {
+    const input = document.getElementById('inputBuscarTablaRecepciones');
+    const query = (input ? input.value : '').toLowerCase().trim();
+    const rows = document.querySelectorAll('#tablaHistorialRecepciones tbody tr');
+    let visibles = 0;
+    rows.forEach(tr => {
+        const txt = tr.dataset.texto || tr.textContent.toLowerCase();
+        const match = txt.includes(query);
+        tr.style.display = match ? '' : 'none';
+        if (match) visibles++;
+    });
+    const badge = document.getElementById('badgeTotalRecepciones');
+    if (badge) badge.textContent = `${visibles} registros`;
+}
+
+/**
+ * Inicia una nueva recepción directa (sin orden de compra obligatoria)
+ */
+function iniciarRecepcionDirecta() {
+    ORDEN_ACTUAL = null;
+    MAPA_PRODUCTOS_RECEPCION.clear();
+
+    const inpOrden = document.getElementById('inputOrdenCompraId');
+    if (inpOrden) inpOrden.value = '';
+
+    limpiarProveedorSeleccionadoRecep();
+
+    const banner = document.getElementById('bannerOrdenImportada');
+    if (banner) banner.style.display = 'none';
+
+    const cajaInfo = document.getElementById('cajaInfoOrden');
+    if (cajaInfo) cajaInfo.style.display = 'none';
+
+    const badgeModo = document.getElementById('badgeModoRecepcion');
+    if (badgeModo) {
+        badgeModo.textContent = 'RECEPCIÓN DIRECTA (SIN ORDEN)';
+        badgeModo.style.color = '#7f5e39';
+        badgeModo.style.background = '#fdf5ea';
+    }
+
+    const numFac = document.getElementById('inputNumFactura');
+    if (numFac) numFac.value = '';
+
+    const ncf = document.getElementById('inputNcf');
+    if (ncf) ncf.value = '';
+
+    const inputBuscar = document.getElementById('inputBuscarCatalogo');
+    if (inputBuscar) inputBuscar.value = '';
+
+    renderizarContenedorProductos();
+    buscarProductosCatalogo('');
+    actualizarNotaCondicionPago();
+    calcularGranTotalRecepcion();
+}
+
+// ============================================================================
+// SELECTOR BUSCABLE DE PROVEEDORES (CHECK-IN / RECEPCIÓN)
+// ============================================================================
+function abrirDropdownProveedoresRecep() {
+    filtrarProveedoresRecep(document.getElementById('inputBuscarProveedorRecep')?.value || '');
+    const dd = document.getElementById('dropdownProveedoresRecep');
+    if (dd) dd.style.display = 'block';
+}
+
+function filtrarProveedoresRecep(query) {
+    const dd = document.getElementById('dropdownProveedoresRecep');
+    if (!dd) return;
+
+    const lista = (typeof PROVEEDORES_LISTA !== 'undefined' && Array.isArray(PROVEEDORES_LISTA)) ? PROVEEDORES_LISTA : [];
+    const q = (query || '').toLowerCase().trim();
+
+    const filtrados = q === '' 
+        ? lista.slice(0, 30)
+        : lista.filter(p => {
+            const nom = (p.nombre_razon_social || '').toLowerCase();
+            const rnc = (p.rnc || p.documento_identidad || '').toLowerCase();
+            return nom.includes(q) || rnc.includes(q);
+        }).slice(0, 30);
+
+    if (filtrados.length === 0) {
+        dd.innerHTML = '<div style="padding: 10px 14px; text-align: center; color: var(--text-muted); font-size: 0.80rem;">No se encontraron proveedores coincidentes.</div>';
+        dd.style.display = 'block';
+        return;
+    }
+
+    let html = '';
+    filtrados.forEach(p => {
+        const rnc = p.rnc || p.documento_identidad || 'S/RNC';
+        const dias = p.dias_credito_habitual || 0;
+        html += `
+            <div class="recep-prov-option" onclick="seleccionarProveedorRecep('${p.persona_id}')" style="padding: 8px 12px; border-bottom: 1px solid #f2ede4; cursor: pointer; transition: background 0.15s ease;" onmouseover="this.style.background='#faf5eb'" onmouseout="this.style.background='#ffffff'">
+                <div style="font-weight: 700; color: #211813; font-size: 0.84rem;">${p.nombre_razon_social}</div>
+                <div style="display: flex; gap: 10px; font-size: 0.73rem; color: #7a6b5d; margin-top: 2px;">
+                    <span>RNC: <strong>${rnc}</strong></span>
+                    <span>•</span>
+                    <span style="color: #2e7d52; font-weight: 600;">Crédito: ${dias} días</span>
+                </div>
+            </div>
+        `;
+    });
+    dd.innerHTML = html;
+    dd.style.display = 'block';
+}
+
+function seleccionarProveedorRecep(personaId, bloqueado = false) {
+    const lista = (typeof PROVEEDORES_LISTA !== 'undefined' && Array.isArray(PROVEEDORES_LISTA)) ? PROVEEDORES_LISTA : [];
+    const prv = lista.find(p => String(p.persona_id) === String(personaId));
+    if (!prv) return;
+
+    const inpHidden = document.getElementById('selectProveedorRecepcion');
+    if (inpHidden) inpHidden.value = prv.persona_id;
+
+    const boxBusq = document.getElementById('boxBusquedaProveedorRecep');
+    const badge = document.getElementById('badgeProveedorElegidoRecep');
+    const txtNom = document.getElementById('txtNombreProvRecep');
+    const txtDet = document.getElementById('txtDetalleProvRecep');
+    const btnCambiar = document.getElementById('btnCambiarProvRecep');
+    const dd = document.getElementById('dropdownProveedoresRecep');
+    const lblInfo = document.getElementById('infoProveedorRecepcion');
+
+    if (txtNom) txtNom.textContent = prv.nombre_razon_social;
+    const rnc = prv.rnc || prv.documento_identidad || 'S/RNC';
+    const dias = prv.dias_credito_habitual || 0;
+    if (txtDet) txtDet.textContent = `(RNC: ${rnc} • ${dias} d. crédito)`;
+
+    if (btnCambiar) btnCambiar.style.display = bloqueado ? 'none' : 'inline-block';
+    if (boxBusq) boxBusq.style.display = 'none';
+    if (badge) badge.style.display = 'flex';
+    if (dd) dd.style.display = 'none';
+
+    if (lblInfo) {
+        lblInfo.textContent = `Días crédito habitual: ${dias} días | RNC: ${rnc}`;
+        lblInfo.style.color = '#2e7d52';
+    }
+    actualizarNotaCondicionPago();
+}
+
+function limpiarProveedorSeleccionadoRecep() {
+    const inpHidden = document.getElementById('selectProveedorRecepcion');
+    if (inpHidden) inpHidden.value = '';
+
+    const boxBusq = document.getElementById('boxBusquedaProveedorRecep');
+    const badge = document.getElementById('badgeProveedorElegidoRecep');
+    const input = document.getElementById('inputBuscarProveedorRecep');
+    const dd = document.getElementById('dropdownProveedoresRecep');
+    const lblInfo = document.getElementById('infoProveedorRecepcion');
+
+    if (boxBusq) boxBusq.style.display = 'block';
+    if (badge) badge.style.display = 'none';
+    if (dd) dd.style.display = 'none';
+    if (input) {
+        input.value = '';
+    }
+    if (lblInfo) {
+        lblInfo.textContent = 'Días habituales: --';
+        lblInfo.style.color = 'var(--text-muted)';
+    }
+    actualizarNotaCondicionPago();
+}
+
+// Cerrar dropdown de proveedor al hacer clic fuera
+document.addEventListener('click', (e) => {
+    const box = document.getElementById('boxBusquedaProveedorRecep');
+    const dd = document.getElementById('dropdownProveedoresRecep');
+    if (box && dd && !box.contains(e.target)) {
+        dd.style.display = 'none';
+    }
+});
+
+/**
+ * Evento al cambiar proveedor de forma manual
+ */
+function alCambiarProveedorManual() {
+    actualizarInfoProveedorManual();
+    actualizarNotaCondicionPago();
+}
+
+function actualizarInfoProveedorManual() {
+    const hidden = document.getElementById('selectProveedorRecepcion');
+    const lbl = document.getElementById('infoProveedorRecepcion');
+    if (!hidden || !lbl) return;
+
+    const provId = hidden.value;
+    const lista = (typeof PROVEEDORES_LISTA !== 'undefined' && Array.isArray(PROVEEDORES_LISTA)) ? PROVEEDORES_LISTA : [];
+    const p = lista.find(item => String(item.persona_id) === String(provId));
+
+    if (p) {
+        const dias = p.dias_credito_habitual || 0;
+        const rnc = p.rnc || p.documento_identidad || 'N/A';
+        lbl.textContent = `Días crédito habitual: ${dias} días | RNC: ${rnc}`;
+        lbl.style.color = '#2e7d52';
+    } else {
+        lbl.textContent = 'Días habituales: --';
+        lbl.style.color = 'var(--text-muted)';
+    }
+}
 
 /**
  * Actualiza la nota informativa según la condición de pago
  */
 function actualizarNotaCondicionPago() {
     const radios = document.getElementsByName('condicion_pago');
-    const nota = document.getElementById('notaCondicionPago');
-    if (!nota) return;
-
     let valor = 'CREDITO';
     for (const r of radios) {
         if (r.checked) {
@@ -150,53 +379,75 @@ function actualizarNotaCondicionPago() {
         }
     }
 
-    if (valor === 'CONTADO') {
-        nota.textContent = 'ℹ️ Contado: Se creará la cuenta por pagar con vencimiento de hoy (liquidación inmediata).';
-        nota.style.color = '#2e7d52';
+    let dias = 30;
+    if (ORDEN_ACTUAL && ORDEN_ACTUAL.dias_credito_habitual) {
+        dias = ORDEN_ACTUAL.dias_credito_habitual;
     } else {
-        const dias = (ORDEN_ACTUAL && ORDEN_ACTUAL.dias_credito_habitual) ? ORDEN_ACTUAL.dias_credito_habitual : 30;
-        nota.textContent = `ℹ️ Crédito: Se creará la cuenta por pagar con vencimiento a ${dias} días (según acuerdo con el suplidor).`;
-        nota.style.color = '#1976d2';
+        const hidden = document.getElementById('selectProveedorRecepcion');
+        const provId = hidden ? hidden.value : '';
+        const lista = (typeof PROVEEDORES_LISTA !== 'undefined' && Array.isArray(PROVEEDORES_LISTA)) ? PROVEEDORES_LISTA : [];
+        const p = lista.find(item => String(item.persona_id) === String(provId));
+        if (p && p.dias_credito_habitual) {
+            dias = parseInt(p.dias_credito_habitual) || 0;
+        }
     }
 }
 
 /**
- * Evento al seleccionar una orden de compra en el dropdown
+ * Abre el modal de Importar Orden de Compra
  */
-function alCambiarOrdenSeleccionada() {
-    const select = document.getElementById('selectOrdenCompra');
-    const ordenId = parseInt(select ? select.value : 0);
-
-    if (!ordenId) {
-        ORDEN_ACTUAL = null;
-        LINEAS_ORDEN_ACTUAL = [];
-        document.getElementById('cajaInfoOrden').style.display = 'none';
-        document.getElementById('cajaTotalesRecepcion').style.display = 'none';
-        document.getElementById('contenedorLineasRecepcion').innerHTML = `
-            <div style="text-align: center; padding: 24px; color: var(--text-muted); background: #fbf9f5; border: 1px dashed #e2dacb; border-radius: 8px;">
-                Seleccione una orden de compra arriba para cargar los productos con saldo pendiente.
-            </div>
-        `;
-        return;
+function abrirModalImportarOrden() {
+    const modal = document.getElementById('modalImportarOrdenCompra');
+    if (modal) {
+        modal.style.display = 'flex';
+        modal.classList.add('open');
+        const filtro = document.getElementById('filtroModalOrdenes');
+        if (filtro) {
+            filtro.value = '';
+            filtrarOrdenesModal('');
+            filtro.focus();
+        }
     }
-
-    cargarLineasOrden(ordenId);
 }
 
 /**
- * Consulta vía Fetch únicamente las líneas con cantidad_pendiente > 0
+ * Cierra el modal de Importar Orden de Compra
  */
-async function cargarLineasOrden(ordenId) {
+function cerrarModalImportarOrden() {
+    const modal = document.getElementById('modalImportarOrdenCompra');
+    if (modal) {
+        modal.style.display = 'none';
+        modal.classList.remove('open');
+    }
+}
+
+/**
+ * Filtra las órdenes en el modal según búsqueda
+ */
+function filtrarOrdenesModal(query) {
+    const q = (query || '').toLowerCase().trim();
+    const filas = document.querySelectorAll('.fila-modal-orden');
+    filas.forEach(f => {
+        const txt = f.dataset.texto || '';
+        f.style.display = txt.includes(q) ? '' : 'none';
+    });
+}
+
+/**
+ * Carga la orden seleccionada desde el modal de órdenes de compra
+ */
+async function importarOrdenDesdeModal(ordenId) {
+    cerrarModalImportarOrden();
+    const id = parseInt(ordenId);
+    if (!id) return;
+
     const contenedor = document.getElementById('contenedorLineasRecepcion');
-    const cajaInfo = document.getElementById('cajaInfoOrden');
-    const cajaTotales = document.getElementById('cajaTotalesRecepcion');
-
     if (contenedor) {
-        contenedor.innerHTML = '<div style="text-align: center; padding: 30px; color: var(--text-muted);"><div style="font-size: 1.5rem; margin-bottom: 8px;">⏳</div>Consultando líneas pendientes de la orden...</div>';
+        contenedor.innerHTML = '<div style="text-align: center; padding: 35px; color: var(--text-muted);"><div style="font-size: 1.8rem; margin-bottom: 8px;">⏳</div>Cargando productos pactados de la orden...</div>';
     }
 
     try {
-        const resp = await fetch(`procesar_recepciones.php?accion=obtener_lineas_orden&orden_id=${ordenId}`);
+        const resp = await fetch(`procesar_recepciones.php?accion=obtener_lineas_orden&orden_id=${id}`);
         const data = await resp.json();
 
         if (!data || !data.ok) {
@@ -204,199 +455,410 @@ async function cargarLineasOrden(ordenId) {
         }
 
         ORDEN_ACTUAL = data.orden;
-        LINEAS_ORDEN_ACTUAL = data.lineas || [];
+        const lineas = data.lineas || [];
 
-        // Actualizar tarjeta resumen del proveedor
-        if (cajaInfo) {
-            document.getElementById('infoOrdenProveedor').textContent = ORDEN_ACTUAL.proveedor_nombre || '--';
-            document.getElementById('infoOrdenRnc').textContent = `RNC: ${ORDEN_ACTUAL.proveedor_rnc || 'N/A'} | Días Crédito: ${ORDEN_ACTUAL.dias_credito_habitual || 30}`;
-            cajaInfo.style.display = 'block';
+        // 1. Establecer input oculto
+        const inpOrden = document.getElementById('inputOrdenCompraId');
+        if (inpOrden) inpOrden.value = id;
+
+        // 2. Establecer y bloquear proveedor según la orden
+        if (ORDEN_ACTUAL.proveedor_id) {
+            seleccionarProveedorRecep(ORDEN_ACTUAL.proveedor_id, true);
         }
 
-        actualizarNotaCondicionPago();
-
-        // Renderizar productos
-        renderizarLineasMultiLote(LINEAS_ORDEN_ACTUAL);
-
-        if (cajaTotales) {
-            cajaTotales.style.display = 'block';
+        // 3. Actualizar banner de orden vinculada
+        const banner = document.getElementById('bannerOrdenImportada');
+        if (banner) {
+            const texto = document.getElementById('textoOrdenVinculada');
+            const sub = document.getElementById('subtextoOrdenVinculada');
+            if (texto) texto.textContent = `${ORDEN_ACTUAL.numero_orden} — ${ORDEN_ACTUAL.proveedor_nombre}`;
+            if (sub) sub.textContent = `RNC: ${ORDEN_ACTUAL.proveedor_rnc || 'N/A'} | Días Crédito: ${ORDEN_ACTUAL.dias_credito_habitual || 30} días | Emisión: ${ORDEN_ACTUAL.fecha_emision || ''}`;
+            banner.style.display = 'flex';
         }
+
+        // 4. Actualizar badge de modo
+        const badgeModo = document.getElementById('badgeModoRecepcion');
+        if (badgeModo) {
+            badgeModo.textContent = `ORDEN: ${ORDEN_ACTUAL.numero_orden}`;
+            badgeModo.style.color = '#1565c0';
+            badgeModo.style.background = '#e3f2fd';
+        }
+
+        // 5. Limpiar mapa e insertar líneas de la orden
+        MAPA_PRODUCTOS_RECEPCION.clear();
+        lineas.forEach(l => {
+            const prodId = parseInt(l.producto_maestro_id);
+            const cantPend = parseInt(l.cantidad_pendiente || 0);
+            const costoPact = parseFloat(l.costo_pactado_unitario || l.costo_unitario_pactado || 0);
+
+            MAPA_PRODUCTOS_RECEPCION.set(prodId, {
+                id: prodId,
+                nombre: l.producto_nombre,
+                sku: l.sku,
+                costo: costoPact,
+                pendiente: cantPend,
+                lotes: [
+                    {
+                        cant: cantPend,
+                        costo: costoPact,
+                        lote: generarNumeroLoteSugerido(l.sku),
+                        venc: ''
+                    }
+                ]
+            });
+        });
+
+        renderizarContenedorProductos();
+        buscarProductosCatalogo(document.getElementById('inputBuscarCatalogo')?.value || '');
+        calcularGranTotalRecepcion();
+
+        // Abrir el modal de recepción con la orden cargada
+        abrirModalNuevaRecepcion(false);
 
     } catch (e) {
-        if (contenedor) {
-            contenedor.innerHTML = `<div style="text-align: center; padding: 24px; color: #c62828; background: #ffebee; border-radius: 8px;">❌ ${e.message}</div>`;
-        }
-        if (cajaInfo) cajaInfo.style.display = 'none';
-        if (cajaTotales) cajaTotales.style.display = 'none';
+        console.error(e);
+        mostrarMensajeModal({
+            tipo: 'error',
+            titulo: 'Error al Importar Orden',
+            mensaje: e.message
+        });
+        iniciarRecepcionDirecta();
     }
 }
 
 /**
- * Renderiza el detalle multi-lote por cada producto de la orden
+ * Desvincula la orden de compra actual y convierte la recepción en directa
  */
-function renderizarLineasMultiLote(lineas) {
-    const contenedor = document.getElementById('contenedorLineasRecepcion');
-    if (!contenedor) return;
+function desvincularOrdenCompra() {
+    ORDEN_ACTUAL = null;
+    const inpOrden = document.getElementById('inputOrdenCompraId');
+    if (inpOrden) inpOrden.value = '';
 
-    if (!lineas || lineas.length === 0) {
-        contenedor.innerHTML = '<div style="text-align: center; padding: 24px; color: #2e7d52; background: #e8f8f0; border-radius: 8px;">✅ Todos los productos de esta orden de compra ya han sido recibidos en su totalidad.</div>';
+    const selProv = document.getElementById('selectProveedorRecepcion');
+    if (selProv) selProv.disabled = false;
+
+    const banner = document.getElementById('bannerOrdenImportada');
+    if (banner) banner.style.display = 'none';
+
+    const badgeModo = document.getElementById('badgeModoRecepcion');
+    if (badgeModo) {
+        badgeModo.textContent = 'RECEPCIÓN DIRECTA (SIN ORDEN)';
+        badgeModo.style.color = '#7f5e39';
+        badgeModo.style.background = '#fdf5ea';
+    }
+
+    // Relajar límites de pendiente en los productos ya cargados
+    MAPA_PRODUCTOS_RECEPCION.forEach(item => {
+        item.pendiente = 999999;
+    });
+
+    renderizarContenedorProductos();
+    calcularGranTotalRecepcion();
+}
+
+/**
+ * Genera un número de lote sugerido basado en la fecha y SKU
+ */
+function generarNumeroLoteSugerido(sku) {
+    const hoy = new Date();
+    const yyyy = hoy.getFullYear();
+    const mm = String(hoy.getMonth() + 1).padStart(2, '0');
+    return `LOT-${yyyy}${mm}`;
+}
+
+/**
+ * Busca productos en el catálogo según texto
+ */
+function buscarProductosCatalogo(query) {
+    const panel = document.getElementById('panelResultadosCatalogo');
+    if (!panel) return;
+
+    const q = (query || '').toLowerCase().trim();
+    const lista = typeof CATALOGO_PRODUCTOS !== 'undefined' ? CATALOGO_PRODUCTOS : [];
+
+    let filtrados = lista;
+    if (q) {
+        filtrados = lista.filter(p => {
+            const nom = (p.nombre || '').toLowerCase();
+            const sku = (p.sku || '').toLowerCase();
+            return nom.includes(q) || sku.includes(q);
+        });
+    }
+
+    if (!filtrados || filtrados.length === 0) {
+        panel.innerHTML = '<div style="padding: 12px; color: var(--text-muted); font-size: 0.82rem; text-align: center;">No se encontraron productos coincidentes.</div>';
         return;
     }
 
     let html = '';
-
-    lineas.forEach((prod, pIdx) => {
-        const prodId = prod.producto_maestro_id;
-        const cantPendiente = parseInt(prod.cantidad_pendiente || 0);
-        const costoPactado = parseFloat(prod.costo_pactado_unitario || 0).toFixed(2);
+    filtrados.forEach(p => {
+        const prodId = parseInt(p.id);
+        const yaAgregado = MAPA_PRODUCTOS_RECEPCION.has(prodId);
+        const costo = parseFloat(p.costo_promedio || 0).toFixed(2);
 
         html += `
-            <div class="card-producto-recepcion" data-producto-id="${prodId}" data-pendiente="${cantPendiente}" id="cardProd_${prodId}">
-                <!-- Cabecera del Producto -->
-                <div class="card-producto-header">
-                    <div>
-                        <strong style="color: var(--text-dark); font-size: 0.95rem;">${prod.producto_nombre}</strong>
-                        <span style="font-family: var(--font-mono); font-size: 0.75rem; color: var(--text-muted); margin-left: 6px;">[SKU: ${prod.sku}]</span>
-                    </div>
-
-                    <div style="display: flex; align-items: center; gap: 12px;">
-                        <span class="badge-pendiente">Pendiente: ${cantPendiente} u.</span>
-                        <span style="font-size: 0.8rem; color: #6e6254;">Costo Pactado: <strong>RD$ ${costoPactado}</strong></span>
-                        <button type="button" class="btn btn-sm btn-outline" onclick="dividirLoteProducto(${prodId}, ${costoPactado})">
-                            + Dividir Lote
-                        </button>
+            <div class="item-catalogo-busqueda" data-prod-id="${prodId}" style="display: flex; justify-content: space-between; align-items: center; padding: 7px 10px; border-bottom: 1px solid #f2ede4; background: ${yaAgregado ? '#fcf9f2' : '#ffffff'}; border-radius: 4px; margin-bottom: 3px; transition: background 0.15s ease;">
+                <div style="flex: 1; min-width: 0; padding-right: 10px;">
+                    <strong style="color: var(--text-dark); font-size: 0.84rem; display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
+                        ${p.nombre}
+                    </strong>
+                    <div style="font-size: 0.72rem; color: var(--text-muted); display: flex; gap: 8px;">
+                        <span style="font-family: var(--font-mono); font-weight: 600;">${p.sku}</span>
+                        <span>•</span>
+                        <span>Costo Prom: RD$ ${costo}</span>
                     </div>
                 </div>
 
-                <!-- Tabla de Lotes del Producto -->
-                <div style="padding: 10px 14px;">
-                    <table style="width: 100%; border-collapse: collapse; table-layout: fixed; border: 1px solid var(--border-light); border-radius: 6px; overflow: hidden;">
-                        <thead>
-                            <tr style="background: #f6efe4; border-bottom: 1px solid #e4d5be;">
-                                <th style="width: 17%; text-align: center; padding: 8px 6px; font-size: 0.72rem; font-weight: 700; color: #5a3e24; text-transform: uppercase;">Cant. Recibida *</th>
-                                <th style="width: 18%; text-align: right; padding: 8px 6px; font-size: 0.72rem; font-weight: 700; color: #5a3e24; text-transform: uppercase;">Costo Facturado *</th>
-                                <th style="width: 25%; text-align: left; padding: 8px 8px; font-size: 0.72rem; font-weight: 700; color: #5a3e24; text-transform: uppercase;">Número de Lote *</th>
-                                <th style="width: 20%; text-align: left; padding: 8px 6px; font-size: 0.72rem; font-weight: 700; color: #5a3e24; text-transform: uppercase;">Vencimiento *</th>
-                                <th style="width: 15%; text-align: right; padding: 8px 8px; font-size: 0.72rem; font-weight: 700; color: #5a3e24; text-transform: uppercase;">Subtotal</th>
-                                <th style="width: 5%; text-align: center; padding: 8px 2px;"></th>
-                            </tr>
-                        </thead>
-                        <tbody class="tbody-lotes-producto" data-producto-id="${prodId}">
-                            <tr class="fila-lote" data-producto-id="${prodId}" style="border-bottom: 1px solid #f2ede4;">
-                                <td style="padding: 6px;">
-                                    <input type="number" class="form-control input-lote-cant text-center" min="0" max="${cantPendiente}" step="1" value="${cantPendiente}" placeholder="0" oninput="alCambiarDatoLote(${prodId})" style="height: 32px; font-size: 0.85rem; padding: 2px 4px; font-family: var(--font-mono); font-weight: 600;" />
-                                </td>
-                                <td style="padding: 6px;">
-                                    <input type="number" class="form-control input-lote-costo text-right" min="0.01" step="0.01" value="${costoPactado}" required oninput="alCambiarDatoLote(${prodId})" style="height: 32px; font-size: 0.85rem; padding: 2px 6px; font-family: var(--font-mono); font-weight: 600;" />
-                                </td>
-                                <td style="padding: 6px;">
-                                    <input type="text" class="form-control input-lote-num" maxlength="50" placeholder="Ej: LOT-${new Date().getFullYear()}-01" oninput="alCambiarDatoLote(${prodId})" style="height: 32px; font-size: 0.85rem; padding: 2px 6px; font-family: var(--font-mono);" />
-                                </td>
-                                <td style="padding: 6px;">
-                                    <input type="date" class="form-control input-lote-venc" oninput="alCambiarDatoLote(${prodId})" style="height: 32px; font-size: 0.82rem; padding: 2px 4px;" />
-                                </td>
-                                <td class="text-right" style="font-family: var(--font-mono); font-weight: 700; padding: 6px 8px; font-size: 0.88rem; color: #211813;">
-                                    <span class="subtotal-lote">RD$ 0.00</span>
-                                </td>
-                                <td class="text-center" style="padding: 6px 2px;">
-                                    <!-- Primera fila fija -->
-                                </td>
-                            </tr>
-                        </tbody>
-                    </table>
-
-                    <!-- Indicador y Alerta de Exceso -->
-                    <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 8px;">
-                        <div style="font-size: 0.8rem; color: #5c5043;">
-                            Total recibido para este producto: <strong class="lbl-total-recibido-prod">0</strong> de ${cantPendiente} u.
-                        </div>
-                        <div class="alerta-exceso" id="alertaExceso_${prodId}">
-                            ⚠️ La suma recibida supera el saldo pendiente de ${cantPendiente} unidades.
-                        </div>
-                    </div>
+                <div class="col-boton-accion">
+                    ${yaAgregado
+                        ? `<button type="button" class="btn btn-sm btn-danger" onclick="quitarProductoDeRecepcion(${prodId})" style="padding: 3px 10px; font-size: 0.76rem; white-space: nowrap;">✕ Quitar</button>`
+                        : `<button type="button" class="btn btn-sm btn-gold" onclick="agregarProductoARecepcion(${prodId})" style="padding: 3px 10px; font-size: 0.76rem; white-space: nowrap;">+ Agregar</button>`
+                    }
                 </div>
             </div>
         `;
     });
 
-    contenedor.innerHTML = html;
+    panel.innerHTML = html;
+}
 
-    // Calcular valores iniciales de cada producto
-    lineas.forEach(prod => {
-        recalcularProducto(prod.producto_maestro_id);
+/**
+ * Agrega un producto a la recepción
+ */
+function agregarProductoARecepcion(productoId) {
+    const prodId = parseInt(productoId);
+    if (!prodId) return;
+
+    if (MAPA_PRODUCTOS_RECEPCION.has(prodId)) {
+        return;
+    }
+
+    const prod = MAPA_CATALOGO_CACHE.get(prodId) || (typeof CATALOGO_PRODUCTOS !== 'undefined' ? CATALOGO_PRODUCTOS.find(p => parseInt(p.id) === prodId) : null);
+    if (!prod) return;
+
+    const costoRef = parseFloat(prod.costo_promedio || 0) > 0
+        ? parseFloat(prod.costo_promedio)
+        : (parseFloat(prod.precio_base_unidad || 0) > 0 ? parseFloat(prod.precio_base_unidad) : 0);
+
+    MAPA_PRODUCTOS_RECEPCION.set(prodId, {
+        id: prodId,
+        sku: prod.sku,
+        nombre: prod.nombre,
+        costo: costoRef,
+        pendiente: 999999,
+        lotes: [
+            {
+                cant: 1,
+                costo: costoRef,
+                lote: generarNumeroLoteSugerido(prod.sku),
+                venc: ''
+            }
+        ]
     });
+
+    renderizarContenedorProductos();
+    actualizarBotonEnPanelCatalogo(prodId, true);
+    calcularGranTotalRecepcion();
+}
+
+/**
+ * Quita un producto de la recepción
+ */
+function quitarProductoDeRecepcion(productoId) {
+    const prodId = parseInt(productoId);
+    if (!prodId) return;
+
+    MAPA_PRODUCTOS_RECEPCION.delete(prodId);
+    renderizarContenedorProductos();
+    actualizarBotonEnPanelCatalogo(prodId, false);
+    calcularGranTotalRecepcion();
+}
+
+/**
+ * Actualiza el botón Agregar/Quitar de un producto en el panel izquierdo
+ */
+function actualizarBotonEnPanelCatalogo(productoId, agregado) {
+    const item = document.querySelector(`.item-catalogo-busqueda[data-prod-id="${productoId}"]`);
+    if (!item) return;
+
+    item.style.background = agregado ? '#fcf9f2' : '#ffffff';
+    const colBtn = item.querySelector('.col-boton-accion');
+    if (colBtn) {
+        colBtn.innerHTML = agregado
+            ? `<button type="button" class="btn btn-sm btn-danger" onclick="quitarProductoDeRecepcion(${productoId})" style="padding: 3px 10px; font-size: 0.76rem; white-space: nowrap;">✕ Quitar</button>`
+            : `<button type="button" class="btn btn-sm btn-gold" onclick="agregarProductoARecepcion(${productoId})" style="padding: 3px 10px; font-size: 0.76rem; white-space: nowrap;">+ Agregar</button>`;
+    }
+}
+
+/**
+ * Renderiza todos los productos agregados en el contenedor de recepción
+ * con formato de tabla compacta idéntica a Órdenes de Compra
+ */
+function renderizarContenedorProductos() {
+    const contenedor = document.getElementById('contenedorLineasRecepcion');
+    if (!contenedor) return;
+
+    if (MAPA_PRODUCTOS_RECEPCION.size === 0) {
+        contenedor.innerHTML = `
+            <div style="text-align: center; padding: 40px 20px; color: var(--text-muted); background: #fbf9f5; border: 1.5px dashed #dfd4c4; border-radius: 8px;">
+                <div style="font-size: 2rem; margin-bottom: 6px;">🛒</div>
+                <div style="font-weight: 600; color: #5a4b3d; margin-bottom: 4px;">No has agregado productos a esta recepción aún.</div>
+                <p style="font-size: 0.80rem; margin: 0; color: var(--text-muted);">
+                    Haz clic en el botón <strong>+ Agregar</strong> del producto en la lista de la izquierda o importa una orden.
+                </p>
+            </div>
+        `;
+        calcularGranTotalRecepcion();
+        return;
+    }
+
+    let filasHtml = '';
+    let totalUnidades = 0;
+    let totalMonto = 0;
+
+    MAPA_PRODUCTOS_RECEPCION.forEach(item => {
+        const prodId = item.id;
+        const tieneOrden = (ORDEN_ACTUAL && item.pendiente < 999999);
+        const badgePendiente = tieneOrden 
+            ? `<span style="background: #fef9e7; color: #b78103; border: 1px solid #f9e79f; font-size: 0.68rem; font-weight: 700; padding: 1px 6px; border-radius: 4px; margin-left: 4px;">Pend: ${item.pendiente} u.</span>` 
+            : '';
+
+        item.lotes.forEach((lot, lotIdx) => {
+            const cant = parseInt(lot.cant || 0) || 0;
+            const costo = parseFloat(lot.costo || 0) || 0;
+            const subtotal = cant * costo;
+            totalUnidades += cant;
+            totalMonto += subtotal;
+
+            const esPrimerLote = (lotIdx === 0);
+
+            filasHtml += `
+                <tr class="fila-lote" data-producto-id="${prodId}" data-lote-idx="${lotIdx}" style="border-bottom: 1px solid #ebdcc5; background: #ffffff;">
+                    <td style="padding: 6px 10px; vertical-align: middle;">
+                        ${esPrimerLote ? `
+                            <div style="font-weight: 700; color: #211813; font-size: 0.82rem; line-height: 1.2;">${item.nombre}</div>
+                            <div style="font-size: 0.70rem; color: var(--text-muted); font-family: var(--font-mono); margin-top: 1px;">
+                                ${item.sku} ${badgePendiente}
+                                <button type="button" onclick="dividirLote(${prodId})" style="background: none; border: none; color: #a66e2e; font-size: 0.70rem; font-weight: 700; cursor: pointer; padding: 0 4px; text-decoration: underline;" title="Agregar otra partición de lote">+ Lote</button>
+                            </div>
+                        ` : `
+                            <div style="font-size: 0.70rem; color: #a66e2e; font-style: italic; padding-left: 12px;">↳ Lote adicional #${lotIdx + 1}</div>
+                        `}
+                    </td>
+                    <td style="padding: 6px 4px; text-align: center; vertical-align: middle;">
+                        <input type="number" class="form-control text-center input-lote-cant" min="1" step="1" value="${lot.cant}" required oninput="alCambiarDatoLote(${prodId})" style="height: 28px; width: 65px; font-size: 0.82rem; font-weight: 700; font-family: var(--font-mono); padding: 2px;" />
+                    </td>
+                    <td style="padding: 6px 4px; text-align: right; vertical-align: middle;">
+                        <input type="number" class="form-control text-right input-lote-costo" min="0.01" step="0.01" value="${lot.costo.toFixed(2)}" required oninput="alCambiarDatoLote(${prodId})" style="height: 28px; width: 80px; font-size: 0.82rem; font-weight: 600; font-family: var(--font-mono); padding: 2px 4px;" />
+                    </td>
+                    <td style="padding: 6px 4px; vertical-align: middle;">
+                        <input type="text" class="form-control input-lote-num" maxlength="50" value="${lot.lote || ''}" placeholder="LOT-..." required oninput="alCambiarDatoLote(${prodId})" style="height: 28px; width: 100px; font-size: 0.78rem; font-family: var(--font-mono); text-transform: uppercase; padding: 2px 4px;" />
+                    </td>
+                    <td style="padding: 6px 4px; text-align: center; vertical-align: middle;">
+                        <input type="date" class="form-control input-lote-venc" value="${lot.venc || ''}" required oninput="alCambiarDatoLote(${prodId})" style="height: 28px; width: 120px; font-size: 0.75rem; padding: 2px;" />
+                    </td>
+                    <td style="padding: 6px 8px; text-align: right; vertical-align: middle;">
+                        <span class="subtotal-lote" style="font-family: var(--font-mono); font-weight: 700; font-size: 0.82rem; color: #211813;">RD$ ${subtotal.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                    </td>
+                    <td style="padding: 6px 4px; text-align: center; vertical-align: middle;">
+                        ${esPrimerLote && item.lotes.length === 1 ? `
+                            <button type="button" class="btn btn-sm btn-outline" onclick="quitarProductoDeRecepcion(${prodId})" title="Quitar de la recepción" style="height: 24px; width: 24px; padding: 0; color: #b71c1c; border-color: #f5c6cb; font-size: 0.75rem; display: inline-flex; align-items: center; justify-content: center;">✕</button>
+                        ` : `
+                            <button type="button" class="btn btn-sm btn-outline" onclick="eliminarSubLote(${prodId}, ${lotIdx})" title="Quitar esta partición" style="height: 24px; width: 24px; padding: 0; color: #b71c1c; border-color: #f5c6cb; font-size: 0.75rem; display: inline-flex; align-items: center; justify-content: center;">✕</button>
+                        `}
+                    </td>
+                </tr>
+            `;
+        });
+    });
+
+    contenedor.innerHTML = `
+        <table class="table-compacta-orden" style="width: 100%; border-collapse: collapse; font-size: 0.80rem; margin: 0;">
+            <thead style="position: sticky; top: 0; z-index: 5;">
+                <tr style="background: #f6efe4; border-bottom: 1px solid #ebdcc5; color: #5c5043; font-size: 0.70rem; font-weight: 700; text-transform: uppercase; white-space: nowrap;">
+                    <th style="padding: 7px 8px; text-align: left; white-space: nowrap;">PRODUCTO SELECCIONADO</th>
+                    <th style="padding: 7px 4px; text-align: center; width: 65px; white-space: nowrap;">CANT. *</th>
+                    <th style="padding: 7px 4px; text-align: right; width: 110px; white-space: nowrap;">COSTO (RD$) *</th>
+                    <th style="padding: 7px 4px; text-align: left; width: 105px; white-space: nowrap;">LOTE *</th>
+                    <th style="padding: 7px 4px; text-align: center; width: 120px; white-space: nowrap;">VENCIMIENTO *</th>
+                    <th style="padding: 7px 8px; text-align: right; width: 95px; white-space: nowrap;">SUBTOTAL</th>
+                    <th style="padding: 7px 4px; text-align: center; width: 30px;"></th>
+                </tr>
+            </thead>
+            <tbody>
+                ${filasHtml}
+            </tbody>
+        </table>
+    `;
 
     calcularGranTotalRecepcion();
 }
 
 /**
- * Acción "+ Dividir Lote": agrega una nueva sub-fila para el mismo producto
+ * Agrega una nueva partición de lote para un producto
  */
-function dividirLoteProducto(productoId, costoPactado) {
-    const tbody = document.querySelector(`.tbody-lotes-producto[data-producto-id="${productoId}"]`);
-    if (!tbody) return;
+function dividirLote(productoId) {
+    const item = MAPA_PRODUCTOS_RECEPCION.get(productoId);
+    if (!item) return;
 
-    const tr = document.createElement('tr');
-    tr.className = 'fila-lote fila-lote-dividida';
-    tr.dataset.productoId = productoId;
+    item.lotes.push({
+        cant: 1,
+        costo: item.costo,
+        lote: `${generarNumeroLoteSugerido(item.sku)}-B${item.lotes.length + 1}`,
+        venc: ''
+    });
 
-    tr.style.borderBottom = '1px solid #f2ede4';
-    tr.innerHTML = `
-        <td style="padding: 6px;">
-            <input type="number" class="form-control input-lote-cant text-center" min="0" step="1" value="0" placeholder="0" oninput="alCambiarDatoLote(${productoId})" style="height: 32px; font-size: 0.85rem; padding: 2px 4px; font-family: var(--font-mono); font-weight: 600;" />
-        </td>
-        <td style="padding: 6px;">
-            <input type="number" class="form-control input-lote-costo text-right" min="0.01" step="0.01" value="${costoPactado}" required oninput="alCambiarDatoLote(${productoId})" style="height: 32px; font-size: 0.85rem; padding: 2px 6px; font-family: var(--font-mono); font-weight: 600;" />
-        </td>
-        <td style="padding: 6px;">
-            <input type="text" class="form-control input-lote-num" maxlength="50" placeholder="Otro lote..." oninput="alCambiarDatoLote(${productoId})" style="height: 32px; font-size: 0.85rem; padding: 2px 6px; font-family: var(--font-mono);" />
-        </td>
-        <td style="padding: 6px;">
-            <input type="date" class="form-control input-lote-venc" oninput="alCambiarDatoLote(${productoId})" style="height: 32px; font-size: 0.82rem; padding: 2px 4px;" />
-        </td>
-        <td class="text-right" style="font-family: var(--font-mono); font-weight: 700; padding: 6px 8px; font-size: 0.88rem; color: #211813;">
-            <span class="subtotal-lote">RD$ 0.00</span>
-        </td>
-        <td class="text-center" style="padding: 6px 2px;">
-            <button type="button" class="btn btn-sm btn-danger" title="Eliminar este sub-lote" onclick="eliminarSubLote(this, ${productoId})" style="padding: 2px 6px; height: 28px; width: 28px; line-height: 1; display: inline-flex; align-items: center; justify-content: center; font-size: 0.8rem; border-radius: 4px;">✕</button>
-        </td>
-    `;
-
-    tbody.appendChild(tr);
-    alCambiarDatoLote(productoId);
+    renderizarContenedorProductos();
 }
 
 /**
- * Elimina un sub-lote adicional
+ * Elimina una partición de lote específica
  */
-function eliminarSubLote(btn, productoId) {
-    const fila = btn.closest('tr');
-    if (fila) {
-        fila.remove();
-        alCambiarDatoLote(productoId);
-    }
+function eliminarSubLote(productoId, loteIdx) {
+    const item = MAPA_PRODUCTOS_RECEPCION.get(productoId);
+    if (!item || item.lotes.length <= 1) return;
+
+    item.lotes.splice(loteIdx, 1);
+    renderizarContenedorProductos();
 }
 
 /**
- * Evento disparado al modificar cualquier input en los lotes de un producto
+ * Evento al cambiar datos en los inputs de lote
  */
 function alCambiarDatoLote(productoId) {
+    const item = MAPA_PRODUCTOS_RECEPCION.get(productoId);
+    if (!item) return;
+
+    const filas = document.querySelectorAll(`.fila-lote[data-producto-id="${productoId}"]`);
+    const nuevosLotes = [];
+
+    filas.forEach((f) => {
+        const cantInp = f.querySelector('.input-lote-cant');
+        const costoInp = f.querySelector('.input-lote-costo');
+        const numInp = f.querySelector('.input-lote-num');
+        const vencInp = f.querySelector('.input-lote-venc');
+
+        nuevosLotes.push({
+            cant: parseInt(cantInp?.value || 0) || 0,
+            costo: parseFloat(costoInp?.value || 0) || 0,
+            lote: (numInp?.value || '').trim(),
+            venc: (vencInp?.value || '').trim()
+        });
+    });
+
+    item.lotes = nuevosLotes;
     recalcularProducto(productoId);
     calcularGranTotalRecepcion();
 }
 
 /**
- * Recalcula subtotales y valida techo de cantidad_pendiente para un producto
+ * Recalcula subtotales de un producto
  */
 function recalcularProducto(productoId) {
-    const card = document.getElementById(`cardProd_${productoId}`);
-    if (!card) return;
+    const item = MAPA_PRODUCTOS_RECEPCION.get(productoId);
+    if (!item) return;
 
-    const cantPendiente = parseInt(card.dataset.pendiente || 0);
-    const filas = card.querySelectorAll('.fila-lote');
-    const alertaExceso = document.getElementById(`alertaExceso_${productoId}`);
-    const lblTotalProd = card.querySelector('.lbl-total-recibido-prod');
-
+    const filas = document.querySelectorAll(`.fila-lote[data-producto-id="${productoId}"]`);
     let sumaCantProd = 0;
 
     filas.forEach(f => {
@@ -404,8 +866,8 @@ function recalcularProducto(productoId) {
         const costoInp = f.querySelector('.input-lote-costo');
         const subtotalSpan = f.querySelector('.subtotal-lote');
 
-        const cant = parseInt(cantInp ? cantInp.value : 0) || 0;
-        const costo = parseFloat(costoInp ? costoInp.value : 0) || 0;
+        const cant = parseInt(cantInp?.value || 0) || 0;
+        const costo = parseFloat(costoInp?.value || 0) || 0;
 
         sumaCantProd += cant;
         const subtotal = cant * costo;
@@ -414,83 +876,94 @@ function recalcularProducto(productoId) {
             subtotalSpan.textContent = 'RD$ ' + subtotal.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
         }
     });
-
-    if (lblTotalProd) {
-        lblTotalProd.textContent = sumaCantProd;
-        lblTotalProd.style.color = (sumaCantProd > cantPendiente) ? '#c62828' : '#211813';
-    }
-
-    // Alerta visual de exceso
-    if (alertaExceso) {
-        if (sumaCantProd > cantPendiente) {
-            alertaExceso.style.display = 'block';
-            card.style.borderColor = '#ef9a9a';
-        } else {
-            alertaExceso.style.display = 'none';
-            card.style.borderColor = '#eae3d5';
-        }
-    }
 }
 
 /**
- * Recalcula el resumen global de la recepción
+ * Recalcula el total acumulado de la recepción
  */
 function calcularGranTotalRecepcion() {
-    const filasLotes = document.querySelectorAll('.fila-lote');
     let totalUnidades = 0;
     let montoTotal = 0;
-    const productosConMercancia = new Set();
+    let productosConMercancia = 0;
 
-    filasLotes.forEach(f => {
-        const cantInp = f.querySelector('.input-lote-cant');
-        const costoInp = f.querySelector('.input-lote-costo');
-
-        const cant = parseInt(cantInp ? cantInp.value : 0) || 0;
-        const costo = parseFloat(costoInp ? costoInp.value : 0) || 0;
-
-        if (cant > 0) {
-            totalUnidades += cant;
-            montoTotal += (cant * costo);
-            productosConMercancia.add(f.dataset.productoId);
-        }
+    MAPA_PRODUCTOS_RECEPCION.forEach(item => {
+        let unidadesProd = 0;
+        item.lotes.forEach(lot => {
+            const c = parseInt(lot.cant || 0) || 0;
+            const cost = parseFloat(lot.costo || 0) || 0;
+            if (c > 0) {
+                totalUnidades += c;
+                montoTotal += (c * cost);
+                unidadesProd += c;
+            }
+        });
+        if (unidadesProd > 0) productosConMercancia++;
     });
 
     const lblUnidades = document.getElementById('lblTotalUnidadesRecepcion');
     const lblProds = document.getElementById('lblTotalProductosRecepcion');
     const lblMonto = document.getElementById('lblMontoTotalRecepcion');
 
+    const lblLineasRecep = document.getElementById('lblTotalLineasRecep');
+    const lblUnidadesRecep = document.getElementById('lblTotalUnidadesRecep');
+    const lblMontoRecep = document.getElementById('lblMontoTotalEstimadoRecep');
+
     if (lblUnidades) lblUnidades.textContent = totalUnidades.toLocaleString();
-    if (lblProds) lblProds.textContent = productosConMercancia.size;
+    if (lblProds) lblProds.textContent = productosConMercancia;
     if (lblMonto) {
         lblMonto.textContent = 'RD$ ' + montoTotal.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    }
+
+    if (lblLineasRecep) lblLineasRecep.textContent = MAPA_PRODUCTOS_RECEPCION.size;
+    if (lblUnidadesRecep) lblUnidadesRecep.textContent = totalUnidades.toLocaleString();
+    if (lblMontoRecep) {
+        lblMontoRecep.textContent = 'RD$ ' + montoTotal.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
     }
 }
 
 /**
- * Guarda la recepción en la base de datos con validaciones estrictas
+ * Guarda la recepción en la base de datos
  */
 async function guardarRecepcion(event) {
     event.preventDefault();
 
-    const selectOrden = document.getElementById('selectOrdenCompra');
-    const ordenId = parseInt(selectOrden ? selectOrden.value : 0);
+    const inpOrden = document.getElementById('inputOrdenCompraId');
+    const ordenId = inpOrden && inpOrden.value ? parseInt(inpOrden.value) : null;
+
+    const selProv = document.getElementById('selectProveedorRecepcion');
+    const proveedorId = selProv ? selProv.value.trim() : '';
+
     const numFactura = document.getElementById('inputNumFactura').value.trim();
     const ncf = document.getElementById('inputNcf').value.trim();
     const btnGuardar = document.getElementById('btnGuardarRecepcion');
 
-    if (!ordenId) {
-        alert('Debe seleccionar una orden de compra pendiente.');
-        selectOrden.focus();
+    if (!proveedorId) {
+        mostrarMensajeModal({
+            tipo: 'advertencia',
+            titulo: 'Proveedor Obligatorio',
+            mensaje: 'Debe seleccionar el proveedor del cual se recibe la mercancía.'
+        });
+        selProv?.focus();
         return;
     }
+
     if (!numFactura) {
-        alert('Debe ingresar el número de la factura física del proveedor.');
-        document.getElementById('inputNumFactura').focus();
+        mostrarMensajeModal({
+            tipo: 'advertencia',
+            titulo: 'Número de Factura Requerido',
+            mensaje: 'Debe ingresar el número de la factura física del proveedor.'
+        });
+        document.getElementById('inputNumFactura')?.focus();
         return;
     }
+
     if (!ncf) {
-        alert('Debe ingresar el NCF del proveedor para fines fiscales (DGII).');
-        document.getElementById('inputNcf').focus();
+        mostrarMensajeModal({
+            tipo: 'advertencia',
+            titulo: 'NCF Requerido',
+            mensaje: 'Debe ingresar el NCF del proveedor para fines fiscales de DGII (Formato 606).'
+        });
+        document.getElementById('inputNcf')?.focus();
         return;
     }
 
@@ -503,147 +976,152 @@ async function guardarRecepcion(event) {
         }
     }
 
-    // Validar líneas y multi-lote
-    const cards = document.querySelectorAll('.card-producto-recepcion');
+    if (MAPA_PRODUCTOS_RECEPCION.size === 0) {
+        mostrarMensajeModal({
+            tipo: 'advertencia',
+            titulo: 'Sin Mercancía',
+            mensaje: 'Debe agregar al menos un producto a la recepción desde el catálogo o importar una orden de compra.'
+        });
+        return;
+    }
+
+    // Validar líneas
     const lineasPayload = [];
-    let alMenosUnoRecibido = false;
+    let errorValidacion = null;
 
-    for (let c = 0; c < cards.length; c++) {
-        const card = cards[c];
-        const prodId = parseInt(card.dataset.productoId);
-        const cantPendiente = parseInt(card.dataset.pendiente);
-        const prodNombre = card.querySelector('.card-producto-header strong').textContent;
+    MAPA_PRODUCTOS_RECEPCION.forEach(item => {
+        if (errorValidacion) return;
 
-        const filasLote = card.querySelectorAll('.fila-lote');
-        let sumaRecibidaProd = 0;
-        const lotesVistosProd = new Set();
+        let totalRecibidoItem = 0;
+        const lotesVistos = new Set();
 
-        for (let l = 0; l < filasLote.length; l++) {
-            const f = filasLote[l];
-            const cantInput = f.querySelector('.input-lote-cant');
-            const costoInput = f.querySelector('.input-lote-costo');
-            const loteInput = f.querySelector('.input-lote-num');
-            const vencInput = f.querySelector('.input-lote-venc');
+        item.lotes.forEach(lot => {
+            if (errorValidacion) return;
 
-            const cant = parseInt(cantInput ? cantInput.value : 0) || 0;
-            const costo = parseFloat(costoInput ? costoInput.value : 0) || 0;
-            const lote = (loteInput ? loteInput.value : '').trim();
-            const venc = (vencInput ? vencInput.value : '').trim();
+            const cant = parseInt(lot.cant || 0);
+            const costo = parseFloat(lot.costo || 0);
+            const numLote = (lot.lote || '').trim().toUpperCase();
+            const venc = (lot.venc || '').trim();
 
             if (cant > 0) {
-                alMenosUnoRecibido = true;
-                sumaRecibidaProd += cant;
+                totalRecibidoItem += cant;
 
-                // Validación de lote obligatorio
-                if (!lote) {
-                    alert(`El producto '${prodNombre}' tiene una cantidad de ${cant} unidades pero no tiene número de lote.`);
-                    loteInput.focus();
+                if (!numLote) {
+                    errorValidacion = `El producto '${item.nombre}' tiene unidades a recibir pero le falta el número de lote.`;
                     return;
                 }
 
-                // REGLA: No permitir número de lote repetido para el mismo producto
-                const loteKey = lote.toUpperCase();
-                if (lotesVistosProd.has(loteKey)) {
-                    alert(`El lote '${lote}' está duplicado para el producto '${prodNombre}'. Si dividió el producto en varios lotes, cada uno debe tener un número de lote distinto.`);
-                    loteInput.focus();
+                if (lotesVistos.has(numLote)) {
+                    errorValidacion = `El lote '${numLote}' está duplicado para el producto '${item.nombre}'. Cada lote debe ser único.`;
                     return;
                 }
-                lotesVistosProd.add(loteKey);
+                lotesVistos.add(numLote);
 
-                // Validación de vencimiento
                 if (!venc) {
-                    alert(`Debe ingresar la fecha de vencimiento para el lote '${lote}' del producto '${prodNombre}'.`);
-                    vencInput.focus();
+                    errorValidacion = `Debe ingresar la fecha de vencimiento (FEFO) para el lote '${numLote}' de '${item.nombre}'.`;
                     return;
                 }
 
                 if (costo <= 0) {
-                    alert(`El costo unitario facturado para el producto '${prodNombre}' debe ser mayor a 0.`);
-                    costoInput.focus();
+                    errorValidacion = `El costo unitario para '${item.nombre}' debe ser mayor a RD$ 0.00.`;
                     return;
                 }
 
                 lineasPayload.push({
-                    producto_maestro_id: prodId,
+                    producto_maestro_id: item.id,
                     cantidad_recibida_buena: cant,
                     costo_unitario_facturado: costo,
-                    numero_lote: lote,
+                    numero_lote: numLote,
                     fecha_vencimiento: venc
                 });
             }
-        }
-
-        // REGLA: La suma de cantidad_recibida_buena de todos los lotes de un producto NO puede exceder su cantidad_pendiente
-        if (sumaRecibidaProd > cantPendiente) {
-            alert(`⚠️ ERROR: Para el producto '${prodNombre}' ha ingresado ${sumaRecibidaProd} unidades en total, lo cual excede su saldo pendiente de ${cantPendiente} unidades.`);
-            return;
-        }
-    }
-
-    // REGLA: Exigir que al menos una línea tenga cantidad_recibida_buena > 0 para guardar
-    if (!alMenosUnoRecibido || lineasPayload.length === 0) {
-        alert('Debe ingresar al menos una línea con cantidad recibida mayor a 0 para registrar la recepción.');
-        return;
-    }
-
-    if (!confirm(`¿Confirma registrar la Recepción de Mercancía?\nFactura: ${numFactura}\nNCF: ${ncf}\nCondición: ${condicionPago}\nTotal Líneas de Lote: ${lineasPayload.length}`)) {
-        return;
-    }
-
-    if (btnGuardar) {
-        btnGuardar.disabled = true;
-        btnGuardar.textContent = 'Procesando entrada a inventario...';
-    }
-
-    try {
-        const payload = {
-            accion: 'registrar_recepcion',
-            orden_compra_id: ordenId,
-            numero_factura_proveedor: numFactura,
-            ncf_proveedor: ncf,
-            condicion_pago: condicionPago,
-            lineas: lineasPayload
-        };
-
-        const resp = await fetch('procesar_recepciones.php', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify(payload)
         });
 
-        const data = await resp.json();
-
-        if (data && data.ok) {
-            mostrarMensajeModal({
-                tipo: 'exito',
-                titulo: '¡Recepción Registrada!',
-                mensaje: data.mensaje || 'Recepción y entrada a inventario procesada exitosamente.',
-                alCerrar: () => {
-                    window.location.href = 'recepciones.php';
-                }
-            });
-        } else {
-            mostrarMensajeModal({
-                tipo: 'error',
-                titulo: 'Error en Recepción',
-                mensaje: data.mensaje || 'Error al procesar la recepción.'
-            });
+        if (ordenId && item.pendiente < 999999 && totalRecibidoItem > item.pendiente) {
+            errorValidacion = `Para el producto '${item.nombre}' ingresó ${totalRecibidoItem} unidades, superando el saldo pendiente de ${item.pendiente} unidades.`;
         }
-    } catch (e) {
-        console.error('Error:', e);
+    });
+
+    if (errorValidacion) {
         mostrarMensajeModal({
-            tipo: 'error',
-            titulo: 'Error de Comunicación',
-            mensaje: 'No se pudo comunicar con el servidor: ' + e.message
+            tipo: 'advertencia',
+            titulo: 'Verifique los Datos',
+            mensaje: errorValidacion
         });
-    } finally {
-        if (btnGuardar) {
-            btnGuardar.disabled = false;
-            btnGuardar.textContent = '💾 Registrar Recepción y Entrada a Inventario';
-        }
+        return;
     }
+
+    if (lineasPayload.length === 0) {
+        mostrarMensajeModal({
+            tipo: 'advertencia',
+            titulo: 'Sin Cantidades Recibidas',
+            mensaje: 'Debe ingresar al menos una cantidad mayor a 0 para registrar la entrada a almacén.'
+        });
+        return;
+    }
+
+    mostrarMensajeModal({
+        tipo: 'pregunta',
+        esConfirmacion: true,
+        titulo: '¿Confirmar Recepción de Mercancía?',
+        mensaje: `Se registrará la entrada física a inventario (Kardex) y la obligación en Cuentas por Pagar.<br><br><strong>Factura:</strong> ${numFactura} | <strong>NCF:</strong> ${ncf}<br><strong>Condición:</strong> ${condicionPago} | <strong>Líneas:</strong> ${lineasPayload.length}`,
+        textoBoton: 'Sí, Registrar Entrada',
+        textoCancelar: 'Revisar',
+        alConfirmar: async () => {
+            if (btnGuardar) {
+                btnGuardar.disabled = true;
+                btnGuardar.textContent = 'Procesando entrada a almacén...';
+            }
+
+            try {
+                const payload = {
+                    accion: 'registrar_recepcion',
+                    orden_compra_id: ordenId,
+                    proveedor_id: proveedorId,
+                    numero_factura_proveedor: numFactura,
+                    ncf_proveedor: ncf,
+                    condicion_pago: condicionPago,
+                    lineas: lineasPayload
+                };
+
+                const resp = await fetch('procesar_recepciones.php', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+
+                const data = await resp.json();
+
+                if (data && data.ok) {
+                    mostrarMensajeModal({
+                        tipo: 'exito',
+                        titulo: '¡Recepción Registrada con Éxito!',
+                        mensaje: data.mensaje || 'Entrada a inventario y cuenta por pagar generadas correctamente.',
+                        alCerrar: () => {
+                            window.location.href = 'recepciones.php';
+                        }
+                    });
+                } else {
+                    mostrarMensajeModal({
+                        tipo: 'error',
+                        titulo: 'Error en Recepción',
+                        mensaje: data.mensaje || 'No se pudo procesar la recepción.'
+                    });
+                }
+            } catch (e) {
+                mostrarMensajeModal({
+                    tipo: 'error',
+                    titulo: 'Error de Conexión',
+                    mensaje: 'No se pudo conectar con el servidor: ' + e.message
+                });
+            } finally {
+                if (btnGuardar) {
+                    btnGuardar.disabled = false;
+                    btnGuardar.textContent = '💾 Registrar Recepción y Entrada a Inventario';
+                }
+            }
+        }
+    });
 }
 
 /**
@@ -654,7 +1132,10 @@ async function verComprobanteRecepcion(recepcionId) {
     const cuerpo = document.getElementById('cuerpoVerRecepcion');
     const titulo = document.getElementById('recModalTitulo');
 
-    if (modal) modal.classList.add('open');
+    if (modal) {
+        modal.style.display = 'flex';
+        modal.classList.add('open');
+    }
     if (cuerpo) {
         cuerpo.innerHTML = '<div style="text-align: center; padding: 40px; color: var(--text-muted);"><div style="font-size: 1.5rem; margin-bottom: 8px;">⏳</div>Cargando comprobante...</div>';
     }
@@ -702,7 +1183,6 @@ async function verComprobanteRecepcion(recepcionId) {
             `;
         });
 
-        // Bloque de cuenta por pagar
         let cxpHtml = '';
         if (cxp) {
             cxpHtml = `
@@ -713,7 +1193,7 @@ async function verComprobanteRecepcion(recepcionId) {
                         <div>Monto Deuda: <strong>RD$ ${parseFloat(cxp.monto_original).toFixed(2)}</strong></div>
                         <div>Saldo Pendiente: <strong>RD$ ${parseFloat(cxp.saldo_pendiente).toFixed(2)}</strong></div>
                         <div>Fecha Vencimiento: <strong style="color: #b78103;">${cxp.fecha_vencimiento}</strong></div>
-                        <div>Estado: <span style="font-weight: 700; color: #2e7d32;">${cxp.estado}</span></div>
+                        <div>Estado: <span style="font-weight: 700; color: #2e7d52;">${cxp.estado}</span></div>
                     </div>
                 </div>
             `;
@@ -721,7 +1201,6 @@ async function verComprobanteRecepcion(recepcionId) {
 
         if (cuerpo) {
             cuerpo.innerHTML = `
-                <!-- Datos Generales -->
                 <div style="background: #faf8f5; border: 1px solid #eae3d5; border-radius: 8px; padding: 14px 18px; margin-bottom: 16px;">
                     <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px;">
                         <div>
@@ -736,7 +1215,7 @@ async function verComprobanteRecepcion(recepcionId) {
                         </div>
                         <div>
                             <small style="color: var(--text-muted); font-size: 0.72rem; text-transform: uppercase;">Orden de Compra</small>
-                            <div style="font-weight: 600; font-family: var(--font-mono);">${rec.numero_orden || 'Sin Orden'}</div>
+                            <div style="font-weight: 600; font-family: var(--font-mono);">${rec.numero_orden || 'Sin Orden (Directa)'}</div>
                         </div>
                         <div>
                             <small style="color: var(--text-muted); font-size: 0.72rem; text-transform: uppercase;">Condición de Pago</small>
@@ -754,7 +1233,6 @@ async function verComprobanteRecepcion(recepcionId) {
                     </div>
                 </div>
 
-                <!-- Lotes e Inventario -->
                 <div class="form-section-bar">
                     <span class="form-section-label">Lotes Ingresados al Inventario (FEFO)</span>
                     <span style="font-size: 0.75rem; color: var(--text-muted);">${det.length} lote(s) registrado(s)</span>
@@ -800,11 +1278,12 @@ async function verComprobanteRecepcion(recepcionId) {
 }
 
 /**
- * Cierre del modal de recepción
+ * Cierre del modal de comprobante de recepción
  */
 function cerrarModalRecepcion() {
     const modal = document.getElementById('modalVerRecepcion');
     if (modal) {
+        modal.style.display = 'none';
         modal.classList.remove('open');
     }
 }

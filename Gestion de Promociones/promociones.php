@@ -189,9 +189,14 @@ $tipoMsg = $_GET['tipo'] ?? 'exito';
           <p class="page-subtitle">Proceso de registro de campañas y carrito de reglas automáticas (Volumen, Happy Hour, Cross-Selling, Temporadas y Cupones)</p>
         </div>
 
-        <button type="button" class="btn btn-gold" onclick="abrirModal()">
-          + Nueva Campaña Promocional
-        </button>
+        <div style="display: flex; gap: 10px; align-items: center;">
+          <a href="cupones.php" class="btn btn-secondary" style="text-decoration: none; display: inline-flex; align-items: center; gap: 6px;">
+            🏷️ Cupones &amp; Descuentos
+          </a>
+          <button type="button" class="btn btn-gold" onclick="abrirModal()">
+            + Nueva Campaña Promocional
+          </button>
+        </div>
       </div>
 
       <!-- TARJETA DE TABLA DE CAMPAÑAS -->

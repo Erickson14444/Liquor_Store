@@ -476,6 +476,29 @@ try {
                         $numRef,
                         $titular
                     ]);
+
+                    // Registrar egreso bancario en tesoreria.movimientos_bancarios
+                    $stmtInsMovBanc = $pdo->prepare("
+                        INSERT INTO tesoreria.movimientos_bancarios (
+                            cuenta_bancaria_id,
+                            tipo_movimiento,
+                            monto,
+                            referencia,
+                            concepto,
+                            fecha_movimiento,
+                            usuario_id,
+                            detalle_pago_id
+                        ) VALUES (?, 'TRANSFERENCIA_SALIDA', ?, ?, ?, CURRENT_DATE, ?, ?)
+                    ");
+                    $stmtInsMovBanc->execute([
+                        $cuentaBanc,
+                        $montoP,
+                        $numRef,
+                        "Desembolso CxP a Suplidor - Comprobante #{$numeroComprobante} (Ref: {$numRef})",
+                        $usuarioActualId,
+                        $detallePagoId
+                    ]);
+
                 } elseif ($codMetodo === 'CHEQUE') {
                     $numCheque  = trim($pago['num_cheque'] ?? ('CHQ-' . $nextId));
                     $bancoEmis  = trim($pago['banco_emisor'] ?? 'Banco Popular');
@@ -486,6 +509,28 @@ try {
                         $numCheque,
                         $bancoEmis,
                         $cuentaBanc
+                    ]);
+
+                    // Registrar egreso bancario en tesoreria.movimientos_bancarios
+                    $stmtInsMovBanc = $pdo->prepare("
+                        INSERT INTO tesoreria.movimientos_bancarios (
+                            cuenta_bancaria_id,
+                            tipo_movimiento,
+                            monto,
+                            referencia,
+                            concepto,
+                            fecha_movimiento,
+                            usuario_id,
+                            detalle_pago_id
+                        ) VALUES (?, 'CHEQUE_SALIDA', ?, ?, ?, CURRENT_DATE, ?, ?)
+                    ");
+                    $stmtInsMovBanc->execute([
+                        $cuentaBanc,
+                        $montoP,
+                        $numCheque,
+                        "Emisión Cheque CxP - Comprobante #{$numeroComprobante} (Cheque: {$numCheque})",
+                        $usuarioActualId,
+                        $detallePagoId
                     ]);
                 }
             }
@@ -723,6 +768,147 @@ try {
                 'detalles' => $detalles,
                 'retenciones' => $retenciones,
                 'pagos' => $pagos
+            ]);
+            break;
+
+        // ====================================================================
+        // FASE 5 CXP: LIQUIDACIÓN DE RETENCIONES FISCALES DGII A TESORERÍA
+        // ====================================================================
+        case 'liquidar_retenciones_dgii':
+            if (!usuarioPuedeAccederCxp()) {
+                throw new Exception("No cuenta con permisos de administrador o tesorería para liquidar retenciones DGII.");
+            }
+
+            $input = is_array($jsonBody) ? $jsonBody : $_POST;
+
+            $cuentaBancariaId = (int)($input['cuenta_bancaria_id'] ?? 0);
+            $metodoPago       = strtoupper(trim($input['metodo_pago'] ?? 'TRANSFERENCIA'));
+            $numAutorizacion  = trim($input['referencia_autorizacion'] ?? '');
+            $fechaPago        = trim($input['fecha_pago'] ?? date('Y-m-d'));
+            $periodoFiscal    = trim($input['periodo_fiscal'] ?? date('Y-m'));
+            $supervisorId     = trim($input['supervisor_id'] ?? '');
+            $supervisorPin    = trim($input['supervisor_pin'] ?? '');
+
+            if ($cuentaBancariaId <= 0) {
+                throw new Exception("Debe seleccionar una cuenta bancaria institucional activa.");
+            }
+
+            if (empty($numAutorizacion)) {
+                throw new Exception("Debe ingresar el Número de Autorización / Comprobante de Pago emitido por la DGII.");
+            }
+
+            // Validar existencia de la cuenta bancaria
+            $stmtCta = $pdo->prepare("SELECT id, nombre_banco, numero_cuenta, activa FROM tesoreria.cuentas_bancarias WHERE id = ?");
+            $stmtCta->execute([$cuentaBancariaId]);
+            $cta = $stmtCta->fetch(PDO::FETCH_ASSOC);
+
+            if (!$cta || !$cta['activa']) {
+                throw new Exception("La cuenta bancaria seleccionada no existe o no está activa.");
+            }
+
+            // Validar PIN de supervisor si fue proporcionado
+            if (!empty($supervisorId) && !empty($supervisorPin)) {
+                $stmtSup = $pdo->prepare("SELECT usuario_id, pin_hash, estado FROM seguridad.usuarios WHERE usuario_id = ?");
+                $stmtSup->execute([$supervisorId]);
+                $sup = $stmtSup->fetch(PDO::FETCH_ASSOC);
+                if (!$sup || $sup['estado'] !== 'ACTIVO' || !password_verify($supervisorPin, $sup['pin_hash'])) {
+                    throw new Exception("PIN de supervisor incorrecto o no autorizado.");
+                }
+            }
+
+            $pdo->beginTransaction();
+
+            // Bloquear y sumar retenciones pendientes
+            $stmtRetPend = $pdo->query("
+                SELECT cer.comprobante_egreso_id, cer.cuenta_por_pagar_id, cer.retencion_id, cer.monto_retenido
+                FROM compras.comprobante_egreso_retenciones cer
+                WHERE cer.estado = 'PENDIENTE'
+                FOR UPDATE
+            ");
+            $retencionesPendientes = $stmtRetPend->fetchAll(PDO::FETCH_ASSOC);
+
+            if (empty($retencionesPendientes)) {
+                throw new Exception("No existen retenciones fiscales pendientes de liquidación.");
+            }
+
+            $totalRetenido = 0.00;
+            foreach ($retencionesPendientes as $rp) {
+                $totalRetenido += (float)$rp['monto_retenido'];
+            }
+            $totalRetenido = round($totalRetenido, 2);
+
+            if ($totalRetenido <= 0) {
+                throw new Exception("El monto total acumulado de retenciones debe ser mayor a cero.");
+            }
+
+            $tipoMov = ($metodoPago === 'CHEQUE') ? 'CHEQUE_SALIDA' : 'TRANSFERENCIA_SALIDA';
+            $conceptoMov = "Liquidación y Pago de Retenciones Fiscales DGII (IT-1 / IR-17) - Período {$periodoFiscal} - Aut: {$numAutorizacion}";
+
+            // 1. Insertar Egreso en tesoreria.movimientos_bancarios
+            $stmtInsMov = $pdo->prepare("
+                INSERT INTO tesoreria.movimientos_bancarios (
+                    cuenta_bancaria_id,
+                    tipo_movimiento,
+                    monto,
+                    referencia,
+                    concepto,
+                    fecha_movimiento,
+                    usuario_id
+                ) VALUES (?, ?, ?, ?, ?, ?, ?)
+                RETURNING id
+            ");
+            $stmtInsMov->execute([
+                $cuentaBancariaId,
+                $tipoMov,
+                $totalRetenido,
+                $numAutorizacion,
+                $conceptoMov,
+                $fechaPago,
+                $usuarioActualId
+            ]);
+            $movimientoId = (int)$stmtInsMov->fetchColumn();
+
+            // 2. Actualizar estado de las retenciones a LIQUIDADA vinculando el movimiento bancario
+            $stmtUpdRet = $pdo->prepare("
+                UPDATE compras.comprobante_egreso_retenciones
+                SET estado = 'LIQUIDADA',
+                    fecha_liquidacion = ?,
+                    movimiento_bancario_id = ?
+                WHERE estado = 'PENDIENTE'
+            ");
+            $stmtUpdRet->execute([$fechaPago, $movimientoId]);
+            $filasLiquidadas = $stmtUpdRet->rowCount();
+
+            // 3. Registrar auditoría forense
+            registrarAuditoria(
+                $pdo,
+                $usuarioActualId,
+                !empty($supervisorId) ? $supervisorId : null,
+                'LIQUIDACION_RETENCIONES_DGII',
+                'compras.comprobante_egreso_retenciones',
+                null,
+                [
+                    'movimiento_bancario_id' => $movimientoId,
+                    'cuenta_bancaria_id' => $cuentaBancariaId,
+                    'banco' => $cta['nombre_banco'],
+                    'numero_cuenta' => $cta['numero_cuenta'],
+                    'tipo_movimiento' => $tipoMov,
+                    'monto_total_liquidado' => $totalRetenido,
+                    'referencia_dgii' => $numAutorizacion,
+                    'periodo_fiscal' => $periodoFiscal,
+                    'fecha_pago' => $fechaPago,
+                    'cantidad_retenciones' => $filasLiquidadas
+                ]
+            );
+
+            $pdo->commit();
+
+            echo json_encode([
+                'ok' => true,
+                'mensaje' => "Liquidación de retenciones fiscales procesada exitosamente por RD$ " . number_format($totalRetenido, 2) . " con egreso bancario #" . $movimientoId . " ({$cta['nombre_banco']}).",
+                'movimiento_id' => $movimientoId,
+                'monto_liquidado' => $totalRetenido,
+                'filas_liquidadas' => $filasLiquidadas
             ]);
             break;
 

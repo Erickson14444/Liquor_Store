@@ -76,7 +76,8 @@ $tienePermiso = static function (string $clave): bool {
 $pClientes = function_exists('usuarioPuedeAccederClientes') ? usuarioPuedeAccederClientes() : true;
 $pProveedores = function_exists('usuarioPuedeAccederProveedores') ? usuarioPuedeAccederProveedores() : $esAdmin;
 $pPersonal = function_exists('usuarioPuedeAccederPersonal') ? usuarioPuedeAccederPersonal() : $esAdmin;
-$verIdentidad = $pClientes || $pProveedores || $pPersonal;
+$pUsuarios = function_exists('usuarioPuedeAccederSeguridad') ? usuarioPuedeAccederSeguridad() : $esAdmin;
+$verIdentidad = $pClientes || $pProveedores || $pPersonal || $pUsuarios;
 
 // Módulo 2: Seguridad
 $pSeguridad = function_exists('usuarioPuedeAccederSeguridad') ? usuarioPuedeAccederSeguridad() : $esAdmin;
@@ -119,7 +120,6 @@ $pRepKardex = $pMovInv || $pLotes;
 $verReportes = $pRepFiscal || $pRepKardex || $pAuditoria;
 
 // Panel de Configuración (Mantenimientos)
-$pCfgUsuarios = $pSeguridad;
 $pCfgProductos = function_exists('usuarioPuedeGestionarProductos') ? usuarioPuedeGestionarProductos() : $esAdmin;
 $pCfgInfra = function_exists('usuarioPuedeAccederConfigInfraestructura') ? usuarioPuedeAccederConfigInfraestructura() : $esAdmin;
 $pCfgSecuencias = function_exists('usuarioPuedeAccederSecuenciasFiscales') ? usuarioPuedeAccederSecuenciasFiscales() : $esAdmin;
@@ -128,7 +128,7 @@ $pCfgImpuestos = function_exists('usuarioPuedeAccederImpuestos') ? usuarioPuedeA
 $pCfgRetenciones = function_exists('usuarioPuedeAccederRetenciones') ? usuarioPuedeAccederRetenciones() : $esAdmin;
 $pCfgMetodosPago = function_exists('usuarioPuedeAccederMetodosPago') ? usuarioPuedeAccederMetodosPago() : $esAdmin;
 $pCfgBancos = $pBancos;
-$verConfig = $pCfgUsuarios || $pCfgProductos || $pCfgInfra || $pCfgSecuencias || $pCfgMonedas || $pCfgImpuestos || $pCfgRetenciones || $pCfgBancos || $pCfgMetodosPago;
+$verConfig = $pCfgProductos || $pCfgInfra || $pCfgSecuencias || $pCfgMonedas || $pCfgImpuestos || $pCfgRetenciones || $pCfgBancos || $pCfgMetodosPago;
 
 // Lista de páginas pertenecientes al panel de configuración
 $configPages = [
@@ -143,18 +143,17 @@ $configPages = [
   'monedas.php',
   'impuestos.php',
   'retenciones.php',
-  'zonas-delivery.php',
-  'usuarios.php'
+  'zonas-delivery.php'
 ];
 
 // Detección de módulo activo para abrir el acordeón correspondiente
-$isIdentidadActive = in_array($currentPage, ['clientes.php', 'proveedores.php', 'personal.php']);
+$isIdentidadActive = in_array($currentPage, ['clientes.php', 'proveedores.php', 'personal.php', 'usuarios.php']);
 $isSeguridadActive = in_array($currentPage, ['roles.php', 'auditoria.php']);
 $isInventarioActive = in_array($currentPage, ['movimientos.php', 'traslados.php', 'lotes.php']);
 $isVentasActive = in_array($currentPage, ['delivery.php', 'facturacion.php', 'control_caja.php', 'cuentas_por_cobrar.php', 'consignaciones.php', 'notas_debito.php']);
 $isComprasActive = in_array($currentPage, ['ordenes_compra.php', 'recepciones.php', 'cuentas_por_pagar.php']);
 $isPromocionesActive = in_array($currentPage, ['promociones.php', 'cupones.php']);
-$isBancosActive = false;
+$isBancosActive = in_array($currentPage, ['movimientos_bancarios.php']);
 $isConfigOnlyActive = in_array($currentPage, $configPages);
 $isConfigActive = $isConfigOnlyActive;
 ?>
@@ -176,6 +175,11 @@ $isConfigActive = $isConfigOnlyActive;
           <span class="sidebar-chevron">▸</span>
         </div>
         <ul class="sidebar-subnav">
+          <?php if ($pUsuarios): ?>
+            <li><a href="<?= $identidadPfx ?>usuarios/usuarios.php"
+                class="sidebar-sublink <?= ($currentPage === 'usuarios.php') ? 'active' : '' ?>"><span>👤</span>
+                Usuarios y Accesos</a></li>
+          <?php endif; ?>
           <?php if ($pClientes): ?>
             <li><a href="<?= $identidadPfx ?>clientes/clientes.php"
                 class="sidebar-sublink <?= ($currentPage === 'clientes.php') ? 'active' : '' ?>"><span>👥</span>
@@ -399,11 +403,6 @@ $isConfigActive = $isConfigOnlyActive;
           <span class="sidebar-chevron">▸</span>
         </div>
         <ul class="sidebar-subnav">
-          <?php if ($pCfgUsuarios): ?>
-            <li><a href="<?= $cfgPfx ?>usuarios/usuarios.php"
-                class="sidebar-sublink <?= ($currentPage === 'usuarios.php') ? 'active' : '' ?>"><span>👤</span>
-                Usuarios</a></li>
-          <?php endif; ?>
           <?php if ($pCfgProductos): ?>
             <li><a href="<?= $cfgPfx ?>clasificaciones/clasificaciones.php"
                 class="sidebar-sublink <?= ($currentPage === 'clasificaciones.php') ? 'active' : '' ?>"><span>🏷️</span>

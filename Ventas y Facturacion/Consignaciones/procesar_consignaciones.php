@@ -38,41 +38,60 @@ try {
             $almacenId = intval($_GET['almacen_id'] ?? 1);
 
             if ($termino === '') {
-                echo json_encode(['status' => 'success', 'data' => []]);
-                exit;
-            }
-
-            // Consultar producto maestro, códigos de barra, precio base y lotes disponibles
-            $sql = "
-                SELECT pm.id,
-                       pm.sku,
-                       pm.nombre,
-                       pm.precio_base_unidad,
-                       COALESCE(SUM(ist.stock_fisico_unidades), 0) AS stock_fisico,
-                       COALESCE(SUM(ist.stock_comprometido), 0) AS stock_comprometido,
-                       COALESCE(SUM(ist.stock_fisico_unidades - ist.stock_comprometido), 0) AS stock_disponible
-                FROM inventario.productos_maestro pm
-                LEFT JOIN inventario.inventario_stock ist 
-                       ON ist.producto_maestro_id = pm.id 
-                      AND ist.almacen_id = ?
-                WHERE pm.id > 0
-                  AND (
-                      LOWER(pm.nombre) LIKE LOWER(?) 
-                      OR LOWER(pm.sku) LIKE LOWER(?)
-                      OR EXISTS (
-                          SELECT 1 FROM inventario.producto_codigos_barra pcb 
-                          WHERE pcb.producto_maestro_id = pm.id 
-                            AND LOWER(pcb.codigo_barra) LIKE LOWER(?)
+                // Si el término está vacío, retornar los productos principales del catálogo
+                $sql = "
+                    SELECT pm.id,
+                           pm.sku,
+                           pm.nombre,
+                           pm.precio_base_unidad,
+                           COALESCE(SUM(ist.stock_fisico_unidades), 0) AS stock_fisico,
+                           COALESCE(SUM(ist.stock_comprometido), 0) AS stock_comprometido,
+                           COALESCE(SUM(ist.stock_fisico_unidades - ist.stock_comprometido), 0) AS stock_disponible
+                    FROM inventario.productos_maestro pm
+                    LEFT JOIN inventario.inventario_stock ist 
+                           ON ist.producto_maestro_id = pm.id 
+                          AND ist.almacen_id = ?
+                    WHERE pm.id > 0
+                    GROUP BY pm.id, pm.sku, pm.nombre, pm.precio_base_unidad
+                    ORDER BY pm.nombre ASC
+                    LIMIT 30
+                ";
+                $stmt = $pdo->prepare($sql);
+                $stmt->execute([$almacenId]);
+                $productos = $stmt->fetchAll(PDO::FETCH_ASSOC);
+            } else {
+                // Consultar producto maestro, códigos de barra, precio base y lotes disponibles
+                $sql = "
+                    SELECT pm.id,
+                           pm.sku,
+                           pm.nombre,
+                           pm.precio_base_unidad,
+                           COALESCE(SUM(ist.stock_fisico_unidades), 0) AS stock_fisico,
+                           COALESCE(SUM(ist.stock_comprometido), 0) AS stock_comprometido,
+                           COALESCE(SUM(ist.stock_fisico_unidades - ist.stock_comprometido), 0) AS stock_disponible
+                    FROM inventario.productos_maestro pm
+                    LEFT JOIN inventario.inventario_stock ist 
+                           ON ist.producto_maestro_id = pm.id 
+                          AND ist.almacen_id = ?
+                    WHERE pm.id > 0
+                      AND (
+                          LOWER(pm.nombre) LIKE LOWER(?) 
+                          OR LOWER(pm.sku) LIKE LOWER(?)
+                          OR EXISTS (
+                              SELECT 1 FROM inventario.producto_codigos_barra pcb 
+                              WHERE pcb.producto_maestro_id = pm.id 
+                                AND LOWER(pcb.codigo_barra) LIKE LOWER(?)
+                          )
                       )
-                  )
-                GROUP BY pm.id, pm.sku, pm.nombre, pm.precio_base_unidad
-                ORDER BY pm.nombre ASC
-                LIMIT 15
-            ";
-            $termParam = "%{$termino}%";
-            $stmt = $pdo->prepare($sql);
-            $stmt->execute([$almacenId, $termParam, $termParam, $termParam]);
-            $productos = $stmt->fetchAll(PDO::FETCH_ASSOC);
+                    GROUP BY pm.id, pm.sku, pm.nombre, pm.precio_base_unidad
+                    ORDER BY pm.nombre ASC
+                    LIMIT 20
+                ";
+                $termParam = "%{$termino}%";
+                $stmt = $pdo->prepare($sql);
+                $stmt->execute([$almacenId, $termParam, $termParam, $termParam]);
+                $productos = $stmt->fetchAll(PDO::FETCH_ASSOC);
+            }
 
             // Obtener lotes FEFO disponibles por producto
             $stmtLotes = $pdo->prepare("

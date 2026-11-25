@@ -178,18 +178,113 @@ function liquidarFacturaIndividual(cxpId, provId) {
 
 function abrirModalGastoManual() {
     document.getElementById('formGastoManual').reset();
+    limpiarProveedorSeleccionadoCxp();
     alCambiarCondicionGasto();
     document.getElementById('modalGastoManual').classList.add('active');
 }
 
-function alCambiarProveedorGasto(select) {
-    const opt = select.options[select.selectedIndex];
-    const dias = parseInt(opt.getAttribute('data-dias') || 0, 10);
-    const inpDias = document.getElementById('diasCreditoGasto');
-    if (inpDias && dias > 0) {
-        inpDias.value = dias;
-    }
+/**
+ * LÓGICA DE BÚSQUEDA Y SELECCIÓN DE PROVEEDORES (MODAL GASTO / SERVICIO DIRECTO)
+ */
+function getProveedoresListaCxp() {
+    if (typeof window.PROVEEDORES_LISTA !== 'undefined' && Array.isArray(window.PROVEEDORES_LISTA)) return window.PROVEEDORES_LISTA;
+    if (typeof PROVEEDORES_LISTA !== 'undefined' && Array.isArray(PROVEEDORES_LISTA)) return PROVEEDORES_LISTA;
+    return [];
 }
+
+function abrirDropdownProveedoresCxp() {
+    const dropdown = document.getElementById('dropdownProveedoresCxp');
+    if (!dropdown) return;
+    const input = document.getElementById('inputBuscarProveedorCxp');
+    filtrarProveedoresCxp(input ? input.value : '');
+    dropdown.style.display = 'block';
+}
+
+function filtrarProveedoresCxp(query) {
+    const dropdown = document.getElementById('dropdownProveedoresCxp');
+    if (!dropdown) return;
+
+    const q = (query || '').toLowerCase().trim();
+    const lista = getProveedoresListaCxp();
+
+    const filtrados = lista.filter(p => {
+        if (!q) return true;
+        const nombre = (p.nombre_razon_social || '').toLowerCase();
+        const doc = (p.documento_identidad || p.rnc || '').toLowerCase();
+        return nombre.includes(q) || doc.includes(q);
+    });
+
+    if (filtrados.length === 0) {
+        dropdown.innerHTML = '<div style="padding: 10px 14px; color: var(--text-muted); font-size: 0.80rem; text-align: center;">No se encontraron suplidores coincidentes</div>';
+    } else {
+        dropdown.innerHTML = filtrados.slice(0, 40).map(p => {
+            const dias = parseInt(p.dias_credito_habitual || 0, 10);
+            const rnc = p.documento_identidad || p.rnc || 'S/RNC';
+            return `
+                <div class="opcion-prov-item" onclick="seleccionarProveedorCxp('${p.persona_id}')" style="padding: 8px 12px; cursor: pointer; border-bottom: 1px solid #f2ede4; display: flex; justify-content: space-between; align-items: center; transition: background 0.15s;" onmouseover="this.style.background='#faf4ea'" onmouseout="this.style.background='transparent'">
+                    <div>
+                        <strong style="font-size: 0.82rem; color: #211813;">${p.nombre_razon_social}</strong>
+                        <div style="font-size: 0.72rem; color: #7a6b5d; font-family: var(--font-mono);">RNC: ${rnc}</div>
+                    </div>
+                    <span style="font-size: 0.70rem; background: #eef5fb; color: #1e6091; font-weight: 600; padding: 2px 6px; border-radius: 4px;">${dias} d. crédito</span>
+                </div>
+            `;
+        }).join('');
+    }
+    dropdown.style.display = 'block';
+}
+
+function seleccionarProveedorCxp(proveedorId) {
+    const hidden = document.getElementById('suplidorGastoId');
+    const box = document.getElementById('boxBusquedaProveedorCxp');
+    const badge = document.getElementById('badgeProveedorElegidoCxp');
+    const badgeNombre = document.getElementById('badgeProveedorNombreCxp');
+    const badgeRnc = document.getElementById('badgeProveedorRncCxp');
+    const inpDias = document.getElementById('diasCreditoGasto');
+    const dropdown = document.getElementById('dropdownProveedoresCxp');
+
+    if (hidden) hidden.value = proveedorId;
+
+    const lista = getProveedoresListaCxp();
+    const p = lista.find(item => String(item.persona_id) === String(proveedorId));
+
+    if (p) {
+        if (badgeNombre) badgeNombre.textContent = p.nombre_razon_social || '';
+        const rnc = p.documento_identidad || p.rnc || 'S/RNC';
+        const dias = parseInt(p.dias_credito_habitual || 0, 10);
+        if (badgeRnc) badgeRnc.textContent = `(${rnc} • ${dias} días crédito)`;
+        if (inpDias && dias > 0) {
+            inpDias.value = dias;
+        }
+    }
+
+    if (box) box.style.display = 'none';
+    if (badge) badge.style.display = 'flex';
+    if (dropdown) dropdown.style.display = 'none';
+}
+
+function limpiarProveedorSeleccionadoCxp() {
+    const hidden = document.getElementById('suplidorGastoId');
+    const box = document.getElementById('boxBusquedaProveedorCxp');
+    const badge = document.getElementById('badgeProveedorElegidoCxp');
+    const input = document.getElementById('inputBuscarProveedorCxp');
+    const dropdown = document.getElementById('dropdownProveedoresCxp');
+
+    if (hidden) hidden.value = '';
+    if (input) input.value = '';
+    if (badge) badge.style.display = 'none';
+    if (box) box.style.display = 'block';
+    if (dropdown) dropdown.style.display = 'none';
+}
+
+// Cierre de dropdown al hacer click afuera
+document.addEventListener('click', function(e) {
+    const box = document.getElementById('boxBusquedaProveedorCxp');
+    const dropdown = document.getElementById('dropdownProveedoresCxp');
+    if (dropdown && box && !box.contains(e.target)) {
+        dropdown.style.display = 'none';
+    }
+});
 
 function alCambiarCondicionGasto() {
     const cond = document.getElementById('condicionPagoGasto').value;
@@ -923,4 +1018,49 @@ async function verDetalleEgreso(egresoId) {
 function cerrarModal(id) {
     const el = document.getElementById(id);
     if (el) el.classList.remove('active');
+}
+
+// ============================================================================
+// LIQUIDACIÓN DE RETENCIONES DGII A TESORERÍA (MOVIMIENTOS BANCARIOS)
+// ============================================================================
+
+function abrirModalLiquidarDGII() {
+    const modal = document.getElementById('modalLiquidarRetencionesDGII');
+    if (!modal) return;
+    modal.classList.add('active');
+}
+
+async function procesarLiquidacionDGII(e) {
+    e.preventDefault();
+    const btn = document.getElementById('btnGuardarLiquidacionDGII');
+    if (btn) {
+        btn.disabled = true;
+        btn.textContent = 'Procesando transferencia DGII...';
+    }
+
+    const formData = new FormData(e.target);
+    formData.append('accion', 'liquidar_retenciones_dgii');
+
+    try {
+        const resp = await fetch('procesar_cxp.php', {
+            method: 'POST',
+            body: formData
+        });
+        const data = await resp.json();
+
+        if (data && data.ok) {
+            alert('¡Liquidación DGII Exitosa!\n' + data.mensaje);
+            cerrarModal('modalLiquidarRetencionesDGII');
+            window.location.reload();
+        } else {
+            alert('Error al liquidar retenciones DGII: ' + (data.mensaje || 'Error desconocido.'));
+        }
+    } catch (err) {
+        alert('Error de conexión con el servidor: ' + err.message);
+    } finally {
+        if (btn) {
+            btn.disabled = false;
+            btn.textContent = '🏛️ Liquidar y Registrar Transferencia';
+        }
+    }
 }

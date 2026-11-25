@@ -98,6 +98,8 @@ if ($pdo) {
                    p.nombre_razon_social, p.documento_identidad, p.telefono_principal
             FROM identidad.clientes c
             JOIN identidad.personas p ON p.persona_id = c.persona_id
+            WHERE NOT EXISTS (SELECT 1 FROM identidad.empleados e WHERE e.persona_id = c.persona_id)
+              AND NOT EXISTS (SELECT 1 FROM seguridad.usuarios u WHERE u.persona_id = c.persona_id)
             ORDER BY p.nombre_razon_social ASC
         ");
         $clientesList = $stmtCl ? $stmtCl->fetchAll(PDO::FETCH_ASSOC) : [];
@@ -564,119 +566,83 @@ if ($pdo) {
                 <button type="button" class="modal-close-btn" onclick="cerrarModal('modalNuevaConsignacion')">&times;</button>
             </div>
             <form id="formNuevaConsignacion" onsubmit="guardarNuevaConsignacion(event)">
-                <div class="modal-body">
-                    <!-- DATOS DEL EVENTO Y CLIENTE -->
-                    <div style="display: grid; grid-template-columns: 1.2fr 1fr 1fr; gap: 12px; margin-bottom: 14px;">
-                        <div class="form-group">
-                            <label class="form-label">Cliente Corporativo / VIP <span style="color:red;">*</span></label>
-                            <select id="csgCliente" class="form-control" required>
-                                <option value="">-- Seleccionar Cliente --</option>
-                                <?php foreach ($clientesList as $cl): ?>
-                                    <option value="<?= htmlspecialchars($cl['persona_id']) ?>">
-                                        <?= htmlspecialchars($cl['nombre_razon_social']) ?> (<?= htmlspecialchars($cl['categoria_cliente']) ?>)
-                                    </option>
-                                <?php endforeach; ?>
-                            </select>
-                        </div>
-                        <div class="form-group">
-                            <label class="form-label">Nombre del Evento <span style="color:red;">*</span></label>
-                            <input type="text" id="csgNombreEvento" class="form-control" placeholder="Ej: Boda Martínez - Gómez" required />
-                        </div>
-                        <div class="form-group">
-                            <label class="form-label">Responsable / Contacto <span style="color:red;">*</span></label>
-                            <input type="text" id="csgResponsable" class="form-control" placeholder="Ej: Lic. Carlos Martínez (809-555-0192)" required />
-                        </div>
-                    </div>
+                <div class="modal-body" style="padding: 10px 16px; display: flex; flex-direction: column; gap: 6px;">
+                    <!-- 1. HEADER: DATOS DEL EVENTO (IZQ) + AUTORIZACIÓN DE SUPERVISOR (DER, UNO ABAJO DE OTRO) -->
+                    <div style="background: #faf8f5; border: 1px solid #eae3d5; border-radius: 8px; padding: 8px 12px; display: grid; grid-template-columns: 2.2fr 1fr; gap: 12px; align-items: start;">
+                        
+                        <!-- Lado Izquierdo: Evento y Cliente -->
+                        <div style="display: flex; flex-direction: column; gap: 6px;">
+                            <div style="display: grid; grid-template-columns: 1.2fr 1fr 1fr; gap: 8px; align-items: start;">
+                                <!-- BUSCADOR INTERACTIVO DE CLIENTE -->
+                                <div class="form-group" style="margin: 0; position: relative;">
+                                    <label class="form-label" style="font-size: 0.70rem; font-weight: 700; margin-bottom: 2px;">Cliente Registrado <span style="color:red;">*</span></label>
+                                    <input type="hidden" id="csgCliente" name="cliente_id" value="" required />
+                                    
+                                    <div id="boxBusquedaClienteCsg" style="position: relative;">
+                                        <input type="text" id="inputBuscarClienteCsg" class="form-control" placeholder="🔍 Escriba nombre o RNC..." autocomplete="off" oninput="filtrarClientesCsg(this.value)" onfocus="abrirDropdownClientesCsg()" style="height: 28px; font-size: 0.80rem;" />
+                                        <div id="dropdownClientesCsg" style="display: none; position: absolute; top: 100%; left: 0; right: 0; max-height: 180px; overflow-y: auto; background: #ffffff; border: 1.5px solid #d4c1a7; border-radius: 6px; box-shadow: 0 4px 14px rgba(0,0,0,0.15); z-index: 1050; margin-top: 2px;">
+                                            <!-- Inyectado dinámicamente -->
+                                        </div>
+                                    </div>
 
-                    <div style="display: grid; grid-template-columns: 1fr 1fr 1.2fr; gap: 12px; margin-bottom: 16px;">
-                        <div class="form-group">
-                            <label class="form-label">Fecha Estimada de Retorno <span style="color:red;">*</span></label>
-                            <input type="date" id="csgFechaRetorno" class="form-control" min="<?= date('Y-m-d') ?>" value="<?= date('Y-m-d', strtotime('+7 days')) ?>" required />
-                        </div>
-                        <div class="form-group">
-                            <label class="form-label">Almacén de Despacho (FEFO) <span style="color:red;">*</span></label>
-                            <select id="csgAlmacen" class="form-control" onchange="limpiarCarritoDespacho()">
-                                <?php foreach ($almacenesList as $alm): ?>
-                                    <option value="<?= $alm['id'] ?>"><?= htmlspecialchars($alm['nombre']) ?></option>
-                                <?php endforeach; ?>
-                            </select>
-                        </div>
-                        <div class="form-group">
-                            <label class="form-label">Depósito de Fianza (Garantía) <span style="color:red;">*</span></label>
-                            <div style="display: flex; gap: 6px;">
-                                <input type="number" step="0.01" min="0" id="csgMontoFianza" class="form-control" placeholder="0.00" value="0.00" style="font-family: var(--font-mono); font-weight: 700; width: 130px;" onchange="alCambiarMontoFianza()" />
-                                <select id="csgMetodoFianza" class="form-control" style="flex: 1;">
-                                    <?php foreach ($metodosPagoList as $mp): ?>
-                                        <option value="<?= $mp['id'] ?>"><?= htmlspecialchars($mp['descripcion']) ?></option>
-                                    <?php endforeach; ?>
-                                </select>
+                                    <div id="badgeClienteElegidoCsg" style="display: none; background: #fdf5ea; border: 1px solid #dfcaa4; border-radius: 6px; padding: 2px 8px; align-items: center; justify-content: space-between; height: 28px;">
+                                        <div style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 0.78rem; color: #211813;">
+                                            <strong id="txtNombreClienteCsg">—</strong>
+                                            <small id="txtDetalleClienteCsg" style="color: #7a6b5d; margin-left: 6px;"></small>
+                                        </div>
+                                        <button type="button" class="btn btn-sm btn-secondary" onclick="limpiarClienteSeleccionadoCsg()" style="padding: 1px 6px; font-size: 0.68rem; height: 20px; flex-shrink: 0;">✕ Cambiar</button>
+                                    </div>
+                                </div>
+
+                                <div class="form-group" style="margin: 0;">
+                                    <label class="form-label" style="font-size: 0.70rem; font-weight: 700; margin-bottom: 2px;">Nombre del Evento <span style="color:red;">*</span></label>
+                                    <input type="text" id="csgNombreEvento" class="form-control" placeholder="Ej: Boda Martínez - Gómez" required style="height: 28px; font-size: 0.80rem;" />
+                                </div>
+                                <div class="form-group" style="margin: 0;">
+                                    <label class="form-label" style="font-size: 0.70rem; font-weight: 700; margin-bottom: 2px;">Responsable / Contacto <span style="color:red;">*</span></label>
+                                    <input type="text" id="csgResponsable" class="form-control" placeholder="Ej: Lic. Martínez (809-555-0192)" required style="height: 28px; font-size: 0.80rem;" />
+                                </div>
                             </div>
-                            <small id="lblAvisoFianzaCaja" style="display: block; margin-top: 4px; font-size: 0.74rem; color: #794a15;">
-                                <?php if ($sesionCajaActiva): ?>
-                                    🟢 Si es efectivo, impactará automáticamente como INGRESO en <strong><?= htmlspecialchars($sesionCajaActiva['nombre_equipo']) ?></strong>.
-                                <?php else: ?>
-                                    ⚠️ No tienes turno de caja abierto en mostrador.
-                                <?php endif; ?>
-                            </small>
-                        </div>
-                    </div>
 
-                    <!-- BUSCADOR DE MERCANCÍA A CONSIGNAR -->
-                    <div style="background: #faf7f2; border: 1px solid var(--border-light); border-radius: 8px; padding: 12px 14px; margin-bottom: 14px;">
-                        <h4 style="font-size: 0.86rem; font-weight: 700; margin-bottom: 8px; color: var(--text-dark);">
-                            🔍 Escaneo / Búsqueda de Artículos a Despachar
-                        </h4>
-                        <div style="position: relative;">
-                            <input type="text" id="csgInputBuscarProd" class="form-control" placeholder="Escribe nombre de licor, whisky, vino o escanea código de barra..." onkeyup="alBuscarProductoCsg(event)" autocomplete="off" />
-                            <div id="csgResultadosBusqueda" class="csg-dropdown-resultados" style="display: none;"></div>
+                            <div style="display: grid; grid-template-columns: 1fr 1fr 1.2fr; gap: 8px; align-items: start;">
+                                <div class="form-group" style="margin: 0;">
+                                    <label class="form-label" style="font-size: 0.70rem; font-weight: 700; margin-bottom: 2px;">Fecha Estimada de Retorno <span style="color:red;">*</span></label>
+                                    <input type="date" id="csgFechaRetorno" class="form-control" min="<?= date('Y-m-d') ?>" value="<?= date('Y-m-d', strtotime('+7 days')) ?>" required style="height: 28px; font-size: 0.80rem;" />
+                                </div>
+                                <div class="form-group" style="margin: 0;">
+                                    <label class="form-label" style="font-size: 0.70rem; font-weight: 700; margin-bottom: 2px;">Almacén de Despacho <span style="color:red;">*</span></label>
+                                    <select id="csgAlmacen" class="form-control" onchange="limpiarCarritoDespacho(); cargarCatalogoAlmacenCsg();" style="height: 28px; font-size: 0.80rem;">
+                                        <?php foreach ($almacenesList as $alm): ?>
+                                            <option value="<?= $alm['id'] ?>"><?= htmlspecialchars($alm['nombre']) ?></option>
+                                        <?php endforeach; ?>
+                                    </select>
+                                </div>
+                                <div class="form-group" style="margin: 0;">
+                                    <label class="form-label" style="font-size: 0.70rem; font-weight: 700; margin-bottom: 2px;">Depósito de Fianza (Garantía) <span style="color:red;">*</span></label>
+                                    <div style="display: flex; gap: 6px;">
+                                        <input type="number" step="0.01" min="0" id="csgMontoFianza" class="form-control" placeholder="0.00" value="0.00" style="font-family: var(--font-mono); font-weight: 700; width: 95px; height: 28px; font-size: 0.80rem;" onchange="alCambiarMontoFianza()" />
+                                        <select id="csgMetodoFianza" class="form-control" style="flex: 1; height: 28px; font-size: 0.80rem;">
+                                            <?php foreach ($metodosPagoList as $mp): ?>
+                                                <option value="<?= $mp['id'] ?>"><?= htmlspecialchars($mp['descripcion']) ?></option>
+                                            <?php endforeach; ?>
+                                        </select>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
-                    </div>
 
-                    <!-- TABLA DE ARTÍCULOS EN LA CONSIGNACIÓN -->
-                    <div class="table-wrapper" style="max-height: 250px; overflow-y: auto; margin-bottom: 14px;">
-                        <table class="data-table" style="font-size: 0.84rem;">
-                            <thead>
-                                <tr>
-                                    <th>Producto Maestro</th>
-                                    <th>Lote (FEFO / Comodín)</th>
-                                    <th class="text-center">Stock Disponible</th>
-                                    <th class="text-center" style="width: 120px;">Cant. Despacho</th>
-                                    <th class="text-right" style="width: 130px;">Precio Pactado</th>
-                                    <th class="text-right">Subtotal</th>
-                                    <th class="text-center" style="width: 50px;">Quitar</th>
-                                </tr>
-                            </thead>
-                            <tbody id="csgTbodyCarrito">
-                                <tr id="csgFilaVaciaCarrito">
-                                    <td colspan="7" style="text-align: center; padding: 24px; color: var(--text-muted);">
-                                        No hay artículos agregados al despacho. Utiliza el buscador para agregar botellas.
-                                    </td>
-                                </tr>
-                            </tbody>
-                        </table>
-                    </div>
-
-                    <!-- RESUMEN FINANCIERO DE DESPACHO -->
-                    <div style="display: flex; justify-content: space-between; align-items: center; background: #fdfaf6; border: 1px solid var(--border-light); border-radius: 8px; padding: 12px 16px; margin-bottom: 14px;">
-                        <div>
-                            <span style="font-size: 0.84rem; color: var(--text-muted);">Total Botellas Comprometidas:</span>
-                            <strong id="csgTxtTotalBotellas" style="font-size: 1.1rem; color: #1e6091; margin-left: 6px;">0</strong>
-                        </div>
-                        <div>
-                            <span style="font-size: 0.84rem; color: var(--text-muted);">Valor Estimado del Despacho:</span>
-                            <strong id="csgTxtTotalValor" style="font-size: 1.15rem; font-family: var(--font-mono); color: var(--text-dark); margin-left: 6px;">RD$ 0.00</strong>
-                        </div>
-                    </div>
-
-                    <!-- AUTORIZACIÓN CON PIN DE SUPERVISOR -->
-                    <div style="background: #fff8eb; border: 1px solid #f0d8a8; border-radius: 8px; padding: 12px 16px;">
-                        <h4 style="font-size: 0.84rem; font-weight: 700; color: #7a5216; margin-bottom: 8px;">
-                            🛡️ Autorización de Supervisor (Despacho y Compromiso de Stock)
-                        </h4>
-                        <div style="display: grid; grid-template-columns: 1.2fr 1fr; gap: 12px;">
-                            <div class="form-group">
-                                <label class="form-label">Supervisor Autorizado <span style="color:red;">*</span></label>
-                                <select id="csgSupervisor" class="form-control" required>
+                        <!-- Lado Derecho: Autorización de Supervisor (Uno abajo de otro) -->
+                        <div style="background: #fff8eb; border: 1.5px solid #f0d8a8; border-radius: 6px; padding: 6px 10px; display: flex; flex-direction: column; gap: 4px;">
+                            <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #fae8c8; padding-bottom: 2px;">
+                                <span style="font-size: 0.70rem; font-weight: 700; color: #7a5216; text-transform: uppercase;">
+                                    🛡️ Autorización Supervisor
+                                </span>
+                                <small style="color: #9a6828; font-size: 0.65rem; font-weight: 600;">Obligatorio</small>
+                            </div>
+                            
+                            <div class="form-group" style="margin: 0;">
+                                <label class="form-label" style="font-size: 0.68rem; font-weight: 700; margin-bottom: 1px;">Supervisor Autorizado <span style="color:red;">*</span></label>
+                                <select id="csgSupervisor" class="form-control" required style="height: 27px; font-size: 0.78rem; padding: 2px 6px;">
                                     <option value="">-- Seleccionar Supervisor --</option>
                                     <?php foreach ($supervisoresList as $sup): ?>
                                         <option value="<?= htmlspecialchars($sup['usuario_id']) ?>">
@@ -685,17 +651,90 @@ if ($pdo) {
                                     <?php endforeach; ?>
                                 </select>
                             </div>
-                            <div class="form-group">
-                                <label class="form-label">PIN Numérico de Autorización <span style="color:red;">*</span></label>
-                                <input type="password" id="csgPin" class="form-control" maxlength="6" placeholder="PIN de 4 a 6 dígitos" required autocomplete="off" />
+
+                            <div class="form-group" style="margin: 0;">
+                                <label class="form-label" style="font-size: 0.68rem; font-weight: 700; margin-bottom: 1px;">PIN Numérico <span style="color:red;">*</span></label>
+                                <input type="password" id="csgPin" class="form-control" maxlength="6" placeholder="PIN de 4 a 6 dígitos" required autocomplete="off" style="height: 27px; font-size: 0.78rem; padding: 2px 6px;" />
                             </div>
                         </div>
+
                     </div>
+
+                    <!-- 2. CATÁLOGO Y CARRITO DE CONSIGNACIÓN (AMPLIADO Y MÁS ABAJO) -->
+                    <div class="grid-split-consignacion" style="display: grid; grid-template-columns: 1fr 1.25fr; gap: 10px; margin-bottom: 4px; align-items: stretch;">
+                        
+                        <!-- Columna Izquierda: Catálogo de Productos con Stock -->
+                        <div style="background: #faf8f5; border: 1.5px solid #dfcaa4; border-radius: 8px; padding: 8px 10px; display: flex; flex-direction: column; height: 265px; box-sizing: border-box; gap: 6px;">
+                            <div style="display: flex; justify-content: space-between; align-items: center; height: 22px; border-bottom: 1px solid #ebdcc5; padding-bottom: 2px;">
+                                <span style="font-size: 0.74rem; font-weight: 700; color: var(--accent-gold); text-transform: uppercase; letter-spacing: 0.3px; white-space: nowrap;">
+                                    Catálogo de Artículos
+                                </span>
+                                <span id="lblEstadoCatalogoCsg" style="font-size: 0.70rem; color: var(--text-muted); font-weight: 600; white-space: nowrap;">
+                                    Disponibles en almacén
+                                </span>
+                            </div>
+
+                            <!-- Buscador en Catálogo -->
+                            <input type="text" id="inputBuscarCatalogoCsg" class="form-control"
+                                placeholder="🔍 Buscar licor, whisky, vino..."
+                                oninput="alFiltrarCatalogoCsg(this.value)"
+                                style="height: 30px; padding-left: 8px; font-size: 0.80rem; flex-shrink: 0;" />
+
+                            <!-- Panel de Productos Scrolleable -->
+                            <div id="panelResultadosCatalogoCsg" style="flex: 1; min-height: 0; overflow-y: auto; background: #ffffff; border: 1px solid #dfcaa4; border-radius: 6px; padding: 4px; display: flex; flex-direction: column; gap: 3px;">
+                                <!-- Items dinámicos con botones Agregar / Quitar -->
+                            </div>
+                        </div>
+
+                        <!-- Columna Derecha: Artículos en la Consignación (Carrito de Despacho) -->
+                        <div style="background: #faf8f5; border: 1.5px solid #dfcaa4; border-radius: 8px; padding: 8px 10px; display: flex; flex-direction: column; height: 265px; box-sizing: border-box; gap: 6px;">
+                            <div style="display: flex; justify-content: space-between; align-items: center; height: 22px; border-bottom: 1px solid #ebdcc5; padding-bottom: 2px;">
+                                <span style="font-size: 0.74rem; font-weight: 700; color: var(--accent-gold); text-transform: uppercase; letter-spacing: 0.3px; white-space: nowrap;">
+                                    Mercancía en la Consignación
+                                </span>
+                                <small style="color: var(--text-muted); font-size: 0.70rem; font-weight: 600; white-space: nowrap;">Define botellas a entregar</small>
+                            </div>
+
+                            <div style="flex: 1; min-height: 0; overflow-y: auto; background: #ffffff; border: 1px solid #dfcaa4; border-radius: 6px;">
+                                <table class="data-table" style="font-size: 0.78rem; margin: 0; width: 100%; border-collapse: collapse;">
+                                    <thead style="position: sticky; top: 0; z-index: 5;">
+                                        <tr style="background: #f6efe4; white-space: nowrap;">
+                                            <th style="width: 36%; padding: 5px 6px; font-size: 0.68rem; font-weight: 700; color: #5a3e24; text-transform: uppercase; white-space: nowrap;">Producto Maestro</th>
+                                            <th style="width: 20%; padding: 5px 4px; font-size: 0.68rem; font-weight: 700; color: #5a3e24; text-transform: uppercase; white-space: nowrap;">Lote (FEFO)</th>
+                                            <th style="width: 12%; text-align: center; padding: 5px 4px; font-size: 0.68rem; font-weight: 700; color: #5a3e24; text-transform: uppercase; white-space: nowrap;">Cant. *</th>
+                                            <th style="width: 15%; text-align: right; padding: 5px 4px; font-size: 0.68rem; font-weight: 700; color: #5a3e24; text-transform: uppercase; white-space: nowrap;">Precio (RD$) *</th>
+                                            <th style="width: 13%; text-align: right; padding: 5px 6px; font-size: 0.68rem; font-weight: 700; color: #5a3e24; text-transform: uppercase; white-space: nowrap;">Subtotal</th>
+                                            <th style="width: 4%; text-align: center; padding: 5px 2px;"></th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="csgTbodyCarrito">
+                                        <tr id="csgFilaVaciaCarrito">
+                                            <td colspan="6" style="text-align: center; padding: 24px 14px; color: var(--text-muted); font-size: 0.80rem;">
+                                                No hay artículos agregados al despacho. Haz clic en <strong>+ Agregar</strong> en el catálogo de la izquierda.
+                                            </td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+
+                            <div style="background: #ffffff; border: 1px solid #dfcaa4; border-radius: 6px; padding: 4px 10px; display: flex; justify-content: space-between; align-items: center; font-weight: 700; min-height: 28px; box-sizing: border-box; flex-shrink: 0;">
+                                <div style="display: flex; gap: 14px; font-size: 0.74rem; color: #5a3e24;">
+                                    <span>Total Botellas: <strong id="csgTxtTotalBotellas" style="color: #1e6091; font-family: var(--font-mono);">0</strong> u.</span>
+                                </div>
+                                <div style="font-size: 0.82rem; font-family: var(--font-mono); color: var(--accent-gold);">
+                                    <span style="font-size: 0.68rem; color: #7a6b5d; text-transform: uppercase; font-family: var(--font-sans); margin-right: 4px;">Valor Estimado:</span>
+                                    <span id="csgTxtTotalValor">RD$ 0.00</span>
+                                </div>
+                            </div>
+                        </div>
+
+                    </div>
+
                 </div>
 
-                <div class="modal-footer">
+                <div class="modal-footer" style="padding: 10px 16px;">
                     <button type="button" class="btn btn-secondary" onclick="cerrarModal('modalNuevaConsignacion')">Cancelar</button>
-                    <button type="submit" class="btn btn-primary" id="btnGuardarNuevaConsignacion" style="background: #a66e2e; color: #ffffff !important; font-weight: 700;">
+                    <button type="submit" class="btn btn-primary" id="btnGuardarNuevaConsignacion" style="background: #a66e2e; color: #ffffff !important; font-weight: 700; padding: 7px 20px;">
                         <span>📦</span> Despachar y Reservar Stock
                     </button>
                 </div>
@@ -913,11 +952,12 @@ if ($pdo) {
 
     <!-- INYECCIÓN DE CATÁLOGOS JS -->
     <script>
+        const CLIENTES_LISTA   = <?= json_encode($clientesList, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
         const CATALOGO_METODOS = <?= json_encode($metodosPagoList) ?>;
         const CATALOGO_BANCOS  = <?= json_encode($cuentasBancarias) ?>;
         const SESION_CAJA_ACTIVA = <?= json_encode($sesionCajaActiva) ?>;
     </script>
-    <script src="consignaciones.js?v=1"></script>
+    <script src="consignaciones.js?v=4"></script>
 </body>
 
 </html>

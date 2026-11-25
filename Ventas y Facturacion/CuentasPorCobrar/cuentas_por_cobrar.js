@@ -653,12 +653,107 @@ async function procesarAjusteCxc(e) {
 }
 
 // ============================================================================
-// MODAL REGISTRO DE CARGO / NOTA DE DÉBITO B03 (FASE 1)
+// MODAL REGISTRO DE CARGO A CLIENTE (FASE 1)
 // ============================================================================
 function abrirModalCargoNotaDebito() {
+    limpiarClienteSeleccionadoCxc();
     document.getElementById('formCargo').reset();
     document.getElementById('modalCargo').classList.add('active');
 }
+
+// Selector buscable de cliente para Cargo en CxC
+function abrirDropdownClientesCxc() {
+    filtrarClientesCxc(document.getElementById('inputBuscarClienteCxc')?.value || '');
+    const dd = document.getElementById('dropdownClientesCxc');
+    if (dd) dd.style.display = 'block';
+}
+
+function filtrarClientesCxc(query) {
+    const dd = document.getElementById('dropdownClientesCxc');
+    if (!dd) return;
+
+    const lista = (typeof CLIENTES_LISTA !== 'undefined' && Array.isArray(CLIENTES_LISTA)) ? CLIENTES_LISTA : [];
+    const q = (query || '').toLowerCase().trim();
+
+    const filtrados = q === '' 
+        ? lista.slice(0, 30)
+        : lista.filter(c => {
+            const nom = (c.nombre_razon_social || '').toLowerCase();
+            const doc = (c.documento_identidad || '').toLowerCase();
+            const cat = (c.categoria_cliente || '').toLowerCase();
+            return nom.includes(q) || doc.includes(q) || cat.includes(q);
+        }).slice(0, 30);
+
+    if (filtrados.length === 0) {
+        dd.innerHTML = '<div style="padding: 10px 14px; text-align: center; color: var(--text-muted); font-size: 0.80rem;">No se encontraron clientes coincidentes.</div>';
+        dd.style.display = 'block';
+        return;
+    }
+
+    let html = '';
+    filtrados.forEach(c => {
+        html += `
+            <div class="cxc-client-option" onclick="seleccionarClienteCxc('${c.persona_id}')" style="padding: 8px 12px; border-bottom: 1px solid #f2ede4; cursor: pointer; transition: background 0.15s ease;" onmouseover="this.style.background='#faf5eb'" onmouseout="this.style.background='#ffffff'">
+                <div style="font-weight: 700; color: #211813; font-size: 0.84rem;">${c.nombre_razon_social}</div>
+                <div style="display: flex; gap: 10px; font-size: 0.73rem; color: #7a6b5d; margin-top: 2px;">
+                    <span>RNC/Céd: <strong>${c.documento_identidad || 'N/A'}</strong></span>
+                    <span>•</span>
+                    <span style="font-weight: 600; color: #a66e2e;">${c.categoria_cliente || 'GENERAL'}</span>
+                </div>
+            </div>
+        `;
+    });
+    dd.innerHTML = html;
+    dd.style.display = 'block';
+}
+
+function seleccionarClienteCxc(personaId) {
+    const lista = (typeof CLIENTES_LISTA !== 'undefined' && Array.isArray(CLIENTES_LISTA)) ? CLIENTES_LISTA : [];
+    const cl = lista.find(c => String(c.persona_id) === String(personaId));
+    if (!cl) return;
+
+    const inpHidden = document.getElementById('cxcCargoClienteId');
+    if (inpHidden) inpHidden.value = cl.persona_id;
+
+    const boxBusq = document.getElementById('boxBusquedaClienteCxc');
+    const badge = document.getElementById('badgeClienteElegidoCxc');
+    const txtNom = document.getElementById('txtNombreClienteCxc');
+    const txtDet = document.getElementById('txtDetalleClienteCxc');
+    const dd = document.getElementById('dropdownClientesCxc');
+
+    if (txtNom) txtNom.textContent = cl.nombre_razon_social;
+    if (txtDet) txtDet.textContent = `(${cl.documento_identidad || 'S/D'} • ${cl.categoria_cliente})`;
+
+    if (boxBusq) boxBusq.style.display = 'none';
+    if (badge) badge.style.display = 'flex';
+    if (dd) dd.style.display = 'none';
+}
+
+function limpiarClienteSeleccionadoCxc() {
+    const inpHidden = document.getElementById('cxcCargoClienteId');
+    if (inpHidden) inpHidden.value = '';
+
+    const boxBusq = document.getElementById('boxBusquedaClienteCxc');
+    const badge = document.getElementById('badgeClienteElegidoCxc');
+    const input = document.getElementById('inputBuscarClienteCxc');
+    const dd = document.getElementById('dropdownClientesCxc');
+
+    if (boxBusq) boxBusq.style.display = 'block';
+    if (badge) badge.style.display = 'none';
+    if (dd) dd.style.display = 'none';
+    if (input) {
+        input.value = '';
+    }
+}
+
+// Cerrar dropdown al hacer clic fuera
+document.addEventListener('click', (e) => {
+    const box = document.getElementById('boxBusquedaClienteCxc');
+    const dd = document.getElementById('dropdownClientesCxc');
+    if (box && dd && !box.contains(e.target)) {
+        dd.style.display = 'none';
+    }
+});
 
 async function procesarRegistroCargo(e) {
     e.preventDefault();

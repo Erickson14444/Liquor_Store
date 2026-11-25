@@ -76,6 +76,7 @@ function cerrarModal(modalId) {
 // FASE 1: NUEVA CONSIGNACIÓN Y DESPACHO
 // ============================================================================
 function abrirModalNuevaConsignacion() {
+    limpiarClienteSeleccionadoCsg();
     CARRITO_DESPACHO = [];
     renderizarCarritoDespacho();
 
@@ -83,7 +84,190 @@ function abrirModalNuevaConsignacion() {
     document.getElementById('csgMontoFianza').value = '0.00';
     document.getElementById('csgFechaRetorno').value = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
 
+    // Cargar catálogo de artículos del almacén seleccionado
+    cargarCatalogoAlmacenCsg();
+
     abrirModal('modalNuevaConsignacion');
+}
+
+// ============================================================================
+// SELECTOR DE CLIENTE CON BÚSQUEDA INTERACTIVA (CONSIGNACIONES)
+// ============================================================================
+function abrirDropdownClientesCsg() {
+    filtrarClientesCsg(document.getElementById('inputBuscarClienteCsg')?.value || '');
+    const dd = document.getElementById('dropdownClientesCsg');
+    if (dd) dd.style.display = 'block';
+}
+
+function filtrarClientesCsg(query) {
+    const dd = document.getElementById('dropdownClientesCsg');
+    if (!dd) return;
+
+    const lista = (typeof CLIENTES_LISTA !== 'undefined' && Array.isArray(CLIENTES_LISTA)) ? CLIENTES_LISTA : [];
+    const q = (query || '').toLowerCase().trim();
+
+    const filtrados = q === '' 
+        ? lista.slice(0, 30)
+        : lista.filter(c => {
+            const nom = (c.nombre_razon_social || '').toLowerCase();
+            const doc = (c.documento_identidad || '').toLowerCase();
+            const cat = (c.categoria_cliente || '').toLowerCase();
+            return nom.includes(q) || doc.includes(q) || cat.includes(q);
+        }).slice(0, 30);
+
+    if (filtrados.length === 0) {
+        dd.innerHTML = '<div style="padding: 10px 14px; text-align: center; color: var(--text-muted); font-size: 0.80rem;">No se encontraron clientes con ese nombre o RNC/Cédula.</div>';
+        dd.style.display = 'block';
+        return;
+    }
+
+    let html = '';
+    filtrados.forEach(c => {
+        html += `
+            <div class="csg-client-option" onclick="seleccionarClienteCsg('${c.persona_id}')" style="padding: 8px 12px; border-bottom: 1px solid #f2ede4; cursor: pointer; transition: background 0.15s ease;" onmouseover="this.style.background='#faf5eb'" onmouseout="this.style.background='#ffffff'">
+                <div style="font-weight: 700; color: #211813; font-size: 0.84rem;">${c.nombre_razon_social}</div>
+                <div style="display: flex; gap: 10px; font-size: 0.73rem; color: #7a6b5d; margin-top: 2px;">
+                    <span>RNC/Céd: <strong>${c.documento_identidad || 'N/A'}</strong></span>
+                    <span>•</span>
+                    <span style="font-weight: 600; color: #a66e2e;">${c.categoria_cliente || 'GENERAL'}</span>
+                </div>
+            </div>
+        `;
+    });
+    dd.innerHTML = html;
+    dd.style.display = 'block';
+}
+
+function seleccionarClienteCsg(personaId) {
+    const lista = (typeof CLIENTES_LISTA !== 'undefined' && Array.isArray(CLIENTES_LISTA)) ? CLIENTES_LISTA : [];
+    const cl = lista.find(c => String(c.persona_id) === String(personaId));
+    if (!cl) return;
+
+    const inpHidden = document.getElementById('csgCliente');
+    if (inpHidden) inpHidden.value = cl.persona_id;
+
+    const boxBusq = document.getElementById('boxBusquedaClienteCsg');
+    const badge = document.getElementById('badgeClienteElegidoCsg');
+    const txtNom = document.getElementById('txtNombreClienteCsg');
+    const txtDet = document.getElementById('txtDetalleClienteCsg');
+    const dd = document.getElementById('dropdownClientesCsg');
+
+    if (txtNom) txtNom.textContent = cl.nombre_razon_social;
+    if (txtDet) txtDet.textContent = `(${cl.documento_identidad || 'S/D'} • ${cl.categoria_cliente})`;
+
+    if (boxBusq) boxBusq.style.display = 'none';
+    if (badge) badge.style.display = 'flex';
+    if (dd) dd.style.display = 'none';
+}
+
+function limpiarClienteSeleccionadoCsg() {
+    const inpHidden = document.getElementById('csgCliente');
+    if (inpHidden) inpHidden.value = '';
+
+    const boxBusq = document.getElementById('boxBusquedaClienteCsg');
+    const badge = document.getElementById('badgeClienteElegidoCsg');
+    const input = document.getElementById('inputBuscarClienteCsg');
+    const dd = document.getElementById('dropdownClientesCsg');
+
+    if (boxBusq) boxBusq.style.display = 'block';
+    if (badge) badge.style.display = 'none';
+    if (dd) dd.style.display = 'none';
+    if (input) {
+        input.value = '';
+    }
+}
+
+// Cerrar dropdown de cliente al hacer clic fuera
+document.addEventListener('click', (e) => {
+    const box = document.getElementById('boxBusquedaClienteCsg');
+    const dd = document.getElementById('dropdownClientesCsg');
+    if (box && dd && !box.contains(e.target)) {
+        dd.style.display = 'none';
+    }
+});
+
+// ============================================================================
+// CATÁLOGO Y CARRITO SPLIT TIPO COMPRA / RECEPCIÓN (CONSIGNACIONES)
+// ============================================================================
+let CATALOGO_CONSIGNACION_CACHE = [];
+let SEARCH_TIMEOUT_CSG = null;
+
+async function cargarCatalogoAlmacenCsg(termino = '') {
+    const panel = document.getElementById('panelResultadosCatalogoCsg');
+    if (!panel) return;
+
+    const almacenId = document.getElementById('csgAlmacen')?.value || 1;
+    panel.innerHTML = '<div style="text-align: center; padding: 25px; color: var(--text-muted); font-size: 0.80rem;">⏳ Cargando catálogo de artículos...</div>';
+
+    try {
+        const resp = await fetch(`procesar_consignaciones.php?accion=buscar_productos&termino=${encodeURIComponent(termino)}&almacen_id=${almacenId}`);
+        const res = await resp.json();
+
+        if (res.status === 'success' && Array.isArray(res.data)) {
+            CATALOGO_CONSIGNACION_CACHE = res.data;
+            PRODUCTOS_BUSQUEDA_CACHE = res.data;
+            renderizarPanelCatalogoCsg();
+        } else {
+            panel.innerHTML = '<div style="text-align: center; padding: 25px; color: var(--text-muted); font-size: 0.80rem;">No se encontraron artículos con inventario disponible.</div>';
+        }
+    } catch (e) {
+        panel.innerHTML = '<div style="text-align: center; padding: 25px; color: #b53d32; font-size: 0.80rem;">Error al cargar artículos.</div>';
+    }
+}
+
+function alFiltrarCatalogoCsg(query) {
+    clearTimeout(SEARCH_TIMEOUT_CSG);
+    SEARCH_TIMEOUT_CSG = setTimeout(() => {
+        cargarCatalogoAlmacenCsg(query);
+    }, 250);
+}
+
+function renderizarPanelCatalogoCsg() {
+    const panel = document.getElementById('panelResultadosCatalogoCsg');
+    if (!panel) return;
+
+    if (CATALOGO_CONSIGNACION_CACHE.length === 0) {
+        panel.innerHTML = '<div style="text-align: center; padding: 20px; color: var(--text-muted); font-size: 0.80rem;">Sin productos coincidentes.</div>';
+        return;
+    }
+
+    let html = '';
+    CATALOGO_CONSIGNACION_CACHE.forEach(p => {
+        const enCarrito = CARRITO_DESPACHO.some(item => parseInt(item.producto_id) === parseInt(p.id));
+        const stock = parseInt(p.stock_disponible || 0);
+        const precio = parseFloat(p.precio_base_unidad || 0);
+
+        html += `
+            <div class="item-catalogo-csg" style="padding: 7px 10px; background: ${enCarrito ? '#faf5ec' : '#ffffff'}; border: 1px solid #ebd9c2; border-radius: 6px; display: flex; justify-content: space-between; align-items: center; gap: 8px;">
+                <div style="flex: 1; min-width: 0;">
+                    <div style="font-weight: 700; font-size: 0.82rem; color: #211813; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${p.nombre}</div>
+                    <div style="font-size: 0.72rem; color: #7a6b5d; margin-top: 1px;">
+                        <span>SKU: ${p.sku}</span> • 
+                        <span style="font-family: var(--font-mono); font-weight: 600;">RD$ ${precio.toFixed(2)}</span> • 
+                        <span style="color: ${stock > 0 ? '#2e7d52' : '#b53d32'}; font-weight: 700;">Stock: ${stock} bot.</span>
+                    </div>
+                </div>
+                <div>
+                    ${enCarrito 
+                        ? `<button type="button" class="btn btn-sm btn-danger" onclick="quitarProductoDesdeCatalogoCsg(${p.id})" style="padding: 3px 8px; font-size: 0.74rem;">✕ Quitar</button>`
+                        : `<button type="button" class="btn btn-sm btn-gold" onclick="agregarProductoDesdeCatalogoCsg(${p.id})" ${stock <= 0 ? 'disabled' : ''} style="padding: 3px 8px; font-size: 0.74rem; font-weight: 700;">+ Agregar</button>`
+                    }
+                </div>
+            </div>
+        `;
+    });
+    panel.innerHTML = html;
+}
+
+function agregarProductoDesdeCatalogoCsg(prodId) {
+    seleccionarProductoParaDespacho(prodId);
+    renderizarPanelCatalogoCsg();
+}
+
+function quitarProductoDesdeCatalogoCsg(prodId) {
+    CARRITO_DESPACHO = CARRITO_DESPACHO.filter(item => parseInt(item.producto_id) !== parseInt(prodId));
+    renderizarCarritoDespacho();
+    renderizarPanelCatalogoCsg();
 }
 
 function alCambiarMontoFianza() {
@@ -104,76 +288,30 @@ function alCambiarMontoFianza() {
     }
 }
 
-function alBuscarProductoCsg(e) {
-    clearTimeout(SEARCH_TIMEOUT);
-    const termino = e.target.value.trim();
-    const wrap = document.getElementById('csgResultadosBusqueda');
-
-    if (termino.length < 2) {
-        wrap.style.display = 'none';
-        return;
-    }
-
-    const almacenId = document.getElementById('csgAlmacen')?.value || 1;
-
-    SEARCH_TIMEOUT = setTimeout(async () => {
-        try {
-            const resp = await fetch(`procesar_consignaciones.php?accion=buscar_productos&termino=${encodeURIComponent(termino)}&almacen_id=${almacenId}`);
-            const res = await resp.json();
-
-            if (res.status === 'success' && res.data.length > 0) {
-                PRODUCTOS_BUSQUEDA_CACHE = res.data;
-                let html = '';
-                res.data.forEach(p => {
-                    const dispColor = p.stock_disponible > 0 ? '#2e7d52' : '#b53d32';
-                    html += `
-                        <div class="csg-search-item" onclick="seleccionarProductoParaDespacho(${p.id})">
-                            <div>
-                                <strong style="font-size: 0.88rem; color: #251c16;">${p.nombre}</strong>
-                                <div style="font-size: 0.74rem; color: #8c8173;">SKU: ${p.sku} • Precio Base: RD$ ${p.precio_base_unidad.toFixed(2)}</div>
-                            </div>
-                            <div style="text-align: right;">
-                                <span style="font-size: 0.76rem; font-weight: 700; color: ${dispColor};">
-                                    Disponible: ${p.stock_disponible} bot.
-                                </span>
-                                <div style="font-size: 0.72rem; color: #8c8173;">Comprometido: ${p.stock_comprometido}</div>
-                            </div>
-                        </div>
-                    `;
-                });
-                wrap.innerHTML = html;
-                wrap.style.display = 'block';
-            } else {
-                wrap.innerHTML = `<div style="padding: 12px; text-align: center; color: #8c8173; font-size: 0.82rem;">No se encontraron artículos con inventario disponible.</div>`;
-                wrap.style.display = 'block';
-            }
-        } catch (err) {
-            console.error('Error buscando productos:', err);
-        }
-    }, 250);
-}
-
 function seleccionarProductoParaDespacho(prodId) {
-    const prod = PRODUCTOS_BUSQUEDA_CACHE.find(p => p.id === prodId);
+    const prod = (PRODUCTOS_BUSQUEDA_CACHE || []).find(p => parseInt(p.id, 10) === parseInt(prodId, 10))
+              || (CATALOGO_CONSIGNACION_CACHE || []).find(p => parseInt(p.id, 10) === parseInt(prodId, 10));
     if (!prod) return;
 
-    document.getElementById('csgResultadosBusqueda').style.display = 'none';
-    document.getElementById('csgInputBuscarProd').value = '';
+    const resBusq = document.getElementById('csgResultadosBusqueda');
+    if (resBusq) resBusq.style.display = 'none';
+    const inpBusq = document.getElementById('csgInputBuscarProd');
+    if (inpBusq) inpBusq.value = '';
 
     // Seleccionar el primer lote disponible o lote 0
     let loteId = 0;
     let numLote = 'GENERICO - SIN LOTE';
-    let loteDisp = prod.stock_disponible;
+    let loteDisp = parseInt(prod.stock_disponible || prod.stock_fisico || 0, 10);
 
     if (prod.lotes && prod.lotes.length > 0) {
         const primerLote = prod.lotes[0];
         loteId = primerLote.lote_id;
         numLote = primerLote.numero_lote || 'LOTE-' + loteId;
-        loteDisp = primerLote.disponible;
+        loteDisp = parseInt(primerLote.disponible || 0, 10);
     }
 
     // Verificar si ya está en el carrito
-    const existe = CARRITO_DESPACHO.find(item => item.producto_id === prod.id && item.lote_id === loteId);
+    const existe = CARRITO_DESPACHO.find(item => parseInt(item.producto_id, 10) === parseInt(prod.id, 10) && parseInt(item.lote_id, 10) === parseInt(loteId, 10));
     if (existe) {
         if (existe.cantidad + 1 <= existe.disponible) {
             existe.cantidad++;
@@ -190,13 +328,14 @@ function seleccionarProductoParaDespacho(prodId) {
             numero_lote: numLote,
             disponible: loteDisp,
             cantidad: 1,
-            precio: prod.precio_base_unidad,
-            subtotal: prod.precio_base_unidad,
+            precio: parseFloat(prod.precio_base_unidad || 0),
+            subtotal: parseFloat(prod.precio_base_unidad || 0),
             lotes_disponibles: prod.lotes || []
         });
     }
 
     renderizarCarritoDespacho();
+    renderizarPanelCatalogoCsg();
 }
 
 function renderizarCarritoDespacho() {
@@ -206,8 +345,8 @@ function renderizarCarritoDespacho() {
     if (CARRITO_DESPACHO.length === 0) {
         tbody.innerHTML = `
             <tr id="csgFilaVaciaCarrito">
-                <td colspan="7" style="text-align: center; padding: 24px; color: var(--text-muted);">
-                    No hay artículos agregados al despacho. Utiliza el buscador para agregar botellas.
+                <td colspan="6" style="text-align: center; padding: 24px; color: var(--text-muted); font-size: 0.82rem;">
+                    No hay artículos agregados al despacho. Haz clic en <strong>+ Agregar</strong> en el catálogo de la izquierda.
                 </td>
             </tr>
         `;
@@ -222,36 +361,36 @@ function renderizarCarritoDespacho() {
         if (item.lotes_disponibles && item.lotes_disponibles.length > 0) {
             lotesOptions = '';
             item.lotes_disponibles.forEach(l => {
-                const sel = (l.lote_id === item.lote_id) ? 'selected' : '';
+                const sel = (parseInt(l.lote_id, 10) === parseInt(item.lote_id, 10)) ? 'selected' : '';
                 lotesOptions += `<option value="${l.lote_id}" ${sel}>${l.numero_lote} (Disp: ${l.disponible})</option>`;
             });
         }
 
         html += `
             <tr>
-                <td>
-                    <strong>${item.nombre}</strong>
-                    <div style="font-size: 0.74rem; color: #8c8173;">SKU: ${item.sku}</div>
+                <td style="padding: 4px 6px;">
+                    <strong style="font-size: 0.82rem; color: #251c16;">${item.nombre}</strong>
+                    <div style="font-size: 0.70rem; color: #8c8173; display: flex; gap: 8px;">
+                        <span>SKU: ${item.sku}</span>
+                        <span style="color: #2e7d52; font-weight: 700;">Disp: ${item.disponible} bot.</span>
+                    </div>
                 </td>
-                <td>
-                    <select class="form-control" style="font-size: 0.78rem; padding: 2px 6px;" onchange="alCambiarLoteItemDespacho(${idx}, this.value)">
+                <td style="padding: 4px 4px;">
+                    <select class="form-control" style="font-size: 0.76rem; height: 28px; padding: 1px 4px;" onchange="alCambiarLoteItemDespacho(${idx}, this.value)">
                         ${lotesOptions}
                     </select>
                 </td>
-                <td class="text-center" style="font-weight: 700; color: #2e7d52;">
-                    ${item.disponible} bot.
+                <td class="text-center" style="padding: 4px 4px;">
+                    <input type="number" min="1" max="${item.disponible}" value="${item.cantidad}" class="form-control" style="width: 70px; height: 28px; text-align: center; margin: 0 auto; font-weight: 700; font-size: 0.82rem;" onchange="alCambiarCantidadItemDespacho(${idx}, this.value)" />
                 </td>
-                <td class="text-center">
-                    <input type="number" min="1" max="${item.disponible}" value="${item.cantidad}" class="form-control" style="width: 80px; text-align: center; margin: 0 auto; font-weight: 700;" onchange="alCambiarCantidadItemDespacho(${idx}, this.value)" />
+                <td class="text-right" style="padding: 4px 4px;">
+                    <input type="number" step="0.01" min="0" value="${item.precio.toFixed(2)}" class="form-control" style="width: 85px; height: 28px; text-align: right; margin-left: auto; font-family: var(--font-mono); font-weight: 700; font-size: 0.82rem;" onchange="alCambiarPrecioItemDespacho(${idx}, this.value)" />
                 </td>
-                <td class="text-right">
-                    <input type="number" step="0.01" min="0" value="${item.precio.toFixed(2)}" class="form-control" style="width: 100px; text-align: right; margin-left: auto; font-family: var(--font-mono); font-weight: 700;" onchange="alCambiarPrecioItemDespacho(${idx}, this.value)" />
-                </td>
-                <td class="text-right" style="font-family: var(--font-mono); font-weight: 700; color: var(--text-dark);">
+                <td class="text-right" style="padding: 4px 6px; font-family: var(--font-mono); font-weight: 700; color: #251c16; font-size: 0.84rem;">
                     RD$ ${item.subtotal.toFixed(2)}
                 </td>
-                <td class="text-center">
-                    <button type="button" class="btn btn-sm btn-outline" style="color: #b53d32; border-color: #f9ccc7;" onclick="quitarItemDespacho(${idx})">✕</button>
+                <td class="text-center" style="padding: 4px 2px;">
+                    <button type="button" class="btn btn-sm btn-outline" style="color: #b53d32; border-color: #f9ccc7; padding: 2px 6px; font-size: 0.74rem;" onclick="quitarItemDespacho(${idx})">✕</button>
                 </td>
             </tr>
         `;
@@ -309,6 +448,7 @@ function alCambiarPrecioItemDespacho(idx, val) {
 function quitarItemDespacho(idx) {
     CARRITO_DESPACHO.splice(idx, 1);
     renderizarCarritoDespacho();
+    renderizarPanelCatalogoCsg();
 }
 
 function limpiarCarritoDespacho() {

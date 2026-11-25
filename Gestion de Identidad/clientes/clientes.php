@@ -16,6 +16,8 @@ if ($pdo) {
                    p.tipo_persona, p.email, p.telefono_principal, p.fecha_nacimiento, p.estado
             FROM identidad.clientes c
             JOIN identidad.personas p ON c.persona_id = p.persona_id
+            WHERE NOT EXISTS (SELECT 1 FROM identidad.empleados e WHERE e.persona_id = c.persona_id)
+              AND NOT EXISTS (SELECT 1 FROM seguridad.usuarios u WHERE u.persona_id = c.persona_id)
             ORDER BY c.creado_en DESC
         ");
         $clientes = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
