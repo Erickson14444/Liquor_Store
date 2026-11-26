@@ -45,7 +45,6 @@ $isSubdir = in_array($currentDir, [
   'CuentasPorCobrar',
   'cuentas_por_cobrar',
   'Consignaciones',
-  'NotasDebito',
   'AuditoriaForense',
   'MovimientosBancarios',
   'KardexFefo',
@@ -107,7 +106,7 @@ $pConsignaciones = function_exists('usuarioPuedeAccederConsignaciones') ? usuari
 $pDevoluciones = function_exists('usuarioPuedeAccederDevoluciones') ? usuarioPuedeAccederDevoluciones() : $esAdmin;
 $pCxc = function_exists('usuarioPuedeAccederCxc') ? usuarioPuedeAccederCxc() : $esAdmin;
 $pNotaDebito = $esAdmin || $tienePermiso('EMITIR_NOTA_DEBITO') || $tienePermiso('GESTIONAR_CXC');
-$verVentas = $pControlCaja || $pFacturacion || $pDelivery || $pCotizaciones || $pConsignaciones || $pDevoluciones || $pCxc || $pNotaDebito;
+$verVentas = $pControlCaja || $pFacturacion || $pDelivery || $pCotizaciones || $pConsignaciones || $pDevoluciones || $pCxc;
 
 // Módulo 5: Compras y Recepción (Procesos)
 $pOrdenCompra = $esAdmin || $tienePermiso('CREAR_ORDEN_COMPRA');
@@ -303,14 +302,7 @@ $isConfigActive = $isConfigOnlyActive;
           <?php if ($pCxc): ?>
             <li><a href="<?= $ventasPfx ?>CuentasPorCobrar/cuentas_por_cobrar.php"
                 class="sidebar-sublink <?= ($currentPage === 'cuentas_por_cobrar.php') ? 'active' : '' ?>"><span>💳</span>
-                Cuentas
-                por Cobrar (CxC)</a></li>
-          <?php endif; ?>
-          <?php if ($pNotaDebito): ?>
-            <li><a href="<?= $ventasPfx ?>NotasDebito/notas_debito.php"
-                class="sidebar-sublink <?= ($currentPage === 'notas_debito.php') ? 'active' : '' ?>"><span>📄</span> Notas
-                de
-                Débito (B03)</a></li>
+                Cuentas por Cobrar (CxC / B03)</a></li>
           <?php endif; ?>
         </ul>
       </li>

@@ -9,8 +9,8 @@ require_once __DIR__ . '/../../config/conexion.php';
 
 $clientes = [];
 if ($pdo) {
-    try {
-        $stmt = $pdo->query("
+  try {
+    $stmt = $pdo->query("
             SELECT c.persona_id AS cliente_id, c.codigo_cliente, c.categoria_cliente, c.permite_credito, c.limite_credito, c.creado_en,
                    p.persona_id, p.tipo_documento, p.documento_identidad, p.nombre_razon_social, p.nombre_comercial,
                    p.tipo_persona, p.email, p.telefono_principal, p.fecha_nacimiento, p.estado
@@ -20,10 +20,10 @@ if ($pdo) {
               AND NOT EXISTS (SELECT 1 FROM seguridad.usuarios u WHERE u.persona_id = c.persona_id)
             ORDER BY c.creado_en DESC
         ");
-        $clientes = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
-    } catch (Throwable $e) {
-        $clientes = [];
-    }
+    $clientes = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
+  } catch (Throwable $e) {
+    $clientes = [];
+  }
 }
 
 $msg = $_GET['msg'] ?? '';
@@ -31,12 +31,14 @@ $tipoMsg = $_GET['tipo'] ?? 'exito';
 ?>
 <!DOCTYPE html>
 <html lang="es">
+
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>House &amp; Ice • Clientes</title>
   <link rel="stylesheet" href="../styles.css?v=13" />
 </head>
+
 <body>
 
   <!-- BARRA SUPERIOR -->
@@ -79,7 +81,8 @@ $tipoMsg = $_GET['tipo'] ?? 'exito';
       <div class="page-header">
         <div>
           <h1 class="page-title">Directorio de Clientes</h1>
-          <p class="page-subtitle">Gestión de clientes autorizados, identificación fiscal (RNC/Cédula) y límites de crédito</p>
+          <p class="page-subtitle">Gestión de clientes autorizados, identificación fiscal (RNC/Cédula) y límites de
+            crédito</p>
         </div>
 
         <button type="button" class="btn btn-gold" onclick="abrirModal()">
@@ -97,12 +100,8 @@ $tipoMsg = $_GET['tipo'] ?? 'exito';
 
           <div class="search-box" style="width: 280px;">
             <span class="search-icon">🔍</span>
-            <input
-              type="text"
-              id="buscador"
-              placeholder="Buscar por código, nombre o documento..."
-              oninput="filtrarTabla()"
-            />
+            <input type="text" id="buscador" placeholder="Buscar por código, nombre o documento"
+              oninput="filtrarTabla()" style="width:500px" />
           </div>
         </div>
 
@@ -122,38 +121,48 @@ $tipoMsg = $_GET['tipo'] ?? 'exito';
             <?php if (empty($clientes)): ?>
               <tr>
                 <td colspan="7" class="text-center" style="padding: 30px; color: #888;">
-                  No hay clientes registrados en la base de datos. Haz clic en <strong>+ Nuevo Cliente</strong> para crear el primero.
+                  No hay clientes registrados en la base de datos. Haz clic en <strong>+ Nuevo Cliente</strong> para crear
+                  el primero.
                 </td>
               </tr>
             <?php else: ?>
-              <?php foreach ($clientes as $cli): 
+              <?php foreach ($clientes as $cli):
                 $nombre = htmlspecialchars($cli['nombre_razon_social']);
                 $esActivo = !empty($cli['estado']);
                 $permiteCred = !empty($cli['permite_credito']);
                 $cat = strtoupper($cli['categoria_cliente'] ?? 'REGULAR');
                 $catClass = ($cat === 'VIP') ? 'cat-vip' : (($cat === 'MAYORISTA') ? 'cat-mayorista' : 'cat-regular');
-              ?>
-                <tr class="fila-cliente" data-texto="<?= strtolower(htmlspecialchars($cli['codigo_cliente'] . ' ' . $cli['nombre_razon_social'] . ' ' . ($cli['nombre_comercial'] ?? '') . ' ' . $cli['documento_identidad'] . ' ' . ($cli['email'] ?? ''))) ?>">
+                ?>
+                <tr class="fila-cliente"
+                  data-texto="<?= strtolower(htmlspecialchars($cli['codigo_cliente'] . ' ' . $cli['nombre_razon_social'] . ' ' . ($cli['nombre_comercial'] ?? '') . ' ' . $cli['documento_identidad'] . ' ' . ($cli['email'] ?? ''))) ?>">
                   <td><span class="code-inline"><?= htmlspecialchars($cli['codigo_cliente']) ?></span></td>
                   <td>
                     <div style="font-weight: 700; color: var(--text-dark); font-size: 0.92rem;">
                       <?= $nombre ?>
                     </div>
                     <?php if (!empty($cli['nombre_comercial']) && $cli['nombre_comercial'] !== $cli['nombre_razon_social']): ?>
-                      <div style="font-size: 0.78rem; color: var(--text-muted); margin-top: 2px;"><?= htmlspecialchars($cli['nombre_comercial']) ?></div>
+                      <div style="font-size: 0.78rem; color: var(--text-muted); margin-top: 2px;">
+                        <?= htmlspecialchars($cli['nombre_comercial']) ?>
+                      </div>
                     <?php endif; ?>
                   </td>
                   <td>
-                    <span class="code-inline"><?= htmlspecialchars($cli['tipo_documento']) ?>: <?= htmlspecialchars($cli['documento_identidad']) ?></span>
+                    <span class="code-inline"><?= htmlspecialchars($cli['tipo_documento']) ?>:
+                      <?= htmlspecialchars($cli['documento_identidad']) ?></span>
                   </td>
                   <td>
-                    <div style="font-weight: 500; color: var(--text-body);">📞 <?= htmlspecialchars($cli['telefono_principal'] ?: 'S/N') ?></div>
-                    <div style="font-size: 0.78rem; color: var(--text-muted);">✉️ <?= htmlspecialchars($cli['email'] ?: 'S/N') ?></div>
+                    <div style="font-weight: 500; color: var(--text-body);">📞
+                      <?= htmlspecialchars($cli['telefono_principal'] ?: 'S/N') ?>
+                    </div>
+                    <div style="font-size: 0.78rem; color: var(--text-muted);">✉️
+                      <?= htmlspecialchars($cli['email'] ?: 'S/N') ?>
+                    </div>
                   </td>
                   <td class="text-center">
                     <span class="cat-badge <?= $catClass ?>"><?= $cat ?></span>
                   </td>
-                  <td class="text-right" style="font-weight: 600; font-family: monospace; color: <?= $permiteCred ? 'var(--accent-success)' : 'var(--text-muted)' ?>;">
+                  <td class="text-right"
+                    style="font-weight: 600; font-family: monospace; color: <?= $permiteCred ? 'var(--accent-success)' : 'var(--text-muted)' ?>;">
                     <?php if ($permiteCred): ?>
                       RD$ <?= number_format($cli['limite_credito'], 2) ?>
                     <?php else: ?>
@@ -161,7 +170,8 @@ $tipoMsg = $_GET['tipo'] ?? 'exito';
                     <?php endif; ?>
                   </td>
                   <td class="text-right action-btns">
-                    <button type="button" class="btn-sm btn-outline" onclick='editarCliente(<?= json_encode($cli) ?>)'>Editar</button>
+                    <button type="button" class="btn-sm btn-outline"
+                      onclick='editarCliente(<?= json_encode($cli) ?>)'>Editar</button>
                   </td>
                 </tr>
               <?php endforeach; ?>
@@ -193,7 +203,10 @@ $tipoMsg = $_GET['tipo'] ?? 'exito';
           <div class="form-row-2">
             <div class="form-group">
               <label for="codigo_cliente" class="form-label">Código Cliente *</label>
-              <input type="text" id="codigo_cliente" name="codigo_cliente" class="form-control" required maxlength="20" placeholder="CLI-001" style="font-family: monospace; font-weight: bold; text-transform: uppercase;" oninput="this.value = this.value.toUpperCase().replace(/[^A-Z0-9-]/g, ''); autocompletarClientePorCodigo(this.value);" onblur="autocompletarClientePorCodigo(this.value)" />
+              <input type="text" id="codigo_cliente" name="codigo_cliente" class="form-control" required maxlength="20"
+                placeholder="CLI-001" style="font-family: monospace; font-weight: bold; text-transform: uppercase;"
+                oninput="this.value = this.value.toUpperCase().replace(/[^A-Z0-9-]/g, ''); autocompletarClientePorCodigo(this.value);"
+                onblur="autocompletarClientePorCodigo(this.value)" readonly />
             </div>
             <div class="form-group">
               <label for="tipo_persona" class="form-label">Tipo de Persona *</label>
@@ -215,26 +228,36 @@ $tipoMsg = $_GET['tipo'] ?? 'exito';
             </div>
             <div class="form-group">
               <label for="documento_identidad" class="form-label">Número de Documento *</label>
-              <input type="text" id="documento_identidad" name="documento_identidad" class="form-control" placeholder="000-0000000-0" required onkeydown="if(document.getElementById('tipo_documento').value !== 'PASAPORTE' && !['Backspace','Delete','Tab','Escape','Enter','ArrowLeft','ArrowRight','Home','End'].includes(event.key) && !event.ctrlKey && !event.metaKey && !/^[0-9]$/.test(event.key)) { event.preventDefault(); return false; }" oninput="mascaraDoc(this); if(this.value.replace(/\D/g,'').length>=9) autocompletarTercero();" onblur="autocompletarTercero()" />
-              <small id="terceroFeedback" style="display: none; color: var(--accent-gold); font-weight: 600; font-size: 0.76rem; margin-top: 3px;"></small>
+              <input type="text" id="documento_identidad" name="documento_identidad" class="form-control"
+                placeholder="000-0000000-0" required
+                onkeydown="if(document.getElementById('tipo_documento').value !== 'PASAPORTE' && !['Backspace','Delete','Tab','Escape','Enter','ArrowLeft','ArrowRight','Home','End'].includes(event.key) && !event.ctrlKey && !event.metaKey && !/^[0-9]$/.test(event.key)) { event.preventDefault(); return false; }"
+                oninput="mascaraDoc(this); if(this.value.replace(/\D/g,'').length>=9) autocompletarTercero();"
+                onblur="autocompletarTercero()" />
+              <small id="terceroFeedback"
+                style="display: none; color: var(--accent-gold); font-weight: 600; font-size: 0.76rem; margin-top: 3px;"></small>
             </div>
           </div>
 
           <div class="form-row-2">
             <div class="form-group">
               <label for="nombre_razon_social" class="form-label" id="labelNombre">Nombres y Apellidos *</label>
-              <input type="text" id="nombre_razon_social" name="nombre_razon_social" class="form-control" placeholder="Ej. Juan Pérez" required onblur="autocompletarTerceroPorNombre(this.value)" />
+              <input type="text" id="nombre_razon_social" name="nombre_razon_social" class="form-control"
+                placeholder="Ej. Juan Pérez" required onblur="autocompletarTerceroPorNombre(this.value)" />
             </div>
             <div class="form-group">
               <label for="nombre_comercial" class="form-label">Nombre Comercial (Opcional)</label>
-              <input type="text" id="nombre_comercial" name="nombre_comercial" class="form-control" placeholder="Ej. Bodega El Roble" />
+              <input type="text" id="nombre_comercial" name="nombre_comercial" class="form-control"
+                placeholder="Ej. Bodega El Roble" />
             </div>
           </div>
 
           <div class="form-row-2">
             <div class="form-group">
               <label for="telefono_principal" class="form-label">Teléfono Principal</label>
-              <input type="text" id="telefono_principal" name="telefono_principal" class="form-control" placeholder="(809) 000-0000" maxlength="14" inputmode="numeric" onkeydown="if(!['Backspace','Delete','Tab','Escape','Enter','ArrowLeft','ArrowRight','Home','End'].includes(event.key) && !event.ctrlKey && !event.metaKey && !/^[0-9]$/.test(event.key)) { event.preventDefault(); return false; }" oninput="mascaraTelefono(this)" />
+              <input type="text" id="telefono_principal" name="telefono_principal" class="form-control"
+                placeholder="(809) 000-0000" maxlength="14" inputmode="numeric"
+                onkeydown="if(!['Backspace','Delete','Tab','Escape','Enter','ArrowLeft','ArrowRight','Home','End'].includes(event.key) && !event.ctrlKey && !event.metaKey && !/^[0-9]$/.test(event.key)) { event.preventDefault(); return false; }"
+                oninput="mascaraTelefono(this)" />
             </div>
             <div class="form-group">
               <label for="email" class="form-label">Correo Electrónico</label>
@@ -252,8 +275,10 @@ $tipoMsg = $_GET['tipo'] ?? 'exito';
               </select>
             </div>
             <div class="form-group" style="display: flex; flex-direction: column; justify-content: center;">
-              <label class="form-label" style="display: flex; align-items: center; gap: 8px; cursor: pointer; margin-top: 14px;">
-                <input type="checkbox" id="permite_credito" name="permite_credito" value="1" onchange="toggleCreditoInput()" style="width: 18px; height: 18px; accent-color: #d4a359;" />
+              <label class="form-label"
+                style="display: flex; align-items: center; gap: 8px; cursor: pointer; margin-top: 14px;">
+                <input type="checkbox" id="permite_credito" name="permite_credito" value="1"
+                  onchange="toggleCreditoInput()" style="width: 18px; height: 18px; accent-color: #d4a359;" />
                 <span style="font-weight: 600;">¿Habilitar Crédito Operativo?</span>
               </label>
             </div>
@@ -261,7 +286,10 @@ $tipoMsg = $_GET['tipo'] ?? 'exito';
 
           <div class="form-group" id="grupoLimiteCredito" style="display: none;">
             <label for="limite_credito" class="form-label">Límite de Crédito Autorizado (DOP) *</label>
-            <input type="number" step="0.01" min="0" id="limite_credito" name="limite_credito" class="form-control" value="0.00" style="font-family: monospace; font-size: 1.05rem;" onkeydown="if(['e','E','+','-'].includes(event.key)) { event.preventDefault(); return false; }" oninput="this.value = this.value.replace(/[^0-9.]/g, '');" />
+            <input type="number" step="0.01" min="0" id="limite_credito" name="limite_credito" class="form-control"
+              value="0.00" style="font-family: monospace; font-size: 1.05rem;"
+              onkeydown="if(['e','E','+','-'].includes(event.key)) { event.preventDefault(); return false; }"
+              oninput="this.value = this.value.replace(/[^0-9.]/g, '');" />
             <small style="color: #999;">Monto máximo de saldo pendiente en cuentas por cobrar.</small>
           </div>
         </div>
@@ -276,6 +304,7 @@ $tipoMsg = $_GET['tipo'] ?? 'exito';
 
   <div id="toast" class="toast"></div>
 
-    <script src="clientes.js?v=4"></script>
+  <script src="clientes.js?v=4"></script>
 </body>
+
 </html>

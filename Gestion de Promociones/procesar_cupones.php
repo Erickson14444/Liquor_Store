@@ -13,20 +13,22 @@ require_once __DIR__ . '/../config/conexion.php';
 // Leer payload JSON o Form-Data POST
 $rawInput = file_get_contents('php://input');
 $jsonBody = !empty($rawInput) ? json_decode($rawInput, true) : null;
-$datos    = is_array($jsonBody) ? $jsonBody : $_POST;
+$datos = is_array($jsonBody) ? $jsonBody : $_POST;
 
 $isAjax = is_array($jsonBody) ||
-          (!empty($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest') ||
-          (isset($datos['format']) && $datos['format'] === 'json') ||
-          (isset($_GET['format']) && $_GET['format'] === 'json');
+    (!empty($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest') ||
+    (isset($datos['format']) && $datos['format'] === 'json') ||
+    (isset($_GET['format']) && $_GET['format'] === 'json');
 
-function responderJson($status, $mensaje, $extra = []) {
+function responderJson($status, $mensaje, $extra = [])
+{
     header('Content-Type: application/json; charset=utf-8');
     echo json_encode(array_merge(['status' => $status, 'message' => $mensaje], $extra), JSON_UNESCAPED_UNICODE);
     exit;
 }
 
-function responder($status, $mensaje, $extra = []) {
+function responder($status, $mensaje, $extra = [])
+{
     global $isAjax;
     if ($isAjax) {
         responderJson($status, $mensaje, $extra);
@@ -37,7 +39,6 @@ function responder($status, $mensaje, $extra = []) {
     }
 }
 
-// Permitir peticiones GET para obtener_detalle si se solicita
 $metodo = $_SERVER['REQUEST_METHOD'] ?? 'GET';
 $accion = $datos['accion'] ?? $datos['action'] ?? $_GET['accion'] ?? $_GET['action'] ?? '';
 
@@ -48,12 +49,8 @@ if (!$pdo) {
 // Mantenimiento preventivo: auto-actualizar cupones vencidos
 try {
     $pdo->exec("UPDATE promociones.cupones_descuento SET estado = 'VENCIDO' WHERE estado = 'DISPONIBLE' AND fecha_vencimiento < CURRENT_DATE");
-} catch (Throwable $e) {}
-
-// Asegurar que factura_origen_id permita NULL para emisiones promocionales directas
-try {
-    $pdo->exec("ALTER TABLE promociones.cupones_descuento ALTER COLUMN factura_origen_id DROP NOT NULL");
-} catch (Throwable $e) {}
+} catch (Throwable $e) {
+}
 
 // ACCIÓN: OBTENER DETALLE (Para modal de consulta forense o ticket)
 if ($accion === 'obtener_detalle') {
@@ -75,7 +72,7 @@ if ($accion === 'obtener_detalle') {
                    c.estado,
                    TO_CHAR(c.fecha_vencimiento, 'DD/MM/YYYY') AS fecha_vencimiento_fmt,
                    (c.fecha_vencimiento - CURRENT_DATE) AS dias_restantes,
-                   COALESCE(camp.nombre_promocion, 'Cortesía Promocional') AS campana_nombre,
+                   COALESCE(camp.nombre_promocion, 'Campaña Promocional') AS campana_nombre,
                    camp.tipo_promocion,
                    fo.numero_factura AS factura_origen_numero,
                    fo.ncf AS factura_origen_ncf,
@@ -114,126 +111,9 @@ if ($metodo !== 'POST') {
     responder('error', 'Método HTTP no autorizado.');
 }
 
-// Función generadora de código seguro de cupón
-function generarCodigoCuponUnico($pdo, $prefijo = 'CUP-') {
-    $caracteres = '23456789ABCDEFGHJKLMNPQRSTUVWXYZ';
-    $longitud = 6;
-    for ($intento = 0; $intento < 10; $intento++) {
-        $aleatorio = '';
-        for ($i = 0; $i < $longitud; $i++) {
-            $aleatorio .= $caracteres[random_int(0, strlen($caracteres) - 1)];
-        }
-        $codigo = $prefijo . $aleatorio;
-        $stmt = $pdo->prepare("SELECT COUNT(*) FROM promociones.cupones_descuento WHERE codigo_cupon = ?");
-        $stmt->execute([$codigo]);
-        if ($stmt->fetchColumn() == 0) {
-            return $codigo;
-        }
-    }
-    return $prefijo . strtoupper(substr(md5(uniqid('', true)), 0, 6));
-}
-
-// ACCIÓN: EMITIR NUEVO CUPÓN
+// BLOQUEO EXPLÍCITO DE EMISIÓN MANUAL DE CUPONES
 if ($accion === 'emitir' || $accion === 'crear') {
-    try {
-        $codigoCupon = trim($datos['codigo_cupon'] ?? '');
-        if (empty($codigoCupon)) {
-            $codigoCupon = generarCodigoCuponUnico($pdo);
-        } else {
-            $codigoCupon = strtoupper(preg_replace('/[^A-Za-z0-9\-_]/', '', $codigoCupon));
-            // Validar que no exista
-            $chk = $pdo->prepare("SELECT COUNT(*) FROM promociones.cupones_descuento WHERE codigo_cupon = ?");
-            $chk->execute([$codigoCupon]);
-            if ($chk->fetchColumn() > 0) {
-                throw new Exception("El código de cupón '{$codigoCupon}' ya existe en el sistema.");
-            }
-        }
-
-        $promocionId = !empty($datos['promocion_id']) ? intval($datos['promocion_id']) : null;
-        if (!$promocionId) {
-            // Asignar primera campaña activa o crear una de respaldo
-            $campDef = $pdo->query("SELECT id FROM promociones.promociones_campanas WHERE estado = 'ACTIVA' ORDER BY id ASC LIMIT 1")->fetchColumn();
-            if ($campDef) {
-                $promocionId = intval($campDef);
-            } else {
-                $campCualquiera = $pdo->query("SELECT id FROM promociones.promociones_campanas ORDER BY id ASC LIMIT 1")->fetchColumn();
-                if ($campCualquiera) {
-                    $promocionId = intval($campCualquiera);
-                } else {
-                    // Crear campaña automática de cortesía
-                    $stmtNC = $pdo->prepare("
-                        INSERT INTO promociones.promociones_campanas
-                        (nombre_promocion, tipo_promocion, fecha_inicio, fecha_fin, monto_minimo_factura, estado)
-                        VALUES ('Cupones Promocionales Generales', 'CUPON_TICKET', CURRENT_DATE, CURRENT_DATE + INTERVAL '1 year', 0, 'ACTIVA')
-                        RETURNING id
-                    ");
-                    $stmtNC->execute();
-                    $promocionId = intval($stmtNC->fetchColumn());
-                }
-            }
-        }
-
-        $montoCredito = max(0.01, floatval($datos['monto_credito'] ?? 0));
-        if ($montoCredito <= 0) {
-            throw new Exception("El monto de crédito del cupón debe ser mayor a RD$ 0.00.");
-        }
-
-        $fechaVencimiento = !empty($datos['fecha_vencimiento']) ? trim($datos['fecha_vencimiento']) : null;
-        if (!$fechaVencimiento || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $fechaVencimiento)) {
-            // Por defecto 30 días
-            $fechaVencimiento = date('Y-m-d', strtotime('+30 days'));
-        }
-
-        if (strtotime($fechaVencimiento) < strtotime(date('Y-m-d'))) {
-            throw new Exception("La fecha de vencimiento no puede ser anterior al día de hoy.");
-        }
-
-        $clienteId = !empty($datos['cliente_id']) ? trim($datos['cliente_id']) : null;
-        if (!empty($clienteId)) {
-            // Verificar que exista en identidad.clientes
-            $chkCl = $pdo->prepare("SELECT COUNT(*) FROM identidad.clientes WHERE persona_id = ?");
-            $chkCl->execute([$clienteId]);
-            if ($chkCl->fetchColumn() == 0) {
-                $clienteId = null;
-            }
-        }
-
-        $facturaOrigenId = !empty($datos['factura_origen_id']) ? intval($datos['factura_origen_id']) : null;
-        if ($facturaOrigenId) {
-            $chkFac = $pdo->prepare("SELECT COUNT(*) FROM ventas.facturas WHERE id = ?");
-            $chkFac->execute([$facturaOrigenId]);
-            if ($chkFac->fetchColumn() == 0) {
-                $facturaOrigenId = null;
-            }
-        }
-
-        // Insertar en la tabla
-        $stmtIns = $pdo->prepare("
-            INSERT INTO promociones.cupones_descuento
-            (codigo_cupon, promocion_id, factura_origen_id, factura_canje_id, cliente_id, monto_credito, fecha_vencimiento, estado)
-            VALUES (?, ?, ?, NULL, ?, ?, ?, 'DISPONIBLE')
-            RETURNING id
-        ");
-        $stmtIns->execute([
-            $codigoCupon,
-            $promocionId,
-            $facturaOrigenId,
-            $clienteId,
-            $montoCredito,
-            $fechaVencimiento
-        ]);
-        $nuevoId = $stmtIns->fetchColumn();
-
-        responder('success', "Cupón [{$codigoCupon}] emitido exitosamente por valor de RD$ " . number_format($montoCredito, 2) . ".", [
-            'cupon_id' => $nuevoId,
-            'codigo_cupon' => $codigoCupon,
-            'monto_credito' => $montoCredito,
-            'fecha_vencimiento' => $fechaVencimiento
-        ]);
-
-    } catch (Throwable $e) {
-        responder('error', 'Error al emitir el cupón: ' . $e->getMessage());
-    }
+    responder('error', 'La emisión manual de cupones está deshabilitada. Los cupones solo se generan automáticamente desde campañas promocionales en Facturación.');
 }
 
 // ACCIÓN: ANULAR CUPÓN

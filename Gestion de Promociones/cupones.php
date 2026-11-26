@@ -10,21 +10,17 @@
 
 require_once __DIR__ . '/../config/conexion.php';
 
-$cupones   = [];
-$campanas  = [];
-$clientes  = [];
-$facturas  = [];
+$cupones = [];
+$campanas = [];
+$descuentosEnCurso = [];
 
 if ($pdo) {
-    try {
-        // 1. Auto-mantenimiento preventivo de estados vencidos
-        $pdo->exec("UPDATE promociones.cupones_descuento SET estado = 'VENCIDO' WHERE estado = 'DISPONIBLE' AND fecha_vencimiento < CURRENT_DATE");
+  try {
+    // 1. Auto-mantenimiento preventivo de estados vencidos
+    $pdo->exec("UPDATE promociones.cupones_descuento SET estado = 'VENCIDO' WHERE estado = 'DISPONIBLE' AND fecha_vencimiento < CURRENT_DATE");
 
-        // 2. Asegurar que factura_origen_id sea nullable para emisiones directas
-        $pdo->exec("ALTER TABLE promociones.cupones_descuento ALTER COLUMN factura_origen_id DROP NOT NULL");
-
-        // 3. Consulta maestra de cupones con trazabilidad forense
-        $stmtCupones = $pdo->query("
+    // 2. Consulta maestra de cupones con trazabilidad forense
+    $stmtCupones = $pdo->query("
             SELECT c.id,
                    c.codigo_cupon,
                    c.promocion_id,
@@ -36,7 +32,7 @@ if ($pdo) {
                    c.estado,
                    TO_CHAR(c.fecha_vencimiento, 'DD/MM/YYYY') AS fecha_vencimiento_fmt,
                    (c.fecha_vencimiento - CURRENT_DATE) AS dias_restantes,
-                   COALESCE(camp.nombre_promocion, 'Cortesía Promocional') AS campana_nombre,
+                   COALESCE(camp.nombre_promocion, 'Campaña Promocional') AS campana_nombre,
                    camp.tipo_promocion,
                    fo.numero_factura AS factura_origen_numero,
                    fo.ncf AS factura_origen_ncf,
@@ -57,17 +53,17 @@ if ($pdo) {
             LEFT JOIN identidad.personas p ON cl.persona_id = p.persona_id
             ORDER BY c.fecha_vencimiento ASC, c.id DESC
         ");
-        $cupones = $stmtCupones->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    $cupones = $stmtCupones->fetchAll(PDO::FETCH_ASSOC) ?: [];
 
-        // 4. Catálogo de campañas para select de filtros y emisión
-        $campanas = $pdo->query("
+    // 3. Catálogo de campañas para select de filtros
+    $campanas = $pdo->query("
             SELECT id, nombre_promocion, tipo_promocion, estado
             FROM promociones.promociones_campanas
             ORDER BY (CASE WHEN estado = 'ACTIVA' THEN 1 ELSE 2 END), id DESC
         ")->fetchAll(PDO::FETCH_ASSOC) ?: [];
 
-        // 4b. Auditoría de Descuentos & Promociones en curso
-        $stmtDescuentos = $pdo->query("
+    // 4. Auditoría de Descuentos & Promociones en curso
+    $stmtDescuentos = $pdo->query("
             SELECT pc.id,
                    pc.nombre_promocion,
                    pc.tipo_promocion,
@@ -78,8 +74,8 @@ if ($pdo) {
                    TO_CHAR(pc.fecha_inicio, 'DD/MM/YYYY') AS fecha_inicio_fmt,
                    TO_CHAR(pc.fecha_fin, 'DD/MM/YYYY') AS fecha_fin_fmt,
                    COALESCE((
-                       SELECT STRING_AGG(DISTINCT 
-                           CASE 
+                       SELECT STRING_AGG(DISTINCT
+                           CASE
                                WHEN pd.beneficio_porcentaje > 0 THEN pd.beneficio_porcentaje::text || '% desc.'
                                WHEN pd.beneficio_monto_fijo > 0 THEN 'RD$ ' || pd.beneficio_monto_fijo::text || ' desc.'
                                ELSE 'Combo / Regalo'
@@ -90,27 +86,11 @@ if ($pdo) {
             FROM promociones.promociones_campanas pc
             ORDER BY (CASE WHEN pc.estado = 'ACTIVA' THEN 1 ELSE 2 END), pc.fecha_inicio DESC, pc.id DESC
         ");
-        $descuentosEnCurso = $stmtDescuentos->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    $descuentosEnCurso = $stmtDescuentos->fetchAll(PDO::FETCH_ASSOC) ?: [];
 
-        // 5. Catálogo de clientes registrados
-        $clientes = $pdo->query("
-            SELECT c.persona_id AS cliente_id, c.codigo_cliente, p.nombre_razon_social, p.documento_identidad
-            FROM identidad.clientes c
-            JOIN identidad.personas p ON c.persona_id = p.persona_id
-            ORDER BY p.nombre_razon_social ASC
-        ")->fetchAll(PDO::FETCH_ASSOC) ?: [];
-
-        // 6. Facturas recientes para vincular factura origen (opcional)
-        $facturas = $pdo->query("
-            SELECT id, numero_factura, ncf, monto_total, TO_CHAR(fecha_emision, 'DD/MM/YYYY') as fecha_fmt
-            FROM ventas.facturas
-            ORDER BY fecha_emision DESC, id DESC
-            LIMIT 40
-        ")->fetchAll(PDO::FETCH_ASSOC) ?: [];
-
-    } catch (Throwable $e) {
-        $errorCarga = $e->getMessage();
-    }
+  } catch (Throwable $e) {
+    $errorCarga = $e->getMessage();
+  }
 }
 
 $msg = $_GET['msg'] ?? '';
@@ -118,6 +98,7 @@ $tipoMsg = $_GET['tipo'] ?? 'exito';
 ?>
 <!DOCTYPE html>
 <html lang="es">
+
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -131,6 +112,7 @@ $tipoMsg = $_GET['tipo'] ?? 'exito';
       gap: 12px;
       margin-bottom: 20px;
     }
+
     .kpi-card-cupon {
       background: #ffffff;
       border: 1px solid #eadecd;
@@ -144,16 +126,19 @@ $tipoMsg = $_GET['tipo'] ?? 'exito';
       cursor: pointer;
       user-select: none;
     }
+
     .kpi-card-cupon:hover {
       transform: translateY(-2px);
       border-color: #c89d5c;
       box-shadow: 0 4px 12px rgba(33, 24, 19, 0.07);
     }
+
     .kpi-card-cupon.active-kpi {
       border: 2px solid #a66e2e;
       background: #fdfaf4;
       box-shadow: 0 2px 8px rgba(166, 110, 46, 0.15);
     }
+
     .kpi-lbl-cupon {
       font-size: 0.74rem;
       font-weight: 700;
@@ -161,6 +146,7 @@ $tipoMsg = $_GET['tipo'] ?? 'exito';
       letter-spacing: 0.4px;
       color: #8a7b70;
     }
+
     .kpi-val-cupon {
       font-size: 1.45rem;
       font-weight: 800;
@@ -169,6 +155,7 @@ $tipoMsg = $_GET['tipo'] ?? 'exito';
       margin-top: 2px;
       line-height: 1.1;
     }
+
     .kpi-sub-cupon {
       font-size: 0.74rem;
       color: #8a7b70;
@@ -213,21 +200,25 @@ $tipoMsg = $_GET['tipo'] ?? 'exito';
       letter-spacing: 0.3px;
       text-transform: uppercase;
     }
+
     .status-disponible {
       background: #e8f5e9;
       color: #2e7d32;
       border: 1px solid #a5d6a7;
     }
+
     .status-usado {
       background: #e3f2fd;
       color: #1565c0;
       border: 1px solid #90caf9;
     }
+
     .status-vencido {
       background: #ffebee;
       color: #c62828;
       border: 1px solid #ef9a9a;
     }
+
     .status-anulado {
       background: #eeeeee;
       color: #616161;
@@ -248,32 +239,39 @@ $tipoMsg = $_GET['tipo'] ?? 'exito';
       transition: all 0.15s ease;
       background: #fff;
     }
+
     .btn-action-cupon.btn-view {
       border-color: #d8cbbb;
       color: #4a3b32;
     }
+
     .btn-action-cupon.btn-view:hover {
       background: #f5ede1;
       border-color: #a66e2e;
     }
+
     .btn-action-cupon.btn-print {
       border-color: #bbdefb;
       color: #1565c0;
       background: #f4f9ff;
     }
+
     .btn-action-cupon.btn-print:hover {
       background: #e3f2fd;
       border-color: #1e88e5;
     }
+
     .btn-action-cupon.btn-cancel {
       border-color: #ffcdd2;
       color: #c62828;
       background: #fffafa;
     }
+
     .btn-action-cupon.btn-cancel:hover {
       background: #ffebee;
       border-color: #e53935;
     }
+
     .btn-icon-tiny {
       background: transparent;
       border: 1px solid #e0d7cb;
@@ -283,6 +281,7 @@ $tipoMsg = $_GET['tipo'] ?? 'exito';
       cursor: pointer;
       transition: all 0.15s ease;
     }
+
     .btn-icon-tiny:hover {
       background: #f0e6d6;
       border-color: #a66e2e;
@@ -292,6 +291,7 @@ $tipoMsg = $_GET['tipo'] ?? 'exito';
     .fila-cupon {
       transition: background 0.12s ease;
     }
+
     .fila-cupon:hover {
       background: #fdfaf4 !important;
     }
@@ -305,22 +305,25 @@ $tipoMsg = $_GET['tipo'] ?? 'exito';
       font-family: 'Courier New', Courier, monospace;
       padding: 20px 16px;
       border: 1px solid #ccc;
-      box-shadow: 0 4px 14px rgba(0,0,0,0.1);
+      box-shadow: 0 4px 14px rgba(0, 0, 0, 0.1);
       border-radius: 4px;
       font-size: 13px;
       line-height: 1.35;
     }
+
     .receipt-header {
       text-align: center;
       border-bottom: 1px dashed #000;
       padding-bottom: 10px;
       margin-bottom: 10px;
     }
+
     .receipt-title {
       font-size: 16px;
       font-weight: bold;
       letter-spacing: 1px;
     }
+
     .receipt-box-code {
       border: 2px dashed #000;
       padding: 10px;
@@ -328,17 +331,20 @@ $tipoMsg = $_GET['tipo'] ?? 'exito';
       text-align: center;
       background: #fafafa;
     }
+
     .receipt-code-val {
       font-size: 20px;
       font-weight: 900;
       letter-spacing: 2px;
       font-family: monospace;
     }
+
     .receipt-amount-val {
       font-size: 22px;
       font-weight: 900;
       margin: 4px 0;
     }
+
     .receipt-barcode {
       font-family: 'Libre Barcode 39', monospace, sans-serif;
       font-size: 32px;
@@ -346,6 +352,7 @@ $tipoMsg = $_GET['tipo'] ?? 'exito';
       letter-spacing: 4px;
       margin-top: 8px;
     }
+
     .receipt-footer {
       font-size: 10.5px;
       text-align: center;
@@ -360,9 +367,12 @@ $tipoMsg = $_GET['tipo'] ?? 'exito';
       body * {
         visibility: hidden !important;
       }
-      #modalTicket, #modalTicket * {
+
+      #modalTicket,
+      #modalTicket * {
         visibility: visible !important;
       }
+
       #modalTicket {
         position: fixed !important;
         left: 0 !important;
@@ -374,6 +384,7 @@ $tipoMsg = $_GET['tipo'] ?? 'exito';
         padding: 0 !important;
         margin: 0 !important;
       }
+
       .modal-content {
         box-shadow: none !important;
         border: none !important;
@@ -381,9 +392,12 @@ $tipoMsg = $_GET['tipo'] ?? 'exito';
         max-width: 100% !important;
         padding: 0 !important;
       }
-      .modal-header, .modal-actions-print {
+
+      .modal-header,
+      .modal-actions-print {
         display: none !important;
       }
+
       .thermal-receipt-container {
         border: none !important;
         box-shadow: none !important;
@@ -412,10 +426,12 @@ $tipoMsg = $_GET['tipo'] ?? 'exito';
       padding: 16px !important;
       box-sizing: border-box !important;
     }
+
     .modal-backdrop.open,
     .modal-overlay.open {
       display: flex !important;
     }
+
     .modal-content,
     .modal-box {
       background-color: #ffffff !important;
@@ -431,16 +447,19 @@ $tipoMsg = $_GET['tipo'] ?? 'exito';
       position: relative !important;
       width: 100% !important;
     }
+
     @keyframes modalFadeIn {
       from {
         opacity: 0;
         transform: translateY(-16px) scale(0.97);
       }
+
       to {
         opacity: 1;
         transform: translateY(0) scale(1);
       }
     }
+
     .btn-close {
       background: none;
       border: none;
@@ -452,12 +471,14 @@ $tipoMsg = $_GET['tipo'] ?? 'exito';
       border-radius: 4px;
       transition: background 0.15s, color 0.15s;
     }
+
     .btn-close:hover {
       color: #211813;
       background: #f0e6d6;
     }
   </style>
 </head>
+
 <body>
 
   <!-- BARRA SUPERIOR -->
@@ -498,7 +519,8 @@ $tipoMsg = $_GET['tipo'] ?? 'exito';
 
       <!-- MENSAJE DE RETROALIMENTACIÓN -->
       <?php if (!empty($msg)): ?>
-        <div style="margin-bottom: 16px; padding: 12px 18px; border-radius: 8px; font-weight: 500; font-size: 0.9rem; <?= ($tipoMsg === 'exito') ? 'background: #e8f5e9; color: #2e7d32; border: 1px solid #a5d6a7;' : 'background: #ffebee; color: #c62828; border: 1px solid #ef9a9a;' ?>">
+        <div
+          style="margin-bottom: 16px; padding: 12px 18px; border-radius: 8px; font-weight: 500; font-size: 0.9rem; <?= ($tipoMsg === 'exito') ? 'background: #e8f5e9; color: #2e7d32; border: 1px solid #a5d6a7;' : 'background: #ffebee; color: #c62828; border: 1px solid #ef9a9a;' ?>">
           <?= htmlspecialchars($msg) ?>
         </div>
       <?php endif; ?>
@@ -507,22 +529,19 @@ $tipoMsg = $_GET['tipo'] ?? 'exito';
       <div class="page-header">
         <div>
           <h1 class="page-title">Gestión de Cupones &amp; Descuentos</h1>
-          <p class="page-subtitle">Emisión, consulta, trazabilidad y control de vigencia de cupones promocionales (Módulo 6: Promociones)</p>
+          <p class="page-subtitle">Consulta, auditoría, trazabilidad y control de vigencia de cupones promocionales
+            generados en facturación (Módulo 6: Promociones)</p>
         </div>
 
         <div style="display: flex; gap: 10px; align-items: center;">
-          <a href="promociones.php" class="btn btn-beige" style="text-decoration: none;">
+          <a href="promociones.php" class="btn btn-gold" style="text-decoration: none;">
             🎁 Reglas y Campañas
           </a>
-          <button type="button" class="btn btn-gold" onclick="abrirModalEmision()">
-            + Emitir Cupón Promocional
-          </button>
         </div>
       </div>
 
       <!-- TARJETAS DINÁMICAS KPI (CLICKEABLES PARA FILTRAR) -->
       <div class="kpi-grid-cupones">
-        <!-- 1. TOTAL -->
         <div class="kpi-card-cupon active-kpi" id="kpiCardTodos" onclick="seleccionarFiltroKpi('TODOS')">
           <div>
             <div class="kpi-lbl-cupon">Total Cupones</div>
@@ -532,7 +551,6 @@ $tipoMsg = $_GET['tipo'] ?? 'exito';
           <span style="font-size: 1.7rem;">🏷️</span>
         </div>
 
-        <!-- 2. DISPONIBLES -->
         <div class="kpi-card-cupon" id="kpiCardDisponibles" onclick="seleccionarFiltroKpi('DISPONIBLE')">
           <div>
             <div class="kpi-lbl-cupon" style="color: #2e7d32;">Disponibles (Activos)</div>
@@ -542,7 +560,6 @@ $tipoMsg = $_GET['tipo'] ?? 'exito';
           <span style="font-size: 1.7rem;">🟢</span>
         </div>
 
-        <!-- 3. POR VENCER (<= 7 DÍAS) -->
         <div class="kpi-card-cupon" id="kpiCardPorVencer" onclick="seleccionarFiltroKpi('POR_VENCER')">
           <div>
             <div class="kpi-lbl-cupon" style="color: #b25e09;">Alerta Por Vencer (&le; 7d)</div>
@@ -552,7 +569,6 @@ $tipoMsg = $_GET['tipo'] ?? 'exito';
           <span style="font-size: 1.7rem;">🟠</span>
         </div>
 
-        <!-- 4. CANJEADOS / USADOS -->
         <div class="kpi-card-cupon" id="kpiCardUsados" onclick="seleccionarFiltroKpi('USADO')">
           <div>
             <div class="kpi-lbl-cupon" style="color: #1565c0;">Canjeados (Usados)</div>
@@ -562,7 +578,6 @@ $tipoMsg = $_GET['tipo'] ?? 'exito';
           <span style="font-size: 1.7rem;">🔵</span>
         </div>
 
-        <!-- 5. VENCIDOS / ANULADOS -->
         <div class="kpi-card-cupon" id="kpiCardVencidos" onclick="seleccionarFiltroKpi('VENCIDO_ANULADO')">
           <div>
             <div class="kpi-lbl-cupon" style="color: #c62828;">Vencidos / Anulados</div>
@@ -576,19 +591,14 @@ $tipoMsg = $_GET['tipo'] ?? 'exito';
       <!-- BARRA DE FILTROS EN TIEMPO REAL -->
       <div class="cupon-toolbar">
         <div style="display: flex; gap: 10px; flex-wrap: wrap; align-items: center; flex: 1;">
-          <!-- BUSCADOR -->
           <div class="search-box" style="min-width: 250px; flex: 1;">
             <span class="search-icon">🔍</span>
-            <input
-              type="text"
-              id="buscadorCupones"
-              placeholder="Buscar por código (CUP-...), cliente, factura o campaña..."
-              oninput="renderizarCupones()"
-            />
+            <input type="text" id="buscadorCupones"
+              placeholder="Buscar por código (CUP-...), cliente, factura o campaña..." oninput="renderizarCupones()" />
           </div>
 
-          <!-- FILTRO POR ESTADO -->
-          <select id="filtroEstado" class="form-control" style="width: 170px; height: 38px;" onchange="cambioSelectEstado()">
+          <select id="filtroEstado" class="form-control" style="width: 170px; height: 38px;"
+            onchange="cambioSelectEstado()">
             <option value="">📋 Todos los Estados</option>
             <option value="DISPONIBLE">🟢 Disponibles</option>
             <option value="POR_VENCER">🟠 Por Vencer (&le; 7 días)</option>
@@ -597,18 +607,18 @@ $tipoMsg = $_GET['tipo'] ?? 'exito';
             <option value="ANULADO">⚪ Anulados</option>
           </select>
 
-          <!-- FILTRO POR CAMPAÑA -->
-          <select id="filtroCampana" class="form-control" style="width: 200px; height: 38px;" onchange="renderizarCupones()">
+          <select id="filtroCampana" class="form-control" style="width: 200px; height: 38px;"
+            onchange="renderizarCupones()">
             <option value="">🎁 Todas las Campañas</option>
             <?php foreach ($campanas as $camp): ?>
-              <option value="<?= htmlspecialchars((string)$camp['id']) ?>">
+              <option value="<?= htmlspecialchars((string) $camp['id']) ?>">
                 <?= htmlspecialchars($camp['nombre_promocion']) ?>
               </option>
             <?php endforeach; ?>
           </select>
 
-          <!-- ORDENACIÓN -->
-          <select id="ordenarPor" class="form-control" style="width: 180px; height: 38px;" onchange="renderizarCupones()">
+          <select id="ordenarPor" class="form-control" style="width: 180px; height: 38px;"
+            onchange="renderizarCupones()">
             <option value="vencimiento_asc">⏳ Vencimiento: Próximos</option>
             <option value="vencimiento_desc">⌛ Vencimiento: Lejanos</option>
             <option value="monto_desc">💰 Monto: Mayor a Menor</option>
@@ -617,17 +627,23 @@ $tipoMsg = $_GET['tipo'] ?? 'exito';
           </select>
         </div>
 
-        <button type="button" class="btn btn-beige" onclick="restablecerFiltros()" title="Limpiar todos los filtros aplicados">
+        <button type="button" class="btn btn-beige" onclick="restablecerFiltros()"
+          title="Limpiar todos los filtros aplicados">
           🔄 Restablecer
         </button>
       </div>
 
       <!-- PESTAÑAS DE VISTA Y AUDITORÍA (2 PESTAÑAS PRINCIPALES) -->
-      <div style="display: flex; gap: 8px; margin-bottom: 14px; border-bottom: 2px solid #e7dcc8; padding-bottom: 2px; flex-wrap: wrap;">
-        <button type="button" class="btn btn-secondary" id="tabBtnAuditCupones" onclick="cambiarVistaAuditoria('CUPONES', this)" style="padding: 8px 18px; font-weight: 700; border-radius: 8px 8px 0 0; background: #ffffff; color: var(--text-dark); border: 1.5px solid #d4c1a7; border-bottom: none; cursor: pointer;">
+      <div
+        style="display: flex; gap: 8px; margin-bottom: 14px; border-bottom: 2px solid #e7dcc8; padding-bottom: 2px; flex-wrap: wrap;">
+        <button type="button" class="btn btn-secondary" id="tabBtnAuditCupones"
+          onclick="cambiarVistaAuditoria('CUPONES', this)"
+          style="padding: 8px 18px; font-weight: 700; border-radius: 8px 8px 0 0; background: #ffffff; color: var(--text-dark); border: 1.5px solid #d4c1a7; border-bottom: none; cursor: pointer;">
           <span>🎟️</span> Cupones de Descuento
         </button>
-        <button type="button" class="btn btn-secondary" id="tabBtnAuditDescuentos" onclick="cambiarVistaAuditoria('DESCUENTOS', this)" style="padding: 8px 18px; font-weight: 700; border-radius: 8px 8px 0 0; background: #fbf9f5; color: var(--text-muted); border: 1px solid var(--border-light); border-bottom: none; cursor: pointer;">
+        <button type="button" class="btn btn-secondary" id="tabBtnAuditDescuentos"
+          onclick="cambiarVistaAuditoria('DESCUENTOS', this)"
+          style="padding: 8px 18px; font-weight: 700; border-radius: 8px 8px 0 0; background: #fbf9f5; color: var(--text-muted); border: 1px solid var(--border-light); border-bottom: none; cursor: pointer;">
           <span>🏷️</span> Promociones &amp; Descuentos en Curso (<?= count($descuentosEnCurso) ?>)
         </button>
       </div>
@@ -640,7 +656,7 @@ $tipoMsg = $_GET['tipo'] ?? 'exito';
             <span class="badge-count" id="badgeContadorCupones"><?= count($cupones) ?> registros</span>
           </div>
           <div style="font-size: 0.8rem; color: #8a7b70;" id="subtituloTablaAuditoria">
-            Mostrando trazabilidad de emisión y canje en facturación
+            Mostrando trazabilidad de emisión automática y canje en facturación
           </div>
         </div>
 
@@ -701,7 +717,8 @@ $tipoMsg = $_GET['tipo'] ?? 'exito';
                 <?php foreach ($descuentosEnCurso as $desc): ?>
                   <tr>
                     <td>
-                      <strong style="color: var(--text-dark); font-size: 0.90rem;"><?= htmlspecialchars($desc['nombre_promocion']) ?></strong>
+                      <strong
+                        style="color: var(--text-dark); font-size: 0.90rem;"><?= htmlspecialchars($desc['nombre_promocion']) ?></strong>
                     </td>
                     <td>
                       <span class="badge-status status-usado" style="font-size: 0.72rem;">
@@ -712,7 +729,7 @@ $tipoMsg = $_GET['tipo'] ?? 'exito';
                       <?= htmlspecialchars($desc['regla_beneficio']) ?>
                     </td>
                     <td class="text-right" style="font-family: monospace; font-weight: 700;">
-                      RD$ <?= number_format((float)$desc['monto_minimo_factura'], 2) ?>
+                      RD$ <?= number_format((float) $desc['monto_minimo_factura'], 2) ?>
                     </td>
                     <td class="text-center" style="font-size: 0.82rem;">
                       <span style="color: #2e7d52;"><?= htmlspecialchars($desc['fecha_inicio_fmt']) ?></span>
@@ -743,127 +760,7 @@ $tipoMsg = $_GET['tipo'] ?? 'exito';
   </div>
 
   <!-- ======================================================================== -->
-  <!-- MODAL 1: EMISIÓN DE CUPÓN PROMOCIONAL                                   -->
-  <!-- ======================================================================== -->
-  <div id="modalEmision" class="modal-backdrop" style="display: none;">
-    <div class="modal-content" style="max-width: 580px;">
-      <div class="modal-header">
-        <div>
-          <h3 class="modal-title">Emitir Cupón Promocional</h3>
-          <p class="modal-subtitle">Genera un nuevo vale de descuento a favor de un cliente o al portador</p>
-        </div>
-        <button type="button" class="btn-close" onclick="cerrarModalEmision()">&times;</button>
-      </div>
-
-      <form id="formEmisionCupon" onsubmit="guardarEmisionCupon(event)">
-        <div class="modal-body" style="display: flex; flex-direction: column; gap: 14px;">
-
-          <!-- CÓDIGO DE CUPÓN CON GENERADOR RÁPIDO -->
-          <div class="form-group">
-            <label class="form-label" for="emision_codigo_cupon">Código del Cupón *</label>
-            <div style="display: flex; gap: 8px;">
-              <input
-                type="text"
-                id="emision_codigo_cupon"
-                name="codigo_cupon"
-                class="form-control"
-                style="font-family: monospace; font-weight: 700; font-size: 1rem; text-transform: uppercase;"
-                placeholder="Ej: CUP-X7K92P"
-                required
-              />
-              <button type="button" class="btn btn-beige" onclick="generarCodigoAleatorioInput()" title="Generar código aleatorio">
-                🎲 Aleatorio
-              </button>
-            </div>
-            <small style="color: #8a7b70; font-size: 0.74rem;">Identificador único que se digitará o escaneará en caja para redimir.</small>
-          </div>
-
-          <!-- CAMPAÑA PROMOCIONAL -->
-          <div class="form-group">
-            <label class="form-label" for="emision_promocion_id">Campaña de Origen *</label>
-            <select id="emision_promocion_id" name="promocion_id" class="form-control" required>
-              <?php if (empty($campanas)): ?>
-                <option value="0">Campaña Promocional General</option>
-              <?php else: ?>
-                <?php foreach ($campanas as $camp): ?>
-                  <option value="<?= htmlspecialchars((string)$camp['id']) ?>">
-                    <?= htmlspecialchars($camp['nombre_promocion']) ?> (<?= htmlspecialchars($camp['tipo_promocion']) ?>)
-                  </option>
-                <?php endforeach; ?>
-              <?php endif; ?>
-            </select>
-          </div>
-
-          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
-            <!-- MONTO DEL CRÉDITO -->
-            <div class="form-group">
-              <label class="form-label" for="emision_monto_credito">Monto Crédito (RD$) *</label>
-              <input
-                type="number"
-                step="0.01"
-                min="0.01"
-                id="emision_monto_credito"
-                name="monto_credito"
-                class="form-control"
-                style="font-weight: 800; font-size: 1.05rem;"
-                placeholder="Ej: 500.00"
-                required
-              />
-            </div>
-
-            <!-- FECHA DE VENCIMIENTO -->
-            <div class="form-group">
-              <label class="form-label" for="emision_fecha_vencimiento">Fecha de Vencimiento *</label>
-              <input
-                type="date"
-                id="emision_fecha_vencimiento"
-                name="fecha_vencimiento"
-                class="form-control"
-                min="<?= date('Y-m-d') ?>"
-                required
-              />
-            </div>
-          </div>
-
-          <!-- CLIENTE TITULAR (OPCIONAL O AL PORTADOR) -->
-          <div class="form-group">
-            <label class="form-label" for="emision_cliente_id">Cliente Beneficiario (Opcional)</label>
-            <select id="emision_cliente_id" name="cliente_id" class="form-control">
-              <option value="">👤 Público General / Al Portador</option>
-              <?php foreach ($clientes as $cl): ?>
-                <option value="<?= htmlspecialchars((string)$cl['cliente_id']) ?>">
-                  <?= htmlspecialchars($cl['nombre_razon_social']) ?> (<?= htmlspecialchars($cl['documento_identidad'] ?: 'Sin Doc') ?>)
-                </option>
-              <?php endforeach; ?>
-            </select>
-            <small style="color: #8a7b70; font-size: 0.74rem;">Si se deja al portador, cualquier cliente en caja puede presentar el cupón.</small>
-          </div>
-
-          <!-- FACTURA DE ORIGEN (OPCIONAL) -->
-          <div class="form-group">
-            <label class="form-label" for="emision_factura_origen_id">Vincular a Factura de Emisión (Opcional)</label>
-            <select id="emision_factura_origen_id" name="factura_origen_id" class="form-control">
-              <option value="">⭐ Ninguna (Emisión Administrativa / Cortesía)</option>
-              <?php foreach ($facturas as $fac): ?>
-                <option value="<?= htmlspecialchars((string)$fac['id']) ?>">
-                  Factura #<?= htmlspecialchars($fac['numero_factura']) ?> - NCF: <?= htmlspecialchars($fac['ncf'] ?: 'Sin NCF') ?> (RD$ <?= number_format(floatval($fac['monto_total']), 2) ?>)
-                </option>
-              <?php endforeach; ?>
-            </select>
-          </div>
-
-        </div>
-
-        <div class="modal-footer" style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 14px;">
-          <button type="button" class="btn btn-beige" onclick="cerrarModalEmision()">Cancelar</button>
-          <button type="submit" id="btnGuardarCupon" class="btn btn-gold">Guardar y Emitir Cupón</button>
-        </div>
-      </form>
-    </div>
-  </div>
-
-  <!-- ======================================================================== -->
-  <!-- MODAL 2: DETALLE Y TRAZABILIDAD COMPLETA DEL CUPÓN                     -->
+  <!-- MODAL 1: DETALLE Y TRAZABILIDAD COMPLETA DEL CUPÓN                      -->
   <!-- ======================================================================== -->
   <div id="modalDetalle" class="modal-backdrop" style="display: none;">
     <div class="modal-content" style="max-width: 540px;">
@@ -876,18 +773,18 @@ $tipoMsg = $_GET['tipo'] ?? 'exito';
       </div>
 
       <div class="modal-body" style="display: flex; flex-direction: column; gap: 14px;">
-        
-        <!-- ENCABEZADO DEL CUPÓN -->
-        <div style="background: #fcf9f3; border: 1px dashed #d8b888; border-radius: 8px; padding: 14px; text-align: center;">
-          <div style="font-size: 0.76rem; font-weight: 700; color: #8a7b70; text-transform: uppercase;">Código de Cupón</div>
-          <div id="detCodigoCupon" style="font-size: 1.6rem; font-weight: 900; font-family: monospace; color: #794a15; margin: 4px 0;">—</div>
+        <div
+          style="background: #fcf9f3; border: 1px dashed #d8b888; border-radius: 8px; padding: 14px; text-align: center;">
+          <div style="font-size: 0.76rem; font-weight: 700; color: #8a7b70; text-transform: uppercase;">Código de Cupón
+          </div>
+          <div id="detCodigoCupon"
+            style="font-size: 1.6rem; font-weight: 900; font-family: monospace; color: #794a15; margin: 4px 0;">—</div>
           <div id="detMontoCredito" style="font-size: 1.3rem; font-weight: 800; color: #211813;">RD$ 0.00</div>
           <div style="margin-top: 6px;">
             <span id="detEstado" class="badge-status status-disponible">DISPONIBLE</span>
           </div>
         </div>
 
-        <!-- GRILLA DE ATRIBUTOS -->
         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; font-size: 0.85rem;">
           <div>
             <div style="font-size: 0.74rem; color: #8a7b70; font-weight: 700;">CAMPAÑA ORIGEN</div>
@@ -912,10 +809,10 @@ $tipoMsg = $_GET['tipo'] ?? 'exito';
             <div id="detFacturaCanje" style="font-weight: 600; color: #1565c0; margin-top: 2px;">—</div>
           </div>
         </div>
-
       </div>
 
-      <div class="modal-footer" style="display: flex; justify-content: space-between; align-items: center; margin-top: 14px;">
+      <div class="modal-footer"
+        style="display: flex; justify-content: space-between; align-items: center; margin-top: 14px;">
         <button type="button" id="btnImprimirDesdeDetalle" class="btn btn-beige">
           🖨️ Imprimir Ticket
         </button>
@@ -927,7 +824,7 @@ $tipoMsg = $_GET['tipo'] ?? 'exito';
   </div>
 
   <!-- ======================================================================== -->
-  <!-- MODAL 3: TICKET TÉRMICO PARA IMPRESIÓN (80mm)                           -->
+  <!-- MODAL 2: TICKET TÉRMICO PARA IMPRESIÓN (80mm)                           -->
   <!-- ======================================================================== -->
   <div id="modalTicket" class="modal-backdrop" style="display: none;">
     <div class="modal-content" style="max-width: 400px; padding: 18px;">
@@ -936,7 +833,6 @@ $tipoMsg = $_GET['tipo'] ?? 'exito';
         <button type="button" class="btn-close" onclick="cerrarModalTicket()">&times;</button>
       </div>
 
-      <!-- TICKET TÉRMICO -->
       <div class="thermal-receipt-container">
         <div class="receipt-header">
           <div class="receipt-title">HOUSE &amp; ICE</div>
@@ -958,7 +854,6 @@ $tipoMsg = $_GET['tipo'] ?? 'exito';
           <div><strong>Válido hasta:</strong> <span id="tktVencimiento">31/12/2026</span></div>
         </div>
 
-        <!-- CÓDIGO DE BARRAS SIMULADO -->
         <div style="text-align: center; border: 1px solid #ddd; padding: 6px; margin: 8px 0; background: #fafafa;">
           <div style="font-family: monospace; font-size: 18px; letter-spacing: 4px; font-weight: bold;" id="tktBarcode">
             *CUP-000000*
@@ -973,7 +868,6 @@ $tipoMsg = $_GET['tipo'] ?? 'exito';
         </div>
       </div>
 
-      <!-- BOTONES DE ACCIÓN PARA IMPRESIÓN -->
       <div class="modal-actions-print" style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 14px;">
         <button type="button" class="btn btn-beige" onclick="cerrarModalTicket()">Cerrar</button>
         <button type="button" class="btn btn-gold" onclick="ejecutarImpresionTicket()">
@@ -988,6 +882,7 @@ $tipoMsg = $_GET['tipo'] ?? 'exito';
     window.CUPONES_DATA = <?= json_encode($cupones, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP | JSON_UNESCAPED_UNICODE) ?>;
     window.DESCUENTOS_DATA = <?= json_encode($descuentosEnCurso, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_HEX_AMP | JSON_UNESCAPED_UNICODE) ?>;
   </script>
-  <script src="cupones.js?v=21"></script>
+  <script src="cupones.js?v=22"></script>
 </body>
+
 </html>

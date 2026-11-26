@@ -9,14 +9,16 @@
  *   - Fase 2: Motor de Promociones en servidor (CROSS_SELLING, VOLUMEN, HAPPY_HOUR 1NF, FECHAS)
  *             + Canje de Cupones (cupones_descuento) con prorrateo fiscal
  *   - Fase 3: Validación B01 + Asignación concurrente de NCF (FOR UPDATE) + Multimoneda
- *   - Fase 4: Split Universal de Pagos (EFECTIVO, TARJETA, TRANSFERENCIA, CHEQUE, SALDO_FAVOR B04)
- *             con subtipos 1:1 en tesoreria.* y movimientos_bancarios
+ *   - Fase 4: Split Universal de Pagos (EFECTIVO consolidado, TARJETA, TRANSFERENCIA, CHEQUE,
+ *             SALDO_FAVOR B04) con subtipos 1:1 en tesoreria.* y movimientos_bancarios
  *   - Fase 5: Bloqueo estricto de sesión (Control de Caja), Descarga FEFO sincronizada
  *             (inventario_stock + lotes + Kardex SALIDA_VENTA), Emisión automática CUPON_TICKET,
  *             CxC con límite de crédito, Delivery con Triple Filtro + Tarifa, Anulación con PIN
  *             y Auditoría Forense JSONB
  * ============================================================================
  */
+
+ini_set('display_errors', '0');
 
 require_once __DIR__ . '/../../config/conexion.php';
 require_once __DIR__ . '/../../config/auditoria_helper.php';
@@ -973,7 +975,6 @@ try {
         responderPos(true, 'OK', ['items' => $rows]);
     }
 
-
     // =========================================================================
     // 2B. BUSCADOR EN VIVO DE CLIENTES (NOMBRE, CÉDULA, RNC, CÓDIGO, TELÉFONO)
     // =========================================================================
@@ -1174,7 +1175,7 @@ try {
     }
 
     // =========================================================================
-    // 7. CREAR CLIENTE RÁPIDO (+ CLIENTE) CON AUDITORÍA
+    // 7. CREAR CLIENTE RÁPIDO (+ CLIENTE) CON VALIDACIÓN DE EDAD (>= 18) Y AUDITORÍA
     // =========================================================================
     if ($accion === 'crear_cliente_rapido') {
         $tipoDocumento = strtoupper(trim((string) ($datos['tipo_documento'] ?? 'CEDULA')));
@@ -1195,6 +1196,21 @@ try {
         }
 
         $tipoPersona = ($tipoDocumento === 'RNC') ? 'JURIDICA' : 'FISICA';
+
+        if ($fechaNac !== '' && $tipoPersona === 'FISICA') {
+            if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $fechaNac)) {
+                throw new Exception('El formato de la fecha de nacimiento no es válido.');
+            }
+            $dtNac = DateTimeImmutable::createFromFormat('Y-m-d', $fechaNac);
+            $hoy = new DateTimeImmutable('today');
+            if (!$dtNac || $dtNac->format('Y-m-d') !== $fechaNac || $dtNac > $hoy) {
+                throw new Exception('La fecha de nacimiento ingresada no es válida.');
+            }
+            $edad = $dtNac->diff($hoy)->y;
+            if ($edad < 18) {
+                throw new Exception("No se puede registrar al cliente: debe ser mayor de 18 años (edad calculada: {$edad} años).");
+            }
+        }
 
         $pdo->beginTransaction();
 
@@ -1811,7 +1827,7 @@ try {
         }
 
         // ---------------------------------------------------------------------
-        // FASE 4: Split Universal de Pagos (CONTADO) o CxC (CREDITO)
+        // FASE 4: Split Universal de Pagos (CONTADO — EFECTIVO consolidado) o CxC (CREDITO)
         // ---------------------------------------------------------------------
         $pagosRegistrados = [];
 
@@ -1829,7 +1845,9 @@ try {
             ");
             $stmtInsFP = $pdo->prepare("INSERT INTO ventas.factura_pagos (factura_id, detalle_pago_id) VALUES (?, ?)");
 
-            $totalCubierto = 0.0;
+            // Consolidar múltiples entradas de EFECTIVO en una sola y aplicarla al final
+            $pagosNoEfectivo = [];
+            $pagoEfectivoUnico = null;
 
             foreach ($pagosInput as $idxP => $pg) {
                 $numP = $idxP + 1;
@@ -1849,7 +1867,40 @@ try {
                 }
 
                 $codigoMetodo = strtoupper((string) $mp['codigo']);
-                $montoRecibido = round(floatval($pg['monto_pagado'] ?? 0), 2);
+                $montoRec = round(floatval($pg['monto_pagado'] ?? 0), 2);
+                if ($montoRec <= 0) {
+                    throw new Exception("Pago #{$numP} ({$mp['descripcion']}): el monto debe ser mayor a 0.");
+                }
+
+                $pg['_mp'] = $mp;
+                $pg['_codigo'] = $codigoMetodo;
+                $pg['metodo_pago_id'] = intval($mp['id']);
+                $pg['monto_pagado'] = $montoRec;
+
+                if ($codigoMetodo === 'EFECTIVO') {
+                    if ($pagoEfectivoUnico === null) {
+                        $pagoEfectivoUnico = $pg;
+                    } else {
+                        $pagoEfectivoUnico['monto_pagado'] = round($pagoEfectivoUnico['monto_pagado'] + $montoRec, 2);
+                    }
+                } else {
+                    $pagosNoEfectivo[] = $pg;
+                }
+            }
+
+            $pagosNormalizados = $pagosNoEfectivo;
+            if ($pagoEfectivoUnico !== null) {
+                $pagosNormalizados[] = $pagoEfectivoUnico;
+            }
+
+            $totalCubierto = 0.0;
+
+            foreach ($pagosNormalizados as $idxP => $pg) {
+                $numP = $idxP + 1;
+                $mp = $pg['_mp'];
+                $mpId = intval($mp['id']);
+                $codigoMetodo = $pg['_codigo'];
+                $montoRecibido = floatval($pg['monto_pagado']);
                 $pendienteAntes = round(max(0.0, $facturaTotal - $totalCubierto), 2);
 
                 if ($pendienteAntes <= 0) {
@@ -2366,6 +2417,36 @@ try {
     }
 
     responderPos(false, 'Acción no reconocida.');
+} catch (PDOException $e) {
+    if ($pdo && $pdo->inTransaction()) {
+        $pdo->rollBack();
+    }
+
+    $sqlState = (string) $e->getCode();
+    $msgDb = $e->getMessage();
+    $mensajeAmigable = 'No se pudo completar la operación. Verifica los datos ingresados e intenta nuevamente.';
+
+    if ($sqlState === '23514') {
+        if (preg_match('/(edad|nacimiento|mayor|18)/i', $msgDb)) {
+            $mensajeAmigable = 'No se puede registrar al cliente: debe ser mayor de 18 años.';
+        } else {
+            $mensajeAmigable = 'Uno de los valores ingresados no cumple con las reglas de validación del sistema.';
+        }
+    } elseif ($sqlState === '23505') {
+        if (stripos($msgDb, 'documento_identidad') !== false || stripos($msgDb, 'personas') !== false) {
+            $mensajeAmigable = 'Ya existe una persona o cliente registrado con ese número de documento.';
+        } elseif (stripos($msgDb, 'uk_movbanco_ref') !== false || stripos($msgDb, 'referencia') !== false) {
+            $mensajeAmigable = 'Ese número de referencia bancaria o cheque ya fue registrado anteriormente.';
+        } else {
+            $mensajeAmigable = 'Ya existe un registro duplicado para esta operación.';
+        }
+    } elseif ($sqlState === '22001') {
+        $mensajeAmigable = 'Uno de los campos ingresados excede la longitud máxima permitida.';
+    } elseif ($sqlState === '22007') {
+        $mensajeAmigable = 'El formato de la fecha ingresada no es válido.';
+    }
+
+    responderPos(false, $mensajeAmigable, ['detalle_tecnico' => $msgDb], 400);
 } catch (Throwable $e) {
     if ($pdo && $pdo->inTransaction()) {
         $pdo->rollBack();

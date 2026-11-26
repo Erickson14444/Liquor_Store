@@ -1017,6 +1017,27 @@ function agregarPagoSplit() {
     return;
   }
 
+  if (cod === 'EFECTIVO') {
+    const efExistente = pagosSplit.find((p) => p.metodo_codigo === 'EFECTIVO');
+    if (efExistente) {
+      const totalFactura = Number(ultimoCalculo?.monto_total || 0);
+      const cubiertoOtros = pagosSplit
+        .filter((p) => p.metodo_codigo !== 'EFECTIVO')
+        .reduce((acc, p) => acc + Number(p.aplicado || 0), 0);
+      const disponibleParaEfectivo = Math.max(0, Number((totalFactura - cubiertoOtros).toFixed(2)));
+
+      const nuevoRecibido = Number((Number(efExistente.monto_pagado || 0) + monto).toFixed(2));
+      efExistente.monto_pagado = nuevoRecibido;
+      efExistente.aplicado = Math.min(nuevoRecibido, disponibleParaEfectivo);
+      efExistente.devuelta = Number(Math.max(0, nuevoRecibido - efExistente.aplicado).toFixed(2));
+
+      actualizarResumenSplit();
+      alCambiarMetodoSplit();
+      mostrarToast('El monto se consolidó en el pago de Efectivo existente.');
+      return;
+    }
+  }
+
   const obj = {
     metodo_pago_id: mpId,
     metodo_codigo: cod,
@@ -1309,8 +1330,39 @@ function formatearTelefonoRapido(input) {
   else input.value = `(${d.slice(0, 3)}) ${d.slice(3, 6)}-${d.slice(6, 10)}`;
 }
 
+
+
+function calcularEdadExactaPos(fechaIso) {
+  const partes = String(fechaIso || '').split('-').map(Number);
+  if (partes.length !== 3 || partes.some(isNaN)) return null;
+  const [anio, mes, dia] = partes;
+  const hoy = new Date();
+  let edad = hoy.getFullYear() - anio;
+  const difMes = (hoy.getMonth() + 1) - mes;
+  if (difMes < 0 || (difMes === 0 && hoy.getDate() < dia)) {
+    edad--;
+  }
+  return edad;
+}
+
+
 async function guardarClienteRapido(e) {
   e.preventDefault();
+  const tipoDoc = document.getElementById('cliTipoDoc').value;
+  const fechaNac = (document.getElementById('cliFechaNac').value || '').trim();
+
+  if (tipoDoc !== 'RNC' && fechaNac !== '') {
+    const edad = calcularEdadExactaPos(fechaNac);
+    if (edad === null || edad < 0) {
+      mostrarToast('La fecha de nacimiento ingresada no es válida.', 'error');
+      return;
+    }
+    if (edad < 18) {
+      mostrarToast(`No se puede registrar el cliente: debe ser mayor de 18 años (edad ingresada: ${edad} años).`, 'error');
+      return;
+    }
+  }
+
   const btn = document.getElementById('btnSubmitClienteRapido');
   btn.disabled = true;
   try {
@@ -1319,11 +1371,11 @@ async function guardarClienteRapido(e) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         accion: 'crear_cliente_rapido',
-        tipo_documento: document.getElementById('cliTipoDoc').value,
+        tipo_documento: tipoDoc,
         documento_identidad: document.getElementById('cliDocumento').value,
         nombre_razon_social: document.getElementById('cliNombre').value,
         telefono_principal: document.getElementById('cliTelefono').value,
-        fecha_nacimiento: document.getElementById('cliFechaNac').value,
+        fecha_nacimiento: fechaNac,
         categoria_cliente: document.getElementById('cliCategoria').value
       })
     });

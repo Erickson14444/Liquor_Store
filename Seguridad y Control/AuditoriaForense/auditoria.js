@@ -1,283 +1,418 @@
 /**
  * ============================================================================
- * Lógica Reactiva: Auditoría del Sistema (Human-Friendly & Práctica)
+ * Lógica Reactiva: Auditoría del Sistema (Filtros Completos + Scroll Sincronizado)
  * House & Ice • Sistema Administrativo (ERP Licorero)
  * Ubicación: Seguridad y Control/AuditoriaForense/auditoria.js
  * ============================================================================
  */
 
 let TIMER_BUSQUEDA_AUD = null;
+let AUD_PAGINA_ACTUAL = window.AUD_INIT_STATE?.pagina || 1;
+let AUD_TOTAL_PAGINAS = window.AUD_INIT_STATE?.totalPaginas || 1;
+let AUD_LIMITE = window.AUD_INIT_STATE?.limite || 50;
+let SYNC_SCROLL_LOCK = false;
 
 // ============================================================================
-// DICCIONARIOS Y TRADUCTORES A LENGUAJE HUMANO (SIN CÓDIGO NI IDs)
+// DICCIONARIOS A LENGUAJE HUMANO
 // ============================================================================
 const DICCIONARIO_TABLAS = {
     'comprobantes_egreso_cxp': 'Comprobantes CxP',
+    'comprobante_egreso_retenciones': 'Retenciones DGII',
+    'cuentas_por_pagar': 'Cuentas por Pagar (CxP)',
+    'ajustes_cxp': 'Ajustes CxP',
     'movimientos_inventario': 'Movimientos Stock',
     'traslados_internos': 'Traslados Internos',
     'consignaciones': 'Consignaciones',
+    'consignaciones_detalle': 'Retorno Consignaciones',
     'cupones_descuento': 'Cupones Descuento',
     'promociones_campanas': 'Promociones y Campañas',
     'facturas': 'Facturación / Ventas',
     'facturas_detalles': 'Detalle Factura',
     'cotizaciones': 'Cotizaciones',
-    'devoluciones': 'Devoluciones',
+    'devoluciones': 'Devoluciones (B04)',
     'ordenes_compra': 'Órdenes de Compra',
     'recepciones': 'Recepciones Mercancía',
+    'recepciones_compra': 'Recepciones Mercancía',
+    'sesiones_caja': 'Sesiones de Caja',
     'caja_sesiones': 'Sesiones de Caja',
+    'movimiento_caja': 'Movimientos de Caja',
     'caja_movimientos': 'Movimientos de Caja',
+    'movimientos_bancarios': 'Movimientos Bancarios',
+    'depositos_bancarios': 'Depósitos Bancarios',
     'cuentas_por_cobrar': 'Cuentas por Cobrar (CxC)',
-    'notas_debito': 'Notas de Débito',
+    'recibos_ingreso_cxc': 'Recibos de Ingreso CxC',
+    'ajustes_cxc': 'Ajustes CxC',
+    'notas_debito': 'Notas de Débito (B03)',
     'usuarios': 'Usuarios',
     'roles': 'Roles y Permisos',
+    'productos_maestro': 'Catálogo Productos',
     'articulos': 'Catálogo Artículos',
+    'clientes': 'Clientes',
+    'proveedores': 'Proveedores',
     'personas': 'Clientes y Proveedores'
 };
 
 const DICCIONARIO_ACCIONES = {
     'LIQUIDAR_EGRESO_CXP': 'Liquidación Egreso CxP',
+    'REGISTRAR_GASTO_SERVICIO_CXP': 'Gasto / Servicio CxP',
+    'REGISTRAR_AJUSTE_CXP': 'Ajuste / Anulación CxP',
+    'LIQUIDACION_RETENCIONES_DGII': 'Liquidación Retenciones DGII',
+    'REGISTRAR_RECIBO_CXC': 'Recibo de Ingreso CxC',
+    'EMITIR_NOTA_DEBITO_B03': 'Nota de Débito (B03)',
     'LIQUIDAR_CONSIGNACION': 'Liquidación Consignación',
     'CREAR_CONSIGNACION': 'Creación Consignación',
+    'REGISTRAR_RETORNO_CONSIGNACION': 'Retorno Físico Consignación',
+    'POS_EMITIR_FACTURA': 'Emisión de Factura POS',
+    'POS_ANULAR_FACTURA': 'Anulación de Factura POS',
+    'POS_CREAR_CLIENTE_RAPIDO': 'Alta Rápida de Cliente',
     'INVENTARIO_TRASLADO_EMISION': 'Emisión Traslado Stock',
     'INVENTARIO_AJUSTE_ENTRADA': 'Entrada por Ajuste Stock',
     'INVENTARIO_AJUSTE_SALIDA': 'Salida por Ajuste Stock',
-    'FACTURACION_B01': 'Factura Crédito Fiscal (B01)',
-    'FACTURACION_B02': 'Factura Consumo (B02)',
-    'FACTURACION_B03': 'Nota de Débito Fiscal (B03)',
-    'FACTURACION_B04': 'Nota de Crédito / Devolución',
     'APERTURA_CAJA': 'Apertura de Caja',
-    'CIERRE_CAJA': 'Cierre de Caja',
-    'DEVOLUCION_VENTA': 'Devolución de Venta',
+    'CIERRE_CAJA': 'Cierre / Arqueo de Caja',
+    'DEVOLUCION_VENTA': 'Devolución de Venta (B04)',
     'RECEPCION_MERCANCIA': 'Recepción de Mercancía',
-    'ANULACION_VENTA': 'Anulación de Venta',
     'OVERRIDE_PIN': 'Autorización con PIN'
 };
 
 const DICCIONARIO_CAMPOS = {
     'numero_comprobante': 'Nº de Comprobante',
+    'numero_recibo': 'Nº de Recibo',
+    'numero_factura': 'Nº de Factura',
+    'numero_consignacion': 'Nº Consignación',
+    'ncf_nota_debito': 'NCF Nota de Débito',
+    'ncf_factura_modificada': 'NCF Factura Modificada',
     'total_pagado': 'Total Pagado',
+    'monto_total_recibido': 'Total Cobrado',
+    'monto_total_liquidado': 'Total Liquidado',
     'total_retenciones': 'Total Retenciones',
     'facturas_afectadas': 'Facturas Afectadas',
     'ncf': 'Comprobante Fiscal (NCF)',
     'estado': 'Estado de la Operación',
-    'numero': 'Número / Folio',
+    'estado_final': 'Estado Final',
     'numero_traslado': 'Nº de Traslado',
     'almacen_origen': 'Almacén de Origen',
     'almacen_destino': 'Almacén de Destino',
-    'almacen_nombre': 'Almacén',
     'tipo_movimiento': 'Tipo de Movimiento',
     'justificacion': 'Justificación / Motivo',
+    'concepto': 'Concepto',
+    'concepto_cargo': 'Concepto del Cargo',
     'monto': 'Monto',
     'monto_total': 'Monto Total',
-    'total': 'Total',
-    'subtotal': 'Subtotal',
-    'descuento': 'Descuento',
-    'itbis': 'ITBIS / Impuesto',
-    'cliente': 'Cliente',
+    'monto_subtotal': 'Subtotal',
+    'monto_impuestos': 'Impuestos',
+    'subtotal_consumo': 'Subtotal Consumo',
+    'impuestos_consumo': 'Impuestos Consumo',
+    'total_facturado': 'Total Facturado',
+    'monto_fianza': 'Fianza en Garantía',
+    'cliente_nombre': 'Cliente',
     'proveedor': 'Proveedor',
-    'usuario': 'Usuario',
-    'cantidad': 'Cantidad',
-    'cantidad_enviada': 'Cantidad Enviada',
-    'cantidad_movida': 'Cantidad Movida',
-    'costo_unitario_ref': 'Costo Unitario',
-    'costo': 'Costo',
-    'precio': 'Precio',
-    'stock_fisico_despues': 'Stock Final',
-    'stock_fisico_antes': 'Stock Inicial',
-    'lote_cantidad_despues': 'Cantidad Lote Final',
-    'lote_cantidad_antes': 'Cantidad Lote Inicial',
-    'numero_lote': 'Número de Lote',
-    'saldo': 'Saldo Pendiente',
-    'codigo_cupon': 'Código de Cupón',
-    'porcentaje_descuento': '% Descuento',
-    'monto_descuento': 'Monto Descuento',
-    'fecha_vencimiento': 'Fecha de Vencimiento',
+    'banco': 'Banco',
+    'referencia_dgii': 'Autorización DGII',
+    'periodo_fiscal': 'Período Fiscal',
     'detalles': 'Artículos Incluidos',
-    'detalles_nuevos': 'Artículos Modificados',
-    'saldos_previos': 'Saldos Anteriores',
-    'saldos_origen': 'Saldos Origen'
+    'detalles_retorno': 'Artículos Retornados',
+    'facturas_liquidadas': 'Facturas Liquidadas'
 };
+
+document.addEventListener('DOMContentLoaded', () => {
+    inicializarScrollSincronizadoAud();
+
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') cerrarModal('modalInspectorForense');
+    });
+});
+
+// ============================================================================
+// SCROLL HORIZONTAL SINCRONIZADO (ARRIBA + ABAJO + SHIFT+WHEEL + BOTONES ◀ ▶)
+// ============================================================================
+function inicializarScrollSincronizadoAud() {
+    const topScroll = document.getElementById('audTopScroll');
+    const wrapper = document.getElementById('audTableWrapper');
+    if (!topScroll || !wrapper) return;
+
+    topScroll.addEventListener('scroll', () => {
+        if (SYNC_SCROLL_LOCK) return;
+        SYNC_SCROLL_LOCK = true;
+        wrapper.scrollLeft = topScroll.scrollLeft;
+        SYNC_SCROLL_LOCK = false;
+    });
+
+    wrapper.addEventListener('scroll', () => {
+        if (SYNC_SCROLL_LOCK) return;
+        SYNC_SCROLL_LOCK = true;
+        topScroll.scrollLeft = wrapper.scrollLeft;
+        SYNC_SCROLL_LOCK = false;
+    });
+
+    // Shift + Rueda del ratón para desplazar horizontalmente sin buscar la barra
+    wrapper.addEventListener('wheel', (e) => {
+        if (e.shiftKey && Math.abs(e.deltaY) > 0) {
+            e.preventDefault();
+            wrapper.scrollLeft += e.deltaY;
+        }
+    }, { passive: false });
+
+    window.addEventListener('resize', sincronizarAnchoScrollTopAud);
+    sincronizarAnchoScrollTopAud();
+}
+
+function sincronizarAnchoScrollTopAud() {
+    const topScroll = document.getElementById('audTopScroll');
+    const inner = document.getElementById('audTopScrollInner');
+    const wrapper = document.getElementById('audTableWrapper');
+    const table = document.getElementById('tablaAuditoria');
+    if (!topScroll || !inner || !wrapper || !table) return;
+
+    const anchoTabla = table.scrollWidth;
+    const anchoVista = wrapper.clientWidth;
+
+    inner.style.width = anchoTabla + 'px';
+    // Mostrar barra superior únicamente si hay desborde horizontal real
+    topScroll.style.display = (anchoTabla > anchoVista + 4) ? 'block' : 'none';
+}
+
+function desplazarTablaAud(deltaPx) {
+    const wrapper = document.getElementById('audTableWrapper');
+    if (!wrapper) return;
+    wrapper.scrollBy({ left: deltaPx, behavior: 'smooth' });
+}
+
+// ============================================================================
+// FORMATEADORES HUMAN-FRIENDLY
+// ============================================================================
+function formatearSnakeCase(str) {
+    return String(str).replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+}
 
 function formatearNombreTabla(tablaRaw) {
     if (!tablaRaw) return 'General';
     const limpia = tablaRaw.includes('.') ? tablaRaw.split('.').pop() : tablaRaw;
-    const lower = limpia.toLowerCase();
-    return DICCIONARIO_TABLAS[lower] || formatearSnakeCase(limpia);
+    return DICCIONARIO_TABLAS[limpia.toLowerCase()] || formatearSnakeCase(limpia);
 }
 
 function formatearAccion(accionRaw) {
     if (!accionRaw) return 'Operación';
-    const up = accionRaw.toUpperCase();
-    return DICCIONARIO_ACCIONES[up] || formatearSnakeCase(accionRaw);
+    return DICCIONARIO_ACCIONES[accionRaw.toUpperCase()] || formatearSnakeCase(accionRaw.toLowerCase());
 }
 
 function formatearNombreCampo(campoRaw) {
     if (!campoRaw) return '';
-    const lower = campoRaw.toLowerCase();
-    return DICCIONARIO_CAMPOS[lower] || formatearSnakeCase(campoRaw);
-}
-
-function formatearSnakeCase(str) {
-    return String(str)
-        .replace(/_/g, ' ')
-        .replace(/\b\w/g, l => l.toUpperCase());
+    return DICCIONARIO_CAMPOS[campoRaw.toLowerCase()] || formatearSnakeCase(campoRaw);
 }
 
 function esCampoIdTecnico(campo) {
     if (!campo) return false;
     const lower = campo.toLowerCase();
-    return (
-        lower === 'id' ||
-        lower === 'uuid' ||
-        lower.endsWith('_id') ||
-        lower.endsWith('_uuid')
-    );
+    return lower === 'id' || lower === 'uuid' || lower.endsWith('_id') || lower.endsWith('_uuid');
 }
 
 function esMonetario(campo, valor) {
     const c = String(campo).toLowerCase();
     return (
-        (c.includes('monto') ||
-         c.includes('total') ||
-         c.includes('precio') ||
-         c.includes('costo') ||
-         c.includes('pagado') ||
-         c.includes('retencion') ||
-         c.includes('saldo') ||
-         c.includes('itbis') ||
-         c.includes('descuento')) &&
-        !isNaN(Number(valor))
+        /(monto|total|precio|costo|pagado|retencion|saldo|itbis|descuento|fianza|reembolso|facturado|recibido|liquidado)/i.test(c)
+        && valor !== '' && valor !== null && !isNaN(Number(valor))
     );
 }
 
 function generarResumenAmigable(datos) {
-    if (!datos || typeof datos !== 'object') {
-        return '(Sin datos adicionales)';
-    }
+    if (!datos || typeof datos !== 'object') return '(Sin datos adicionales)';
 
     const partes = [];
     for (const [k, v] of Object.entries(datos)) {
         if (esCampoIdTecnico(k)) continue;
-
         if (Array.isArray(v)) {
-            partes.push(`Artículos: ${v.length}`);
+            partes.push(`Ítems: ${v.length}`);
             continue;
         }
-
-        if (v === null || v === undefined || typeof v === 'object' || String(v).trim() === '') {
-            continue;
-        }
+        if (v === null || v === undefined || typeof v === 'object' || String(v).trim() === '') continue;
 
         const etiqueta = formatearNombreCampo(k);
         let valStr = String(v);
-
         if (esMonetario(k, v)) {
             valStr = `RD$ ${Number(v).toLocaleString('es-DO', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
         }
-
         partes.push(`${etiqueta}: ${valStr}`);
-        if (partes.length >= 3) break;
+        if (partes.length >= 4) break;
     }
-
     return partes.length > 0 ? partes.join(' • ') : '(Detalles registrados)';
 }
 
 // ============================================================================
-// CONTROL DEL MODAL
+// FILTROS, RANGOS RÁPIDOS DE FECHA Y PAGINACIÓN
 // ============================================================================
-function abrirModal(id) {
-    const m = document.getElementById(id);
-    if (m) {
-        m.classList.add('active');
-        document.body.style.overflow = 'hidden';
+function formatoFechaIsoLocal(d) {
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${y}-${m}-${day}`;
+}
+
+function marcarPillRangoActivo(rango) {
+    document.querySelectorAll('.aud-pill-btn').forEach(btn => {
+        btn.classList.toggle('active', btn.getAttribute('data-rango') === rango);
+    });
+}
+
+function aplicarRangoRapidoAud(rango) {
+    const inpIni = document.getElementById('filtroFechaInicio');
+    const inpFin = document.getElementById('filtroFechaFin');
+    const hoy = new Date();
+
+    if (rango === 'hoy') {
+        const str = formatoFechaIsoLocal(hoy);
+        inpIni.value = str;
+        inpFin.value = str;
+    } else if (rango === '7dias') {
+        const desde = new Date(hoy);
+        desde.setDate(hoy.getDate() - 6);
+        inpIni.value = formatoFechaIsoLocal(desde);
+        inpFin.value = formatoFechaIsoLocal(hoy);
+    } else if (rango === 'mes') {
+        const inicioMes = new Date(hoy.getFullYear(), hoy.getMonth(), 1);
+        inpIni.value = formatoFechaIsoLocal(inicioMes);
+        inpFin.value = formatoFechaIsoLocal(hoy);
+    } else {
+        inpIni.value = '';
+        inpFin.value = '';
+    }
+
+    marcarPillRangoActivo(rango);
+    recargarAuditoria(1);
+}
+
+function alCambiarFechaManualAud() {
+    marcarPillRangoActivo('');
+    const ini = document.getElementById('filtroFechaInicio').value;
+    const fin = document.getElementById('filtroFechaFin').value;
+    if (ini && fin && ini > fin) {
+        document.getElementById('filtroFechaFin').value = ini;
+    }
+    recargarAuditoria(1);
+}
+
+function filtrarSoloOverridesRapido() {
+    const chk = document.getElementById('filtroSoloOverrides');
+    if (chk) {
+        chk.checked = true;
+        recargarAuditoria(1);
     }
 }
 
-function cerrarModal(id) {
-    const m = document.getElementById(id);
-    if (m) {
-        m.classList.remove('active');
-        document.body.style.overflow = '';
-    }
-}
-
-function cerrarModalBackdrop(event, id) {
-    if (event.target === document.getElementById(id)) {
-        cerrarModal(id);
-    }
-}
-
-document.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape') {
-        cerrarModal('modalInspectorForense');
-    }
-});
-
-function alCambiarFiltroAuditoria() {
+function alCambiarFiltroAuditoria(inmediato = false) {
     clearTimeout(TIMER_BUSQUEDA_AUD);
-    TIMER_BUSQUEDA_AUD = setTimeout(() => {
-        recargarAuditoria();
-    }, 250);
+    if (inmediato) {
+        recargarAuditoria(1);
+    } else {
+        TIMER_BUSQUEDA_AUD = setTimeout(() => recargarAuditoria(1), 240);
+    }
+}
+
+function alCambiarLimiteAud() {
+    AUD_LIMITE = parseInt(document.getElementById('filtroLimite')?.value || '50', 10);
+    recargarAuditoria(1);
+}
+
+function irPaginaAud(nuevaPagina) {
+    const p = Math.min(Math.max(1, nuevaPagina), AUD_TOTAL_PAGINAS);
+    if (p === AUD_PAGINA_ACTUAL) return;
+    recargarAuditoria(p);
 }
 
 function limpiarFiltrosAuditoria() {
     document.getElementById('filtroBusqueda').value = '';
+    document.getElementById('filtroFechaInicio').value = '';
+    document.getElementById('filtroFechaFin').value = '';
+    document.getElementById('filtroOrden').value = 'fecha_desc';
     document.getElementById('filtroTabla').value = '';
+    document.getElementById('filtroCategoria').value = '';
     document.getElementById('filtroAccion').value = '';
     document.getElementById('filtroUsuario').value = '';
+    document.getElementById('filtroSupervisor').value = '';
     document.getElementById('filtroSoloOverrides').checked = false;
-    recargarAuditoria();
+    document.getElementById('filtroSoloCambios').checked = false;
+    marcarPillRangoActivo('todo');
+    recargarAuditoria(1);
+}
+
+function construirQueryParamsAud(pagina = 1) {
+    return new URLSearchParams({
+        busqueda: (document.getElementById('filtroBusqueda')?.value || '').trim(),
+        fecha_inicio: document.getElementById('filtroFechaInicio')?.value || '',
+        fecha_fin: document.getElementById('filtroFechaFin')?.value || '',
+        orden: document.getElementById('filtroOrden')?.value || 'fecha_desc',
+        tabla: document.getElementById('filtroTabla')?.value || '',
+        categoria_evento: document.getElementById('filtroCategoria')?.value || '',
+        tipo_accion: document.getElementById('filtroAccion')?.value || '',
+        usuario_id: document.getElementById('filtroUsuario')?.value || '',
+        supervisor_id: document.getElementById('filtroSupervisor')?.value || '',
+        solo_overrides: document.getElementById('filtroSoloOverrides')?.checked ? '1' : '',
+        solo_cambios: document.getElementById('filtroSoloCambios')?.checked ? '1' : '',
+        limite: String(AUD_LIMITE),
+        pagina: String(pagina)
+    });
+}
+
+function exportarAuditoriaCsv() {
+    const params = construirQueryParamsAud(1);
+    params.set('accion', 'exportar_csv');
+    window.location.href = `procesar_auditoria.php?${params.toString()}`;
+}
+
+async function leerJsonSeguroAud(resp) {
+    const txt = await resp.text();
+    try {
+        return JSON.parse(txt);
+    } catch (e) {
+        throw new Error('Respuesta inesperada del servidor: ' + txt.replace(/<[^>]+>/g, ' ').trim().slice(0, 200));
+    }
 }
 
 // ============================================================================
-// CONSULTA ASÍNCRONA DE REGISTROS DE AUDITORÍA
+// CONSULTA ASÍNCRONA DE REGISTROS
 // ============================================================================
-async function recargarAuditoria() {
-    const busqueda = document.getElementById('filtroBusqueda')?.value.trim() || '';
-    const tabla = document.getElementById('filtroTabla')?.value || '';
-    const accion = document.getElementById('filtroAccion')?.value || '';
-    const usuarioId = document.getElementById('filtroUsuario')?.value || '';
-    const soloOverrides = document.getElementById('filtroSoloOverrides')?.checked ? '1' : '';
-
+async function recargarAuditoria(pagina = 1) {
     const tbody = document.getElementById('tbodyAuditoria');
     if (!tbody) return;
 
-    tbody.innerHTML = '<tr><td colspan="7" style="text-align: center; padding: 20px; color: #888;">Cargando registros de auditoría...</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="7" style="text-align: center; padding: 24px; color: #888;">Consultando registros de auditoría...</td></tr>';
 
     try {
-        const url = `procesar_auditoria.php?accion=listar_auditoria` +
-                    `&busqueda=${encodeURIComponent(busqueda)}` +
-                    `&tabla=${encodeURIComponent(tabla)}` +
-                    `&tipo_accion=${encodeURIComponent(accion)}` +
-                    `&usuario_id=${encodeURIComponent(usuarioId)}` +
-                    `&solo_overrides=${encodeURIComponent(soloOverrides)}`;
+        const params = construirQueryParamsAud(pagina);
+        params.set('accion', 'listar_auditoria');
 
-        const resp = await fetch(url);
-        const json = await resp.json();
+        const resp = await fetch(`procesar_auditoria.php?${params.toString()}`);
+        const json = await leerJsonSeguroAud(resp);
 
-        if (json.status !== 'success' || !json.data) {
+        if (json.status !== 'success' || !Array.isArray(json.data)) {
             tbody.innerHTML = `<tr><td colspan="7" style="text-align:center; padding: 18px; color:#b71c1c;">${escapeHtml(json.message || 'Error cargando datos')}</td></tr>`;
             return;
         }
 
         const registros = json.data;
+        AUD_PAGINA_ACTUAL = Number(json.pagina || 1);
+        AUD_TOTAL_PAGINAS = Number(json.total_paginas || 1);
+        const total = Number(json.total || 0);
+
         const badge = document.getElementById('badgeTotalAud');
-        if (badge) badge.textContent = `${json.total} registros`;
+        if (badge) badge.textContent = `${total.toLocaleString('es-DO')} registro(s)`;
+
+        actualizarControlesPaginacionAud(total, registros.length);
 
         if (registros.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="7" style="text-align: center; padding: 28px; color: var(--text-muted);">No se encontraron registros con los filtros seleccionados.</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="7" style="text-align: center; padding: 30px; color: var(--text-muted);">No se encontraron registros con los filtros seleccionados.</td></tr>';
+            sincronizarAnchoScrollTopAud();
             return;
         }
 
-        let html = '';
-        registros.forEach(r => {
+        tbody.innerHTML = registros.map(r => {
             const accUp = (r.accion || '').toUpperCase();
             let claseAccion = 'update';
-            if (accUp.includes('INSERT') || accUp.includes('CREAR') || accUp.includes('APERTURA')) {
+            if (accUp.includes('INSERT') || accUp.includes('CREAR') || accUp.includes('APERTURA') || accUp.includes('REGISTRAR_GASTO')) {
                 claseAccion = 'insert';
-            } else if (accUp.includes('DELETE') || accUp.includes('ANULAC') || accUp.includes('CANCEL')) {
+            } else if (accUp.includes('DELETE') || accUp.includes('ANUL') || accUp.includes('CANCEL') || accUp.includes('INCOBRABLE')) {
                 claseAccion = 'delete';
-            } else if (accUp.includes('B03') || accUp.includes('FISCAL') || accUp.includes('B02') || accUp.includes('B01')) {
+            } else if (accUp.includes('B03') || accUp.includes('FISCAL') || accUp.includes('FACTURA') || accUp.includes('DGII')) {
                 claseAccion = 'fiscal';
             } else if (r.es_override) {
                 claseAccion = 'override';
@@ -291,46 +426,84 @@ async function recargarAuditoria() {
                 ? `<span class="badge-override-pin" title="Autorizado con PIN de Supervisor">🔒 ${escapeHtml(r.supervisor_username || 'Supervisor')}</span>`
                 : `<span style="color:#bbb; font-size: 0.74rem;">—</span>`;
 
-            html += `
-                <tr class="fila-aud" data-id="${r.auditoria_id}">
-                    <td>
-                        <span style="font-size: 0.78rem; font-weight: 600;">${r.fecha_fmt}</span>
+            return `
+                <tr class="fila-aud" data-id="${r.auditoria_id}" ondblclick="inspeccionarForense(${r.auditoria_id})" title="Doble clic para ver detalle completo">
+                    <td class="col-fecha">
+                        <span style="font-size: 0.78rem; font-weight: 600; font-family: var(--font-mono);">${escapeHtml(r.fecha_fmt)}</span>
                     </td>
-                    <td>
+                    <td class="col-modulo">
                         <span class="badge-tabla" title="${escapeHtml(r.tabla_afectada || '')}">${escapeHtml(tablaAmigable)}</span>
                     </td>
-                    <td>
+                    <td class="col-accion">
                         <span class="badge-accion ${claseAccion}">${escapeHtml(accionAmigable)}</span>
                     </td>
-                    <td>
+                    <td class="col-usuario">
                         <strong>${escapeHtml(r.usuario_username)}</strong>
                         <small style="display: block; font-size: 0.70rem; color: var(--text-muted);">${escapeHtml(r.usuario_nombre)}</small>
                     </td>
-                    <td>${overrideHtml}</td>
-                    <td>
-                        <div style="font-size: 0.75rem; color: #444; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${escapeHtml(resumenTxt)}">
-                            ${escapeHtml(resumenTxt)}
-                        </div>
+                    <td class="col-supervisor">${overrideHtml}</td>
+                    <td class="col-resumen">
+                        <div class="aud-resumen-cell" title="${escapeHtml(resumenTxt)}">${escapeHtml(resumenTxt)}</div>
                     </td>
-                    <td class="text-center">
-                        <button type="button" class="btn btn-sm btn-outline" onclick="inspeccionarForense(${r.auditoria_id})" style="padding: 2px 7px; font-weight: 600; font-size: 0.75rem;">
+                    <td class="col-detalle col-sticky-right text-center">
+                        <button type="button" class="btn btn-sm btn-outline" onclick="inspeccionarForense(${r.auditoria_id})" style="padding: 3px 9px; font-weight: 600; font-size: 0.75rem;">
                             🔍 Ver
                         </button>
                     </td>
-                </tr>
-            `;
-        });
+                </tr>`;
+        }).join('');
 
-        tbody.innerHTML = html;
+        // Subir scroll vertical de la tabla al cambiar de página y resincronizar barra superior
+        const wrapper = document.getElementById('audTableWrapper');
+        if (wrapper) wrapper.scrollTop = 0;
+        sincronizarAnchoScrollTopAud();
     } catch (e) {
         console.error(e);
-        tbody.innerHTML = '<tr><td colspan="7" style="text-align:center; padding: 20px; color:#b71c1c;">Error al consultar el servidor.</td></tr>';
+        tbody.innerHTML = `<tr><td colspan="7" style="text-align:center; padding: 20px; color:#b71c1c;">${escapeHtml(e.message)}</td></tr>`;
     }
 }
 
+function actualizarControlesPaginacionAud(total, cantEnPagina) {
+    const info = document.getElementById('audInfoPaginacion');
+    const ind = document.getElementById('audIndicadorPagina');
+    const bPrim = document.getElementById('btnPagPrimera');
+    const bAnt = document.getElementById('btnPagAnterior');
+    const bSig = document.getElementById('btnPagSiguiente');
+    const bUlt = document.getElementById('btnPagUltima');
+
+    if (info) {
+        if (total === 0) {
+            info.textContent = 'Sin registros coincidentes';
+        } else {
+            const desde = ((AUD_PAGINA_ACTUAL - 1) * AUD_LIMITE) + 1;
+            const hasta = desde + cantEnPagina - 1;
+            info.textContent = `Mostrando ${desde}–${hasta} de ${total.toLocaleString('es-DO')} registros`;
+        }
+    }
+    if (ind) ind.textContent = `Página ${AUD_PAGINA_ACTUAL} de ${AUD_TOTAL_PAGINAS}`;
+    if (bPrim) bPrim.disabled = (AUD_PAGINA_ACTUAL <= 1);
+    if (bAnt) bAnt.disabled = (AUD_PAGINA_ACTUAL <= 1);
+    if (bSig) bSig.disabled = (AUD_PAGINA_ACTUAL >= AUD_TOTAL_PAGINAS);
+    if (bUlt) bUlt.disabled = (AUD_PAGINA_ACTUAL >= AUD_TOTAL_PAGINAS);
+}
+
 // ============================================================================
-// INSPECTOR AMIGABLE: TRANSFORMA JSON EN TARJETAS Y TABLAS ENTENDIBLES
+// MODAL INSPECTOR AMIGABLE
 // ============================================================================
+function abrirModal(id) {
+    const m = document.getElementById(id);
+    if (m) { m.classList.add('active'); document.body.style.overflow = 'hidden'; }
+}
+
+function cerrarModal(id) {
+    const m = document.getElementById(id);
+    if (m) { m.classList.remove('active'); document.body.style.overflow = ''; }
+}
+
+function cerrarModalBackdrop(event, id) {
+    if (event.target === document.getElementById(id)) cerrarModal(id);
+}
+
 async function inspeccionarForense(id) {
     const body = document.getElementById('bodyInspectorForense');
     if (!body) return;
@@ -339,8 +512,8 @@ async function inspeccionarForense(id) {
     abrirModal('modalInspectorForense');
 
     try {
-        const resp = await fetch(`procesar_auditoria.php?accion=obtener_detalle&id=${id}`);
-        const json = await resp.json();
+        const resp = await fetch(`procesar_auditoria.php?accion=obtener_detalle&id=${encodeURIComponent(id)}`);
+        const json = await leerJsonSeguroAud(resp);
 
         if (json.status !== 'success' || !json.data) {
             body.innerHTML = `<div class="alert alert-danger">${escapeHtml(json.message || 'Error cargando datos')}</div>`;
@@ -355,82 +528,46 @@ async function inspeccionarForense(id) {
         const tablaAmigable = formatearNombreTabla(aud.tabla_afectada);
         const accionAmigable = formatearAccion(aud.accion);
 
-        // 1. Tarjeta de Metadatos
-        let htmlHeader = `
-            <div style="background: #faf7f2; border: 1px solid #ebd9bf; border-radius: 6px; padding: 10px 14px; margin-bottom: 10px;">
+        const htmlHeader = `
+            <div style="background: #faf7f2; border: 1px solid #ebd9bf; border-radius: 6px; padding: 10px 14px;">
                 <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 8px; font-size: 0.80rem;">
-                    <div><strong>Módulo:</strong> <span class="badge-tabla" title="${escapeHtml(aud.tabla_afectada || '')}">${escapeHtml(tablaAmigable)}</span></div>
+                    <div><strong>Módulo:</strong> <span class="badge-tabla">${escapeHtml(tablaAmigable)}</span></div>
                     <div><strong>Operación:</strong> <span class="badge-accion ${aud.supervisor_id ? 'override' : 'update'}">${escapeHtml(accionAmigable)}</span></div>
                     <div><strong>Fecha:</strong> ${escapeHtml(aud.fecha_fmt)}</div>
-                    <div><strong>Operador:</strong> ${escapeHtml(aud.usuario_username)}</div>
+                    <div><strong>Operador:</strong> ${escapeHtml(aud.usuario_username)} (${escapeHtml(aud.usuario_nombre)})</div>
                     <div><strong>Autorización:</strong> ${aud.supervisor_id ? `<span class="badge-override-pin">🔒 ${escapeHtml(aud.supervisor_username)}</span>` : 'No requerida'}</div>
                 </div>
-            </div>
-        `;
+            </div>`;
 
-        // 2. Banner de Estado
         let bannerHtml = '';
         if (!ant && nue) {
-            bannerHtml = `
-                <div class="aud-status-banner insert">
-                    <span>✨ Registro Nuevo Creado</span>
-                    <span style="font-weight: normal; font-size: 0.76rem; color: #2e7d32;">— Información registrada exitosamente en el sistema</span>
-                </div>
-            `;
+            bannerHtml = `<div class="aud-status-banner insert"><span>✨ Registro Nuevo Creado</span><span style="font-weight: normal; font-size: 0.76rem;">— Información registrada exitosamente</span></div>`;
         } else if (ant && nue) {
-            bannerHtml = `
-                <div class="aud-status-banner update">
-                    <span>📝 Modificación de Registro</span>
-                    <span style="font-weight: normal; font-size: 0.76rem; color: #1e6091;">— Se detectaron campos actualizados</span>
-                </div>
-            `;
+            bannerHtml = `<div class="aud-status-banner update"><span>📝 Modificación de Registro</span><span style="font-weight: normal; font-size: 0.76rem;">— Comparativa Antes vs. Después</span></div>`;
         } else if (ant && !nue) {
-            bannerHtml = `
-                <div class="aud-status-banner delete">
-                    <span>🗑️ Registro Anulado o Cancelado</span>
-                </div>
-            `;
+            bannerHtml = `<div class="aud-status-banner delete"><span>🗑️ Registro Anulado o Eliminado</span></div>`;
         }
 
-        // 3. Tabla de Diferencias (si hubo UPDATE)
         let htmlDiffs = '';
         const diffsFiltrados = diffs.filter(d => !esCampoIdTecnico(d.campo));
         if (diffsFiltrados.length > 0) {
-            let filasDiff = '';
-            diffsFiltrados.forEach(d => {
-                const nombreCampo = formatearNombreCampo(d.campo);
-                const valorAnt = formatearValorAmigable(d.campo, d.antes);
-                const valorNue = formatearValorAmigable(d.campo, d.despues);
-
-                filasDiff += `
-                    <tr>
-                        <td style="font-weight: 700; color: #4a3c31;">${escapeHtml(nombreCampo)}</td>
-                        <td style="color: #b53d32; background: #fff5f5;">${valorAnt}</td>
-                        <td style="color: #2e7d52; background: #f2fbf4; font-weight: 700;">${valorNue}</td>
-                    </tr>
-                `;
-            });
+            const filasDiff = diffsFiltrados.map(d => `
+                <tr>
+                    <td style="font-weight: 700; color: #4a3c31;">${escapeHtml(formatearNombreCampo(d.campo))}</td>
+                    <td style="color: #b53d32; background: #fff5f5;">${formatearValorAmigable(d.campo, d.antes)}</td>
+                    <td style="color: #2e7d52; background: #f2fbf4; font-weight: 700;">${formatearValorAmigable(d.campo, d.despues)}</td>
+                </tr>`).join('');
 
             htmlDiffs = `
-                <div style="margin-bottom: 12px;">
+                <div>
                     <div class="aud-section-title">⚖️ Comparativa de Cambios Realizados</div>
                     <table class="diff-table">
-                        <thead>
-                            <tr>
-                                <th>Dato / Campo</th>
-                                <th style="color: #b53d32;">Valor Anterior</th>
-                                <th style="color: #2e7d52;">Valor Nuevo</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            ${filasDiff}
-                        </tbody>
+                        <thead><tr><th>Campo</th><th style="color: #b53d32;">Valor Anterior</th><th style="color: #2e7d52;">Valor Nuevo</th></tr></thead>
+                        <tbody>${filasDiff}</tbody>
                     </table>
-                </div>
-            `;
+                </div>`;
         }
 
-        // 4. Tarjetas con los Datos Registrados (Human-Readable)
         const datosParaCards = nue || ant || {};
         let cardsHtml = '';
         let tablasArticulosHtml = '';
@@ -439,27 +576,19 @@ async function inspeccionarForense(id) {
             let cardsProps = '';
             for (const [k, v] of Object.entries(datosParaCards)) {
                 if (esCampoIdTecnico(k)) continue;
-
-                // Si es un arreglo de artículos/detalles, renderizar como sub-tabla bonita
                 if (Array.isArray(v) && v.length > 0 && typeof v[0] === 'object') {
                     tablasArticulosHtml += renderizarSubtablaArticulos(k, v);
                     continue;
                 }
-
-                if (v === null || v === undefined || typeof v === 'object' || String(v).trim() === '') {
-                    continue;
-                }
+                if (v === null || v === undefined || typeof v === 'object' || String(v).trim() === '') continue;
 
                 const etiqueta = formatearNombreCampo(k);
-                const esMonto = esMonetario(k, v);
-                const esCodigo = (k.includes('numero') || k.includes('ncf') || k.includes('codigo'));
-
                 let valStr = String(v);
                 let claseValor = 'aud-prop-value';
-                if (esMonto) {
+                if (esMonetario(k, v)) {
                     valStr = `RD$ ${Number(v).toLocaleString('es-DO', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
                     claseValor += ' money';
-                } else if (esCodigo) {
+                } else if (k.includes('numero') || k.includes('ncf') || k.includes('codigo') || k.includes('referencia')) {
                     claseValor += ' code';
                 }
 
@@ -467,80 +596,56 @@ async function inspeccionarForense(id) {
                     <div class="aud-prop-card">
                         <span class="aud-prop-label">${escapeHtml(etiqueta)}</span>
                         <span class="${claseValor}">${escapeHtml(valStr)}</span>
-                    </div>
-                `;
+                    </div>`;
             }
 
             if (cardsProps !== '') {
-                cardsHtml = `
-                    <div style="margin-bottom: 10px;">
-                        <div class="aud-section-title">📋 Información y Valores Registrados</div>
-                        <div class="aud-prop-grid">
-                            ${cardsProps}
-                        </div>
-                    </div>
-                `;
+                cardsHtml = `<div><div class="aud-section-title">📋 Información y Valores Registrados</div><div class="aud-prop-grid">${cardsProps}</div></div>`;
             }
         }
 
-        // 5. Acordeón Opcional para ver el JSON Crudo (oculto por defecto)
-        const jsonCrudoStr = JSON.stringify(datosParaCards, null, 2);
-        let htmlAcordeonTecnico = `
+        const htmlAcordeonTecnico = `
             <details class="aud-technical-details">
-                <summary>🛠️ Ver registro técnico JSON (Opcional)</summary>
-                <div class="json-viewer-box">${escapeHtml(jsonCrudoStr)}</div>
-            </details>
-        `;
+                <summary>🛠️ Ver registro técnico JSON completo (Antes / Después)</summary>
+                <div class="json-viewer-box">${escapeHtml(JSON.stringify({ antes: ant, despues: nue }, null, 2))}</div>
+            </details>`;
 
         body.innerHTML = htmlHeader + bannerHtml + htmlDiffs + cardsHtml + tablasArticulosHtml + htmlAcordeonTecnico;
-
     } catch (e) {
         console.error(e);
-        body.innerHTML = '<div class="alert alert-danger">Error al consultar el detalle de auditoría.</div>';
+        body.innerHTML = `<div class="alert alert-danger">${escapeHtml(e.message)}</div>`;
     }
 }
 
 function renderizarSubtablaArticulos(clave, lista) {
     if (!lista || lista.length === 0) return '';
     const titulo = formatearNombreCampo(clave);
-
-    let cabeceras = ['Producto / SKU', 'Lote', 'Cantidad', 'Costo / Precio'];
-    let filas = '';
-
-    lista.forEach(item => {
-        const sku = item.sku || item.producto || item.nombre || '(Sin SKU)';
-        const lote = item.numero_lote || item.lote || '—';
-        const cant = item.cantidad_movida ?? item.cantidad_enviada ?? item.cantidad ?? item.origen_fisico_despues ?? '1';
-        const precio = item.costo_unitario_ref ?? item.costo ?? item.precio ?? null;
-        const precioFmt = precio !== null
-            ? `RD$ ${Number(precio).toLocaleString('es-DO', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+    const filas = lista.map(item => {
+        const ref = item.sku || item.producto || item.nombre || item.metodo || (item.cxc_id ? `CxC #${item.cxc_id}` : '(Ítem)');
+        const extra = item.numero_lote || item.lote || (item.cantidad_devuelta !== undefined ? `Dev: ${item.cantidad_devuelta}` : '—');
+        const cant = item.cantidad_movida ?? item.cantidad_enviada ?? item.cantidad ?? item.cantidad_consumida ?? '';
+        const mto = item.costo_unitario_ref ?? item.monto_aplicado ?? item.aplicado ?? item.costo ?? item.precio ?? null;
+        const mtoF = (mto !== null && !isNaN(Number(mto)))
+            ? `RD$ ${Number(mto).toLocaleString('es-DO', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
             : '—';
 
-        filas += `
+        return `
             <tr>
-                <td><strong>${escapeHtml(sku)}</strong></td>
-                <td>${escapeHtml(lote)}</td>
-                <td><span style="font-weight:700;">${escapeHtml(String(cant))}</span> unid.</td>
-                <td style="color:#206b3c; font-family:monospace; font-weight:700;">${escapeHtml(precioFmt)}</td>
-            </tr>
-        `;
-    });
+                <td><strong>${escapeHtml(String(ref))}</strong></td>
+                <td>${escapeHtml(String(extra))}</td>
+                <td>${cant !== '' ? `<strong>${escapeHtml(String(cant))}</strong>` : '—'}</td>
+                <td style="color:#206b3c; font-family:monospace; font-weight:700;">${escapeHtml(mtoF)}</td>
+            </tr>`;
+    }).join('');
 
     return `
-        <div style="margin-top: 10px; margin-bottom: 10px;">
+        <div>
             <div class="aud-section-title">📦 ${escapeHtml(titulo)} (${lista.length} ítems)</div>
             <table class="aud-subtable">
-                <thead>
-                    <tr>
-                        ${cabeceras.map(c => `<th>${escapeHtml(c)}</th>`).join('')}
-                    </tr>
-                </thead>
-                <tbody>
-                    ${filas}
-                </tbody>
+                <thead><tr><th>Referencia / SKU</th><th>Lote / Detalle</th><th>Cant.</th><th>Monto / Costo</th></tr></thead>
+                <tbody>${filas}</tbody>
             </table>
-        </div>
-    `;
+        </div>`;
 }
 
 function formatearValorAmigable(campo, val) {

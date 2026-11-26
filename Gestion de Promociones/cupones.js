@@ -7,14 +7,12 @@
  */
 
 let filtroEstadoActual = 'TODOS';
-let modalEmision = null;
 let modalDetalle = null;
 let modalTicket = null;
 
 document.addEventListener('DOMContentLoaded', () => {
-  modalEmision = document.getElementById('modalEmision');
   modalDetalle = document.getElementById('modalDetalle');
-  modalTicket  = document.getElementById('modalTicket');
+  modalTicket = document.getElementById('modalTicket');
 
   // Inicializar renderizado con datos precargados
   actualizarContadoresKPI();
@@ -29,7 +27,6 @@ document.addEventListener('DOMContentLoaded', () => {
   // Cerrar modales con tecla Escape
   document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') {
-      cerrarModalEmision();
       cerrarModalDetalle();
       cerrarModalTicket();
     }
@@ -71,12 +68,11 @@ function cambiarVistaAuditoria(modo, btn) {
     return;
   }
 
-  // Modo Cupones
   if (contDescuentos) contDescuentos.style.display = 'none';
   if (contCupones) contCupones.style.display = 'block';
 
   if (titulo) titulo.textContent = 'Auditoría Integral de Cupones Emitidos';
-  if (subtitulo) subtitulo.textContent = 'Trazabilidad de cupones, emisión, saldo y canje en facturación POS';
+  if (subtitulo) subtitulo.textContent = 'Trazabilidad de cupones generados automáticamente y su canje en facturación POS';
 }
 
 /**
@@ -85,16 +81,14 @@ function cambiarVistaAuditoria(modo, btn) {
 function seleccionarFiltroKpi(estado) {
   filtroEstadoActual = estado;
 
-  // Actualizar clases de tarjetas activas
   document.querySelectorAll('.kpi-card-cupon').forEach(card => card.classList.remove('active-kpi'));
-  
+
   if (estado === 'TODOS') document.getElementById('kpiCardTodos')?.classList.add('active-kpi');
   else if (estado === 'DISPONIBLE') document.getElementById('kpiCardDisponibles')?.classList.add('active-kpi');
   else if (estado === 'POR_VENCER') document.getElementById('kpiCardPorVencer')?.classList.add('active-kpi');
   else if (estado === 'USADO') document.getElementById('kpiCardUsados')?.classList.add('active-kpi');
   else if (estado === 'VENCIDO_ANULADO') document.getElementById('kpiCardVencidos')?.classList.add('active-kpi');
 
-  // Sincronizar select si aplica
   const selectEstado = document.getElementById('filtroEstado');
   if (selectEstado) {
     if (estado === 'VENCIDO_ANULADO') {
@@ -208,7 +202,6 @@ function renderizarCupones() {
   let filtrados = data.filter(c => {
     const dias = parseInt(c.dias_restantes, 10);
 
-    // Filtro por Estado
     if (filtroEstadoActual === 'DISPONIBLE') {
       if (c.estado !== 'DISPONIBLE' || dias < 0) return false;
     } else if (filtroEstadoActual === 'POR_VENCER') {
@@ -223,12 +216,10 @@ function renderizarCupones() {
       if (c.estado !== 'VENCIDO' && c.estado !== 'ANULADO' && !(c.estado === 'DISPONIBLE' && dias < 0)) return false;
     }
 
-    // Filtro por Campaña
     if (campFiltro && String(c.promocion_id) !== campFiltro) {
       return false;
     }
 
-    // Filtro por Buscador de Texto
     if (query) {
       const matchCodigo = (c.codigo_cupon || '').toLowerCase().includes(query);
       const matchCliente = (c.cliente_nombre || '').toLowerCase().includes(query) || (c.cliente_documento || '').toLowerCase().includes(query);
@@ -243,7 +234,6 @@ function renderizarCupones() {
     return true;
   });
 
-  // Ordenación
   filtrados.sort((a, b) => {
     if (orden === 'vencimiento_asc') {
       return new Date(a.fecha_vencimiento) - new Date(b.fecha_vencimiento);
@@ -282,7 +272,6 @@ function renderizarCupones() {
     const dias = parseInt(c.dias_restantes, 10);
     const mtoFmt = formatMonto(c.monto_credito);
 
-    // Semáforo de días y estado
     let badgeEstadoHtml = '';
     let semaforoDiasHtml = '';
 
@@ -311,31 +300,16 @@ function renderizarCupones() {
       semaforoDiasHtml = `<span style="color: #757575;">Inactivo</span>`;
     }
 
-    // Cliente beneficiario
-    let clienteHtml = '';
-    if (c.cliente_nombre) {
-      clienteHtml = `
-        <div style="font-weight: 600; color: #211813;">${escapeHtml(c.cliente_nombre)}</div>
-        <div style="font-size: 0.76rem; color: #8a7b70;">${escapeHtml(c.cliente_documento || 'Sin RNC')}</div>
-      `;
-    } else {
-      clienteHtml = `
-        <span style="font-size: 0.82rem; color: #8a7b70; font-style: italic;">👤 Al Portador (General)</span>
-      `;
-    }
+    const clienteHtml = c.cliente_nombre
+      ? `<div style="font-weight: 600; color: #211813;">${escapeHtml(c.cliente_nombre)}</div>
+         <div style="font-size: 0.76rem; color: #8a7b70;">${escapeHtml(c.cliente_documento || 'Sin RNC')}</div>`
+      : `<span style="font-size: 0.82rem; color: #8a7b70; font-style: italic;">👤 Al Portador (General)</span>`;
 
-    // Factura de origen
-    let origenHtml = '';
-    if (c.factura_origen_numero) {
-      origenHtml = `
-        <div style="font-weight: 600; font-size: 0.82rem; color: #3d332a;">${escapeHtml(c.factura_origen_numero)}</div>
-        <div style="font-size: 0.74rem; color: #8a7b70;">${escapeHtml(c.factura_origen_ncf || c.factura_origen_fecha || '')}</div>
-      `;
-    } else {
-      origenHtml = `<span style="font-size: 0.78rem; color: #a66e2e; font-weight: 600;">⭐ Emisión Directa</span>`;
-    }
+    const origenHtml = c.factura_origen_numero
+      ? `<div style="font-weight: 600; font-size: 0.82rem; color: #3d332a;">${escapeHtml(c.factura_origen_numero)}</div>
+         <div style="font-size: 0.74rem; color: #8a7b70;">${escapeHtml(c.factura_origen_ncf || c.factura_origen_fecha || '')}</div>`
+      : `<span style="font-size: 0.78rem; color: #8a7b70;">Sin factura asociada</span>`;
 
-    // Canje / Factura Destino
     let canjeHtml = '';
     if (c.estado === 'USADO' && c.factura_canje_numero) {
       canjeHtml = `
@@ -350,7 +324,6 @@ function renderizarCupones() {
 
     return `
       <tr class="fila-cupon" id="filaCupon_${c.id}">
-        <!-- CÓDIGO -->
         <td>
           <div style="display: flex; align-items: center; gap: 6px;">
             <span class="cupon-code-pill">${escapeHtml(c.codigo_cupon)}</span>
@@ -361,32 +334,25 @@ function renderizarCupones() {
           <div style="font-size: 0.73rem; color: #8a7b70; margin-top: 2px;">${escapeHtml(c.campana_nombre || 'General')}</div>
         </td>
 
-        <!-- CLIENTE -->
         <td>${clienteHtml}</td>
 
-        <!-- MONTO CRÉDITO -->
         <td>
           <div style="font-size: 1.05rem; font-weight: 800; font-family: monospace; color: #211813;">
             RD$ ${mtoFmt}
           </div>
         </td>
 
-        <!-- FACTURA ORIGEN -->
         <td>${origenHtml}</td>
 
-        <!-- VENCIMIENTO -->
         <td>
           <div style="font-weight: 600; font-size: 0.85rem; color: #211813;">${escapeHtml(c.fecha_vencimiento_fmt || c.fecha_vencimiento)}</div>
           <div style="font-size: 0.75rem;">${semaforoDiasHtml}</div>
         </td>
 
-        <!-- ESTADO -->
         <td style="text-align: center;">${badgeEstadoHtml}</td>
 
-        <!-- CANJE DESTINO -->
         <td>${canjeHtml}</td>
 
-        <!-- ACCIONES -->
         <td style="text-align: right; white-space: nowrap;">
           <div style="display: inline-flex; gap: 4px;">
             <button type="button" class="btn-action-cupon btn-view" title="Ver ficha y trazabilidad" onclick="verDetalleCupon(${c.id})">
@@ -432,7 +398,7 @@ function fallbackCopiar(codigo, btn) {
   try {
     document.execCommand('copy');
     mostrarFeedbackBoton(btn, '✅');
-  } catch (err) {}
+  } catch (err) { }
   document.body.removeChild(ta);
 }
 
@@ -448,9 +414,6 @@ function mostrarFeedbackBoton(btn, txt) {
   }, 1400);
 }
 
-/**
- * Formatear número a moneda RD$
- */
 function formatMonto(monto) {
   const num = parseFloat(monto || 0);
   return num.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -467,95 +430,11 @@ function escapeHtml(str) {
 }
 
 /**
- * MODAL: EMISIÓN DE CUPÓN
- */
-function abrirModalEmision() {
-  if (!modalEmision) modalEmision = document.getElementById('modalEmision');
-  document.getElementById('formEmisionCupon')?.reset();
-  
-  // Asignar código sugerido
-  generarCodigoAleatorioInput();
-  
-  // Fecha vencimiento sugerida: 30 días a partir de hoy
-  const hoy = new Date();
-  hoy.setDate(hoy.getDate() + 30);
-  const yyyy = hoy.getFullYear();
-  const mm = String(hoy.getMonth() + 1).padStart(2, '0');
-  const dd = String(hoy.getDate()).padStart(2, '0');
-  const inpFecha = document.getElementById('emision_fecha_vencimiento');
-  if (inpFecha) inpFecha.value = `${yyyy}-${mm}-${dd}`;
-
-  modalEmision.style.display = 'flex';
-  modalEmision.classList.add('open');
-}
-
-function cerrarModalEmision() {
-  if (modalEmision) {
-    modalEmision.style.display = 'none';
-    modalEmision.classList.remove('open');
-  }
-}
-
-function generarCodigoAleatorioInput() {
-  const chars = '23456789ABCDEFGHJKLMNPQRSTUVWXYZ';
-  let rand = '';
-  for (let i = 0; i < 6; i++) {
-    rand += chars.charAt(Math.floor(Math.random() * chars.length));
-  }
-  const inp = document.getElementById('emision_codigo_cupon');
-  if (inp) inp.value = 'CUP-' + rand;
-}
-
-/**
- * Envío del formulario de emisión mediante AJAX
- */
-function guardarEmisionCupon(e) {
-  e.preventDefault();
-  const form = document.getElementById('formEmisionCupon');
-  const formData = new FormData(form);
-  formData.append('accion', 'emitir');
-  formData.append('format', 'json');
-
-  const btnSubmit = document.getElementById('btnGuardarCupon');
-  if (btnSubmit) {
-    btnSubmit.disabled = true;
-    btnSubmit.innerText = 'Emitiendo...';
-  }
-
-  fetch('procesar_cupones.php', {
-    method: 'POST',
-    body: formData
-  })
-  .then(res => res.json())
-  .then(data => {
-    if (data.status === 'success') {
-      alert(data.message || 'Cupón emitido exitosamente.');
-      cerrarModalEmision();
-      window.location.reload();
-    } else {
-      alert('Error: ' + (data.message || 'No se pudo emitir el cupón.'));
-      if (btnSubmit) {
-        btnSubmit.disabled = false;
-        btnSubmit.innerText = 'Guardar y Emitir Cupón';
-      }
-    }
-  })
-  .catch(err => {
-    alert('Error de conexión al emitir el cupón.');
-    if (btnSubmit) {
-      btnSubmit.disabled = false;
-      btnSubmit.innerText = 'Guardar y Emitir Cupón';
-    }
-  });
-}
-
-/**
  * MODAL: DETALLE Y TRAZABILIDAD COMPLETA
  */
 function verDetalleCupon(cuponId) {
   if (!modalDetalle) modalDetalle = document.getElementById('modalDetalle');
-  
-  // Buscar en array local o consultar por AJAX
+
   const c = (window.CUPONES_DATA || []).find(item => item.id == cuponId);
   if (!c) {
     alert('No se pudo encontrar el detalle del cupón.');
@@ -569,32 +448,34 @@ function verDetalleCupon(cuponId) {
   setEl('detEstado', c.estado);
   setEl('detCampana', escapeHtml(c.campana_nombre || 'General'));
   setEl('detVencimiento', escapeHtml(c.fecha_vencimiento_fmt || c.fecha_vencimiento));
-  
+
   const dias = parseInt(c.dias_restantes, 10);
   let diasTxt = '';
   if (c.estado === 'DISPONIBLE') {
     diasTxt = (dias >= 0) ? `${dias} días restantes` : `Vencido hace ${Math.abs(dias)} días`;
   } else if (c.estado === 'USADO') {
-    diasTxt = `Canjeado exitosamente`;
+    diasTxt = 'Canjeado exitosamente';
   } else {
     diasTxt = c.estado;
   }
   setEl('detDiasRestantes', diasTxt);
 
-  // Cliente
-  const clienteNom = c.cliente_nombre ? `${escapeHtml(c.cliente_nombre)} (${escapeHtml(c.cliente_documento || 'Sin doc')})` : 'Público General / Al Portador';
+  const clienteNom = c.cliente_nombre
+    ? `${escapeHtml(c.cliente_nombre)} (${escapeHtml(c.cliente_documento || 'Sin doc')})`
+    : 'Público General / Al Portador';
   setEl('detCliente', clienteNom);
   setEl('detClienteTel', escapeHtml(c.cliente_telefono || c.cliente_email || 'No registrado'));
 
-  // Factura Origen
-  const facOrig = c.factura_origen_numero ? `${escapeHtml(c.factura_origen_numero)} - NCF: ${escapeHtml(c.factura_origen_ncf || 'N/A')} (${escapeHtml(c.factura_origen_fecha || '')})` : 'Emisión Administrativa / Cortesía';
+  const facOrig = c.factura_origen_numero
+    ? `${escapeHtml(c.factura_origen_numero)} - NCF: ${escapeHtml(c.factura_origen_ncf || 'N/A')} (${escapeHtml(c.factura_origen_fecha || '')})`
+    : 'Sin factura de origen registrada';
   setEl('detFacturaOrigen', facOrig);
 
-  // Factura Canje
-  const facCanj = (c.estado === 'USADO' && c.factura_canje_numero) ? `${escapeHtml(c.factura_canje_numero)} - NCF: ${escapeHtml(c.factura_canje_ncf || 'N/A')} (${escapeHtml(c.factura_canje_fecha || '')})` : 'Aún no canjeado';
+  const facCanj = (c.estado === 'USADO' && c.factura_canje_numero)
+    ? `${escapeHtml(c.factura_canje_numero)} - NCF: ${escapeHtml(c.factura_canje_ncf || 'N/A')} (${escapeHtml(c.factura_canje_fecha || '')})`
+    : 'Aún no canjeado';
   setEl('detFacturaCanje', facCanj);
 
-  // Botón directo para imprimir
   const btnPrint = document.getElementById('btnImprimirDesdeDetalle');
   if (btnPrint) {
     btnPrint.onclick = () => {
@@ -632,7 +513,7 @@ function imprimirTicketCupon(cuponId) {
   setEl('tktVencimiento', escapeHtml(c.fecha_vencimiento_fmt || c.fecha_vencimiento));
   setEl('tktCliente', escapeHtml(c.cliente_nombre || 'AL PORTADOR'));
   setEl('tktCampana', escapeHtml(c.campana_nombre || 'PROMOCIÓN ESPECIAL'));
-  setEl('tktBarcode', escapeHtml(c.codigo_cupon));
+  setEl('tktBarcode', '*' + escapeHtml(c.codigo_cupon) + '*');
 
   modalTicket.style.display = 'flex';
   modalTicket.classList.add('open');
@@ -666,16 +547,16 @@ function anularCupon(cuponId, codigo) {
     method: 'POST',
     body: formData
   })
-  .then(res => res.json())
-  .then(data => {
-    if (data.status === 'success') {
-      alert(data.message || 'Cupón anulado.');
-      window.location.reload();
-    } else {
-      alert('Error: ' + (data.message || 'No se pudo anular el cupón.'));
-    }
-  })
-  .catch(err => {
-    alert('Error de conexión al anular el cupón.');
-  });
+    .then(res => res.json())
+    .then(data => {
+      if (data.status === 'success') {
+        alert(data.message || 'Cupón anulado.');
+        window.location.reload();
+      } else {
+        alert('Error: ' + (data.message || 'No se pudo anular el cupón.'));
+      }
+    })
+    .catch(() => {
+      alert('Error de conexión al anular el cupón.');
+    });
 }

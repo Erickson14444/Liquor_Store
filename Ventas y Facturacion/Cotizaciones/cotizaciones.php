@@ -580,10 +580,9 @@ $badgesEstado = [
                                                 style="padding: 2px 7px; font-size: 0.74rem; flex-shrink: 0;">Cambiar</button>
                                         </div>
                                         <input type="text" id="cot_cliente_buscar" class="form-control"
-                                            autocomplete="off"
-                                            placeholder="Buscar cliente por nombre, cédula, RNC o teléfono..."
+                                            autocomplete="off" placeholder="Buscar cliente por nombre, cédula, RNC"
                                             onfocus="buscarClientesCot()" oninput="programarBusquedaClientesCot()"
-                                            onkeydown="teclaBusquedaClientesCot(event)" />
+                                            onkeydown="teclaBusquedaClientesCot(event)" style="width: 320px" />
                                         <div id="cot_cliente_dropdown" class="cliente-dropdown"></div>
                                     </div>
                                     <button type="button" class="btn btn-beige" onclick="abrirModalClienteRapidoCot()"

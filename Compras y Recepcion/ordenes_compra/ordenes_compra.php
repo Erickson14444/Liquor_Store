@@ -348,7 +348,8 @@ $badgesEstado = [
                     <div style="flex: 1; min-width: 220px;">
                         <label class="form-label">Buscar Orden o Proveedor</label>
                         <input type="text" id="inputBuscarTabla" class="form-control"
-                            placeholder="Escriba número de orden, RNC o proveedor..." oninput="filtrarTablaCliente()" />
+                            placeholder="Escriba número de orden, RNC o proveedor..." oninput="filtrarTablaCliene()"
+                            style="width: 350px" />
                     </div>
 
                     <div style="width: 200px;">

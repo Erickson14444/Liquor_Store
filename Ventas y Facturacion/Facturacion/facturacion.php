@@ -1488,7 +1488,8 @@ foreach ($secuenciasFiscales as $sec) {
             </div>
             <div class="form-group">
               <label for="cliFechaNac" class="form-label">F. Nacimiento (&ge;18)</label>
-              <input type="date" id="cliFechaNac" class="form-control" />
+              <input type="date" id="cliFechaNac" class="form-control"
+                max="<?= date('Y-m-d', strtotime('-18 years')) ?>" />
             </div>
             <div class="form-group">
               <label for="cliCategoria" class="form-label">Categoría</label>

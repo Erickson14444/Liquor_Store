@@ -61,10 +61,25 @@
   flex-shrink: 0;
 }
 
-.csg-kpi-icon.gold { background: #fdf5ea; color: #a66e2e; }
-.csg-kpi-icon.blue { background: #edf4fb; color: #1e6091; }
-.csg-kpi-icon.green { background: #eef8f2; color: #2e7d52; }
-.csg-kpi-icon.purple { background: #f6eefc; color: #6a1b9a; }
+.csg-kpi-icon.gold {
+  background: #fdf5ea;
+  color: #a66e2e;
+}
+
+.csg-kpi-icon.blue {
+  background: #edf4fb;
+  color: #1e6091;
+}
+
+.csg-kpi-icon.green {
+  background: #eef8f2;
+  color: #2e7d52;
+}
+
+.csg-kpi-icon.purple {
+  background: #f6eefc;
+  color: #6a1b9a;
+}
 
 .csg-kpi-data h4 {
   font-size: 0.76rem;
@@ -339,4 +354,66 @@
   gap: 10px;
   background: #fcfaf6;
   flex-shrink: 0;
+}
+
+/* Blindaje visual de modales y Split Universal en Consignaciones */
+.modal-dialog *,
+.split-pago-row-csg,
+.split-pago-row-csg * {
+  box-sizing: border-box;
+}
+
+.modal-body {
+  display: block;
+  min-height: 0;
+}
+
+.split-pago-row-csg {
+  display: grid;
+  grid-template-columns: 155px minmax(0, 1fr) 130px 38px;
+  gap: 8px;
+  align-items: center;
+  background: #ffffff;
+  padding: 8px 10px;
+  border: 1px solid var(--border-light, #eae3d5);
+  border-radius: 6px;
+  margin-bottom: 8px;
+}
+
+.split-pago-row-csg>div {
+  min-width: 0;
+}
+
+.split-pago-row-csg .form-control {
+  width: 100%;
+  min-width: 0;
+  height: 34px;
+  padding: 4px 8px;
+}
+
+.split-pago-del-btn {
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid #f0c5c1;
+  background: #fff5f5;
+  color: #b53d32;
+  border-radius: 6px;
+  cursor: pointer;
+  font-weight: 700;
+}
+
+.split-pago-del-btn:hover {
+  background: #fde2e0;
+}
+
+@media (max-width: 820px) {
+
+  .csg-liquidacion-grid,
+  .split-pago-row-csg {
+    grid-template-columns: 1fr !important;
+  }
 }

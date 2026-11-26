@@ -45,10 +45,25 @@
   flex-shrink: 0;
 }
 
-.cxc-kpi-icon.gold { background: #fdf5ea; color: #a66e2e; }
-.cxc-kpi-icon.red { background: #fdf0ee; color: #d45448; }
-.cxc-kpi-icon.green { background: #eef8f2; color: #2e7d52; }
-.cxc-kpi-icon.blue { background: #edf4fb; color: #1e6091; }
+.cxc-kpi-icon.gold {
+  background: #fdf5ea;
+  color: #a66e2e;
+}
+
+.cxc-kpi-icon.red {
+  background: #fdf0ee;
+  color: #d45448;
+}
+
+.cxc-kpi-icon.green {
+  background: #eef8f2;
+  color: #2e7d52;
+}
+
+.cxc-kpi-icon.blue {
+  background: #edf4fb;
+  color: #1e6091;
+}
 
 .cxc-kpi-data h4 {
   font-size: 0.78rem;
@@ -274,14 +289,44 @@
 /* Filas de métodos de pago en el split */
 .split-pago-row {
   display: grid;
-  grid-template-columns: 180px 1fr 140px 40px;
+  grid-template-columns: 165px minmax(0, 1fr) 135px 38px;
   gap: 10px;
   align-items: center;
   background: #ffffff;
-  padding: 8px 12px;
+  padding: 10px 12px;
   border: 1px solid var(--border-light, #eae3d5);
-  border-radius: 6px;
+  border-radius: 8px;
   margin-bottom: 8px;
+}
+
+.split-pago-row>div {
+  min-width: 0;
+}
+
+.split-pago-row .form-control {
+  width: 100%;
+  min-width: 0;
+  height: 36px;
+  padding: 6px 10px;
+}
+
+.split-pago-del-btn {
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid #f0c5c1;
+  background: #fff5f5;
+  color: #b53d32;
+  border-radius: 6px;
+  cursor: pointer;
+  font-weight: 700;
+}
+
+.split-pago-del-btn:hover {
+  background: #fde2e0;
 }
 
 @media (max-width: 768px) {
@@ -371,9 +416,25 @@
 }
 
 .modal-body {
+  display: block !important;
   padding: 20px 22px;
   overflow-y: auto;
   flex: 1;
+  min-height: 0;
+}
+
+.modal-body .table-wrapper {
+  display: block;
+  width: 100%;
+  overflow-x: auto;
+  overflow-y: visible;
+  max-height: none;
+}
+
+.modal-dialog *,
+.split-pago-row,
+.split-pago-row * {
+  box-sizing: border-box;
 }
 
 .modal-footer {
@@ -396,11 +457,13 @@
   font-size: 0.78rem;
   font-weight: 700;
 }
+
 .caja-status-pill.abierta {
   background: #eef8f2;
   color: #2e7d52;
   border: 1px solid #c2e5d1;
 }
+
 .caja-status-pill.cerrada {
   background: #fdf0ee;
   color: #d45448;

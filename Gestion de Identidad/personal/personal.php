@@ -11,7 +11,7 @@ require_once __DIR__ . '/../../config/conexion.php';
 
 $tabActiva = $_GET['tab'] ?? 'personal';
 if (!in_array($tabActiva, ['personal', 'repartidores'])) {
-    $tabActiva = 'personal';
+  $tabActiva = 'personal';
 }
 
 $empleados = [];
@@ -19,9 +19,9 @@ $repartidores = [];
 $empleadosDisponibles = [];
 
 if ($pdo) {
-    try {
-        // 1. Listado de Personal / Empleados
-        $stmtEmp = $pdo->query("
+  try {
+    // 1. Listado de Personal / Empleados
+    $stmtEmp = $pdo->query("
             SELECT e.empleado_id, e.persona_id, e.codigo_empleado, e.cargo, 
                    e.fecha_ingreso, e.estado_laboral, e.creado_en,
                    p.tipo_documento, p.documento_identidad, p.nombre_razon_social, 
@@ -31,10 +31,10 @@ if ($pdo) {
             JOIN identidad.personas p ON e.persona_id = p.persona_id
             ORDER BY e.codigo_empleado ASC
         ");
-        $empleados = $stmtEmp->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    $empleados = $stmtEmp->fetchAll(PDO::FETCH_ASSOC) ?: [];
 
-        // 2. Listado de Repartidores Delivery
-        $stmtRep = $pdo->query("
+    // 2. Listado de Repartidores Delivery
+    $stmtRep = $pdo->query("
             SELECT r.empleado_id, r.numero_licencia, r.tipo_vehiculo, r.placa_vehiculo, 
                    r.estado_logistico, r.capacidad_pedidos,
                    e.codigo_empleado, e.cargo, e.estado_laboral,
@@ -45,10 +45,10 @@ if ($pdo) {
             JOIN identidad.personas p ON e.persona_id = p.persona_id
             ORDER BY p.nombre_razon_social ASC
         ");
-        $repartidores = $stmtRep->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    $repartidores = $stmtRep->fetchAll(PDO::FETCH_ASSOC) ?: [];
 
-        // 3. Empleados disponibles para asignar como Repartidores (únicamente con cargo de Repartidor Delivery)
-        $stmtDisp = $pdo->query("
+    // 3. Empleados disponibles para asignar como Repartidores (únicamente con cargo de Repartidor Delivery)
+    $stmtDisp = $pdo->query("
             SELECT e.empleado_id, e.codigo_empleado, e.cargo, p.nombre_razon_social, p.documento_identidad, p.tipo_documento, p.telefono_principal
             FROM identidad.empleados e
             JOIN identidad.personas p ON e.persona_id = p.persona_id
@@ -57,11 +57,11 @@ if ($pdo) {
               AND e.empleado_id NOT IN (SELECT empleado_id FROM identidad.repartidores)
             ORDER BY p.nombre_razon_social ASC
         ");
-        $empleadosDisponibles = $stmtDisp->fetchAll(PDO::FETCH_ASSOC) ?: [];
+    $empleadosDisponibles = $stmtDisp->fetchAll(PDO::FETCH_ASSOC) ?: [];
 
-    } catch (Throwable $e) {
-        $errorCarga = $e->getMessage();
-    }
+  } catch (Throwable $e) {
+    $errorCarga = $e->getMessage();
+  }
 }
 
 $msg = $_GET['msg'] ?? '';
@@ -69,12 +69,14 @@ $tipoMsg = $_GET['tipo'] ?? 'exito';
 ?>
 <!DOCTYPE html>
 <html lang="es">
+
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>House &amp; Ice • Personal y Repartidores</title>
   <link rel="stylesheet" href="../styles.css?v=13" />
 </head>
+
 <body>
 
   <!-- BARRA SUPERIOR -->
@@ -117,7 +119,8 @@ $tipoMsg = $_GET['tipo'] ?? 'exito';
       <div class="page-header">
         <div>
           <h1 class="page-title">Personal &amp; Repartidores</h1>
-          <p class="page-subtitle">Gestión centralizada del personal administrativo, cajeros, supervisores y la flota motorizada de delivery</p>
+          <p class="page-subtitle">Gestión centralizada del personal administrativo, cajeros, supervisores y la flota
+            motorizada de delivery</p>
         </div>
 
         <button type="button" class="btn btn-gold" id="btnNuevoRegistro" onclick="abrirModalSegunTab()">
@@ -127,11 +130,13 @@ $tipoMsg = $_GET['tipo'] ?? 'exito';
 
       <!-- NAVEGACIÓN POR PESTAÑAS (TABS) -->
       <div class="tab-nav-container">
-        <button type="button" class="tab-btn <?= ($tabActiva === 'personal') ? 'active' : '' ?>" id="tabBtnPersonal" onclick="cambiarPestana('personal')">
+        <button type="button" class="tab-btn <?= ($tabActiva === 'personal') ? 'active' : '' ?>" id="tabBtnPersonal"
+          onclick="cambiarPestana('personal')">
           <span>👔 Personal</span>
           <span class="tab-badge" id="badgePersonal"><?= count($empleados) ?></span>
         </button>
-        <button type="button" class="tab-btn <?= ($tabActiva === 'repartidores') ? 'active' : '' ?>" id="tabBtnRepartidores" onclick="cambiarPestana('repartidores')">
+        <button type="button" class="tab-btn <?= ($tabActiva === 'repartidores') ? 'active' : '' ?>"
+          id="tabBtnRepartidores" onclick="cambiarPestana('repartidores')">
           <span>🛵 Repartidores Delivery</span>
           <span class="tab-badge" id="badgeRepartidores"><?= count($repartidores) ?></span>
         </button>
@@ -150,7 +155,8 @@ $tipoMsg = $_GET['tipo'] ?? 'exito';
 
             <div class="search-box-unified">
               <span>🔍</span>
-              <input type="text" id="buscarPersonal" placeholder="Buscar por código, cédula, nombre o cargo..." oninput="filtrarPersonal()" />
+              <input type="text" id="buscarPersonal" placeholder="Buscar por código, cédula, nombre o cargo..."
+                oninput="filtrarPersonal()" style="width = 400px" />
             </div>
           </div>
 
@@ -174,18 +180,21 @@ $tipoMsg = $_GET['tipo'] ?? 'exito';
                   </td>
                 </tr>
               <?php else: ?>
-                <?php foreach ($empleados as $emp): 
+                <?php foreach ($empleados as $emp):
                   $est = strtoupper($emp['estado_laboral'] ?? 'ACTIVO');
                   $textoBusqueda = strtolower($emp['codigo_empleado'] . ' ' . $emp['documento_identidad'] . ' ' . $emp['nombre_razon_social'] . ' ' . $emp['cargo'] . ' ' . $emp['telefono_principal']);
-                ?>
+                  ?>
                   <tr class="fila-personal" data-busqueda="<?= htmlspecialchars($textoBusqueda) ?>">
                     <td><span class="code-badge"><?= htmlspecialchars($emp['codigo_empleado']) ?></span></td>
                     <td>
                       <strong><?= htmlspecialchars($emp['documento_identidad']) ?></strong>
-                      <div style="font-size: 0.75rem; color: #8e8071;"><?= htmlspecialchars($emp['tipo_documento'] ?? 'CEDULA') ?></div>
+                      <div style="font-size: 0.75rem; color: #8e8071;">
+                        <?= htmlspecialchars($emp['tipo_documento'] ?? 'CEDULA') ?>
+                      </div>
                     </td>
                     <td>
-                      <div style="font-weight: 600; color: #2b1f18;"><?= htmlspecialchars($emp['nombre_razon_social']) ?></div>
+                      <div style="font-weight: 600; color: #2b1f18;"><?= htmlspecialchars($emp['nombre_razon_social']) ?>
+                      </div>
                       <?php if (!empty($emp['email'])): ?>
                         <div style="font-size: 0.78rem; color: #7a6b5d;"><?= htmlspecialchars($emp['email']) ?></div>
                       <?php endif; ?>
@@ -194,7 +203,9 @@ $tipoMsg = $_GET['tipo'] ?? 'exito';
                       <div style="font-weight: 600; color: #8c581c;"><?= htmlspecialchars($emp['cargo']) ?></div>
                       <?php if ($emp['es_repartidor'] > 0): ?>
                         <div style="margin-top: 4px;">
-                          <span style="display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; font-size: 0.72rem; background: #e8f4fd; color: #0277bd; padding: 2px 8px; border-radius: 4px; border: 1px solid #b3e5fc; font-weight: 600;">🛵 Delivery</span>
+                          <span
+                            style="display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; font-size: 0.72rem; background: #e8f4fd; color: #0277bd; padding: 2px 8px; border-radius: 4px; border: 1px solid #b3e5fc; font-weight: 600;">🛵
+                            Delivery</span>
                         </div>
                       <?php endif; ?>
                     </td>
@@ -205,8 +216,10 @@ $tipoMsg = $_GET['tipo'] ?? 'exito';
                       <span class="status-pill <?= strtolower($est) ?>"><?= htmlspecialchars($est) ?></span>
                     </td>
                     <td class="text-right action-btns">
-                      <button type="button" class="btn-sm btn-outline" onclick='editarEmpleado(<?= json_encode($emp) ?>)'>Editar</button>
-                      <button type="button" class="btn-sm <?= ($est === 'ACTIVO') ? 'btn-danger' : 'btn-gold' ?>" onclick="cambiarEstadoEmpleado('<?= $emp['empleado_id'] ?>', '<?= ($est === 'ACTIVO') ? 'INACTIVO' : 'ACTIVO' ?>')">
+                      <button type="button" class="btn-sm btn-outline"
+                        onclick='editarEmpleado(<?= json_encode($emp) ?>)'>Editar</button>
+                      <button type="button" class="btn-sm <?= ($est === 'ACTIVO') ? 'btn-danger' : 'btn-gold' ?>"
+                        onclick="cambiarEstadoEmpleado('<?= $emp['empleado_id'] ?>', '<?= ($est === 'ACTIVO') ? 'INACTIVO' : 'ACTIVO' ?>')">
                         <?= ($est === 'ACTIVO') ? 'Desactivar' : 'Activar' ?>
                       </button>
                     </td>
@@ -236,7 +249,8 @@ $tipoMsg = $_GET['tipo'] ?? 'exito';
 
             <div class="search-box-unified">
               <span>🔍</span>
-              <input type="text" id="buscarRepartidores" placeholder="Buscar por nombre, licencia, placa o vehículo..." oninput="filtrarRepartidores()" />
+              <input type="text" id="buscarRepartidores" placeholder="Buscar por nombre, licencia, placa o vehículo..."
+                oninput="filtrarRepartidores()" />
             </div>
           </div>
 
@@ -256,20 +270,24 @@ $tipoMsg = $_GET['tipo'] ?? 'exito';
               <?php if (empty($repartidores)): ?>
                 <tr>
                   <td colspan="7" class="text-center" style="padding: 30px; color: #8e8071;">
-                    No hay repartidores registrados en la flota. Haz clic en <strong>+ Nuevo Repartidor</strong> para asignar uno.
+                    No hay repartidores registrados en la flota. Haz clic en <strong>+ Nuevo Repartidor</strong> para
+                    asignar uno.
                   </td>
                 </tr>
               <?php else: ?>
-                <?php foreach ($repartidores as $rep): 
+                <?php foreach ($repartidores as $rep):
                   $estLog = strtoupper($rep['estado_logistico'] ?? 'BASE');
                   $textoBusqueda = strtolower($rep['nombre_razon_social'] . ' ' . $rep['numero_licencia'] . ' ' . $rep['placa_vehiculo'] . ' ' . $rep['tipo_vehiculo'] . ' ' . $rep['codigo_empleado']);
-                ?>
+                  ?>
                   <tr class="fila-repartidor" data-busqueda="<?= htmlspecialchars($textoBusqueda) ?>">
                     <td>
-                      <div style="font-weight: 600; color: #2b1f18;"><?= htmlspecialchars($rep['nombre_razon_social']) ?></div>
+                      <div style="font-weight: 600; color: #2b1f18;"><?= htmlspecialchars($rep['nombre_razon_social']) ?>
+                      </div>
                       <div style="font-size: 0.78rem; color: #7a6b5d;">
-                        <span class="code-badge" style="font-size: 0.72rem; padding: 1px 5px;"><?= htmlspecialchars($rep['codigo_empleado']) ?></span>
-                        <span style="margin-left: 6px;">📞 <?= htmlspecialchars($rep['telefono_principal'] ?: 'Sin teléfono') ?></span>
+                        <span class="code-badge"
+                          style="font-size: 0.72rem; padding: 1px 5px;"><?= htmlspecialchars($rep['codigo_empleado']) ?></span>
+                        <span style="margin-left: 6px;">📞
+                          <?= htmlspecialchars($rep['telefono_principal'] ?: 'Sin teléfono') ?></span>
                       </div>
                     </td>
                     <td>
@@ -283,7 +301,8 @@ $tipoMsg = $_GET['tipo'] ?? 'exito';
                       <span class="plate-badge"><?= htmlspecialchars($rep['placa_vehiculo']) ?></span>
                     </td>
                     <td class="text-center">
-                      <strong><?= intval($rep['capacidad_pedidos']) ?></strong> <span style="font-size: 0.78rem; color: #8e8071;">pedidos</span>
+                      <strong><?= intval($rep['capacidad_pedidos']) ?></strong> <span
+                        style="font-size: 0.78rem; color: #8e8071;">pedidos</span>
                     </td>
                     <td class="text-center">
                       <span class="status-pill <?= strtolower($estLog) ?>">
@@ -291,8 +310,10 @@ $tipoMsg = $_GET['tipo'] ?? 'exito';
                       </span>
                     </td>
                     <td class="text-right action-btns">
-                      <button type="button" class="btn-sm btn-outline" onclick='editarRepartidor(<?= json_encode($rep) ?>)'>Editar</button>
-                      <button type="button" class="btn-sm btn-danger" onclick="eliminarRepartidor('<?= $rep['empleado_id'] ?>', '<?= htmlspecialchars(addslashes($rep['nombre_razon_social'])) ?>')">
+                      <button type="button" class="btn-sm btn-outline"
+                        onclick='editarRepartidor(<?= json_encode($rep) ?>)'>Editar</button>
+                      <button type="button" class="btn-sm btn-danger"
+                        onclick="eliminarRepartidor('<?= $rep['empleado_id'] ?>', '<?= htmlspecialchars(addslashes($rep['nombre_razon_social'])) ?>')">
                         Retirar
                       </button>
                     </td>
@@ -303,7 +324,8 @@ $tipoMsg = $_GET['tipo'] ?? 'exito';
           </table>
 
           <div class="table-card-footer">
-            <span id="footerRepartidores">Mostrando <?= count($repartidores) ?> de <?= count($repartidores) ?> unidades</span>
+            <span id="footerRepartidores">Mostrando <?= count($repartidores) ?> de <?= count($repartidores) ?>
+              unidades</span>
             <span>House &amp; Ice • Monitoreo de Despacho &amp; Flota</span>
           </div>
         </div>
@@ -331,7 +353,10 @@ $tipoMsg = $_GET['tipo'] ?? 'exito';
           <div class="form-row-2">
             <div class="form-group">
               <label for="emp_codigo_empleado" class="form-label">Código de Empleado *</label>
-              <input type="text" id="emp_codigo_empleado" name="codigo_empleado" class="form-control" required placeholder="Ej. EMP-001" style="text-transform: uppercase;" oninput="this.value = this.value.toUpperCase().replace(/[^A-Z0-9-]/g, ''); verificarEmpleadoPorCodigo(this.value);" onblur="verificarEmpleadoPorCodigo(this.value)" />
+              <input type="text" id="emp_codigo_empleado" name="codigo_empleado" class="form-control" required
+                placeholder="Ej. EMP-001" style="text-transform: uppercase;"
+                oninput="this.value = this.value.toUpperCase().replace(/[^A-Z0-9-]/g, ''); verificarEmpleadoPorCodigo(this.value);"
+                onblur="verificarEmpleadoPorCodigo(this.value)" readonly />
               <small style="color: #8e8071; font-size: 0.78rem;">Identificador único interno de nómina</small>
             </div>
             <div class="form-group">
@@ -352,38 +377,49 @@ $tipoMsg = $_GET['tipo'] ?? 'exito';
           <div class="form-row-2">
             <div class="form-group">
               <label for="emp_tipo_documento" class="form-label">Tipo de Documento *</label>
-              <select id="emp_tipo_documento" name="tipo_documento" class="form-control" onchange="aplicarMascaraDocumento()">
+              <select id="emp_tipo_documento" name="tipo_documento" class="form-control"
+                onchange="aplicarMascaraDocumento()">
                 <option value="CEDULA">Cédula Dominicana</option>
                 <option value="PASAPORTE">Pasaporte Extranjero</option>
               </select>
             </div>
             <div class="form-group">
               <label for="emp_documento_identidad" class="form-label">Número de Documento *</label>
-              <input type="text" id="emp_documento_identidad" name="documento_identidad" class="form-control" required placeholder="000-0000000-0" onkeydown="if(document.getElementById('emp_tipo_documento').value === 'CEDULA' && !['Backspace','Delete','Tab','Escape','Enter','ArrowLeft','ArrowRight','Home','End'].includes(event.key) && !event.ctrlKey && !event.metaKey && !/^[0-9]$/.test(event.key)) { event.preventDefault(); return false; }" oninput="formatearDocumento(this); verificarTerceroLive(this.value);" />
-              <small id="feedbackTercero" style="display: none; color: var(--accent-gold); font-size: 0.76rem; margin-top: 3px; font-weight: 600;"></small>
+              <input type="text" id="emp_documento_identidad" name="documento_identidad" class="form-control" required
+                placeholder="000-0000000-0"
+                onkeydown="if(document.getElementById('emp_tipo_documento').value === 'CEDULA' && !['Backspace','Delete','Tab','Escape','Enter','ArrowLeft','ArrowRight','Home','End'].includes(event.key) && !event.ctrlKey && !event.metaKey && !/^[0-9]$/.test(event.key)) { event.preventDefault(); return false; }"
+                oninput="formatearDocumento(this); verificarTerceroLive(this.value);" />
+              <small id="feedbackTercero"
+                style="display: none; color: var(--accent-gold); font-size: 0.76rem; margin-top: 3px; font-weight: 600;"></small>
             </div>
           </div>
 
           <div class="form-group">
             <label for="emp_nombre_razon_social" class="form-label">Nombre Completo *</label>
-            <input type="text" id="emp_nombre_razon_social" name="nombre_razon_social" class="form-control" required placeholder="Ej. Juan Carlos Pérez Morales" onblur="verificarTerceroPorNombre(this.value)" />
+            <input type="text" id="emp_nombre_razon_social" name="nombre_razon_social" class="form-control" required
+              placeholder="Ej. Juan Carlos Pérez Morales" onblur="verificarTerceroPorNombre(this.value)" />
           </div>
 
           <div class="form-row-2">
             <div class="form-group">
               <label for="emp_telefono_principal" class="form-label">Teléfono Móvil</label>
-              <input type="text" id="emp_telefono_principal" name="telefono_principal" class="form-control" placeholder="(809) 000-0000" maxlength="14" inputmode="numeric" onkeydown="if(!['Backspace','Delete','Tab','Escape','Enter','ArrowLeft','ArrowRight','Home','End'].includes(event.key) && !event.ctrlKey && !event.metaKey && !/^[0-9]$/.test(event.key)) { event.preventDefault(); return false; }" oninput="formatearTelefono(this)" />
+              <input type="text" id="emp_telefono_principal" name="telefono_principal" class="form-control"
+                placeholder="(809) 000-0000" maxlength="14" inputmode="numeric"
+                onkeydown="if(!['Backspace','Delete','Tab','Escape','Enter','ArrowLeft','ArrowRight','Home','End'].includes(event.key) && !event.ctrlKey && !event.metaKey && !/^[0-9]$/.test(event.key)) { event.preventDefault(); return false; }"
+                oninput="formatearTelefono(this)" />
             </div>
             <div class="form-group">
               <label for="emp_email" class="form-label">Correo Electrónico</label>
-              <input type="email" id="emp_email" name="email" class="form-control" placeholder="empleado@houseandice.do" />
+              <input type="email" id="emp_email" name="email" class="form-control"
+                placeholder="empleado@houseandice.do" />
             </div>
           </div>
 
           <div class="form-row-2">
             <div class="form-group">
               <label for="emp_fecha_ingreso" class="form-label">Fecha de Ingreso *</label>
-              <input type="date" id="emp_fecha_ingreso" name="fecha_ingreso" class="form-control" required value="<?= date('Y-m-d') ?>" />
+              <input type="date" id="emp_fecha_ingreso" name="fecha_ingreso" class="form-control" required
+                value="<?= date('Y-m-d') ?>" />
             </div>
             <div class="form-group">
               <label for="emp_estado_laboral" class="form-label">Estado Laboral *</label>
@@ -421,32 +457,41 @@ $tipoMsg = $_GET['tipo'] ?? 'exito';
         <div class="modal-body">
           <div class="form-group" id="grupoSelectEmpleado">
             <label for="rep_empleado_id" class="form-label">Empleado a Designar *</label>
-            <select id="rep_empleado_id" name="empleado_id" class="form-control" required onchange="alSeleccionarEmpleadoRepartidor(this)">
+            <select id="rep_empleado_id" name="empleado_id" class="form-control" required
+              onchange="alSeleccionarEmpleadoRepartidor(this)">
               <option value="">-- Selecciona un repartidor disponible --</option>
               <?php foreach ($empleadosDisponibles as $ed): ?>
                 <option value="<?= htmlspecialchars($ed['empleado_id']) ?>"
-                        data-documento="<?= htmlspecialchars($ed['documento_identidad'] ?? '') ?>"
-                        data-telefono="<?= htmlspecialchars($ed['telefono_principal'] ?? '') ?>">
+                  data-documento="<?= htmlspecialchars($ed['documento_identidad'] ?? '') ?>"
+                  data-telefono="<?= htmlspecialchars($ed['telefono_principal'] ?? '') ?>">
                   <?= htmlspecialchars($ed['codigo_empleado']) ?> • <?= htmlspecialchars($ed['nombre_razon_social']) ?>
                 </option>
               <?php endforeach; ?>
             </select>
-            <small style="color: #8e8071; font-size: 0.78rem;">Solo se listan empleados con cargo Repartidor Delivery sin ficha asignada</small>
+            <small style="color: #8e8071; font-size: 0.78rem;">Solo se listan empleados con cargo Repartidor Delivery
+              sin ficha asignada</small>
           </div>
 
-          <div id="infoRepartidorEditando" style="display: none; margin-bottom: 15px; padding: 10px; background: #fdf4e7; border-radius: 6px; border: 1px solid #e6c89c;">
+          <div id="infoRepartidorEditando"
+            style="display: none; margin-bottom: 15px; padding: 10px; background: #fdf4e7; border-radius: 6px; border: 1px solid #e6c89c;">
             <strong id="labelNombreRepartidor" style="color: #2b1f18; font-size: 0.95rem;"></strong>
           </div>
 
           <div class="form-row-2">
             <div class="form-group">
               <label for="rep_numero_licencia" class="form-label">Licencia de Conducir *</label>
-              <input type="text" id="rep_numero_licencia" name="numero_licencia" class="form-control" required maxlength="13" inputmode="numeric" placeholder="000-0000000-0" onkeydown="if(!['Backspace','Delete','Tab','Escape','Enter','ArrowLeft','ArrowRight','Home','End'].includes(event.key) && !event.ctrlKey && !event.metaKey && !/^[0-9]$/.test(event.key)) { event.preventDefault(); return false; }" oninput="formatearLicencia(this)" />
+              <input type="text" id="rep_numero_licencia" name="numero_licencia" class="form-control" required
+                maxlength="13" inputmode="numeric" placeholder="000-0000000-0"
+                onkeydown="if(!['Backspace','Delete','Tab','Escape','Enter','ArrowLeft','ArrowRight','Home','End'].includes(event.key) && !event.ctrlKey && !event.metaKey && !/^[0-9]$/.test(event.key)) { event.preventDefault(); return false; }"
+                oninput="formatearLicencia(this)" />
               <small style="color: #8e8071; font-size: 0.76rem;">Formato oficial INTRANT / Cédula</small>
             </div>
             <div class="form-group">
               <label for="rep_telefono_principal" class="form-label">Teléfono Móvil *</label>
-              <input type="text" id="rep_telefono_principal" name="telefono_principal" class="form-control" required maxlength="14" inputmode="numeric" placeholder="(809) 000-0000" onkeydown="if(!['Backspace','Delete','Tab','Escape','Enter','ArrowLeft','ArrowRight','Home','End'].includes(event.key) && !event.ctrlKey && !event.metaKey && !/^[0-9]$/.test(event.key)) { event.preventDefault(); return false; }" oninput="formatearTelefono(this)" />
+              <input type="text" id="rep_telefono_principal" name="telefono_principal" class="form-control" required
+                maxlength="14" inputmode="numeric" placeholder="(809) 000-0000"
+                onkeydown="if(!['Backspace','Delete','Tab','Escape','Enter','ArrowLeft','ArrowRight','Home','End'].includes(event.key) && !event.ctrlKey && !event.metaKey && !/^[0-9]$/.test(event.key)) { event.preventDefault(); return false; }"
+                oninput="formatearTelefono(this)" />
               <small style="color: #8e8071; font-size: 0.76rem;">Número de contacto en ruta</small>
             </div>
           </div>
@@ -462,14 +507,19 @@ $tipoMsg = $_GET['tipo'] ?? 'exito';
             </div>
             <div class="form-group">
               <label for="rep_placa_vehiculo" class="form-label">Placa del Vehículo *</label>
-              <input type="text" id="rep_placa_vehiculo" name="placa_vehiculo" class="form-control" required maxlength="10" placeholder="Ej. K0123456" style="text-transform: uppercase;" oninput="this.value = this.value.toUpperCase().replace(/[^A-Z0-9]/g, '')" />
+              <input type="text" id="rep_placa_vehiculo" name="placa_vehiculo" class="form-control" required
+                maxlength="10" placeholder="Ej. K0123456" style="text-transform: uppercase;"
+                oninput="this.value = this.value.toUpperCase().replace(/[^A-Z0-9]/g, '')" />
             </div>
           </div>
 
           <div class="form-row-2">
             <div class="form-group">
               <label for="rep_capacidad_pedidos" class="form-label">Capacidad de Pedidos Simultáneos *</label>
-              <input type="number" id="rep_capacidad_pedidos" name="capacidad_pedidos" class="form-control" required min="1" max="25" value="1" onkeydown="if(['e','E','+','-','.',','].includes(event.key)) { event.preventDefault(); return false; }" oninput="this.value = this.value.replace(/[^0-9]/g, '');" />
+              <input type="number" id="rep_capacidad_pedidos" name="capacidad_pedidos" class="form-control" required
+                min="1" max="25" value="1"
+                onkeydown="if(['e','E','+','-','.',','].includes(event.key)) { event.preventDefault(); return false; }"
+                oninput="this.value = this.value.replace(/[^0-9]/g, '');" />
             </div>
             <div class="form-group">
               <label for="rep_estado_logistico" class="form-label">Estado Logístico en Tiempo Real *</label>
@@ -494,7 +544,7 @@ $tipoMsg = $_GET['tipo'] ?? 'exito';
   <!-- TOAST DE NOTIFICACIONES -->
   <div id="toast" class="toast"></div>
 
-    <script src="personal.js?v=4"></script>
+  <script src="personal.js?v=4"></script>
 </body>
-</html>
 
+</html>

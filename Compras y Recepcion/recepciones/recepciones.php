@@ -423,7 +423,7 @@ if ($pdo) {
                     <div style="flex: 1;">
                         <input type="text" id="inputBuscarTablaRecepciones" class="form-control"
                             placeholder="🔍 Buscar en historial por N° recepción, factura física, NCF, proveedor..."
-                            oninput="filtrarTablaRecepciones()" style="height: 38px;" />
+                            oninput="filtrarTablaRecepciones()" style="height: 38px; width: 500px" />
                     </div>
                 </div>
             </div>
@@ -572,7 +572,7 @@ if ($pdo) {
                                         placeholder="🔍 Escriba nombre o RNC..." autocomplete="off"
                                         oninput="filtrarProveedoresRecep(this.value)"
                                         onfocus="abrirDropdownProveedoresRecep()"
-                                        style="height: 30px; font-size: 0.80rem;" />
+                                        style="height: 30px; font-size: 0.80rem; width:300px" />
                                     <div id="dropdownProveedoresRecep"
                                         style="display: none; position: absolute; top: 100%; left: 0; right: 0; max-height: 200px; overflow-y: auto; background: #ffffff; border: 1.5px solid #d4c1a7; border-radius: 6px; box-shadow: 0 4px 14px rgba(0,0,0,0.15); z-index: 1050; margin-top: 2px;">
                                         <!-- Dinámico -->
@@ -775,7 +775,7 @@ if ($pdo) {
                     <input type="text" id="filtroModalOrdenes" class="form-control"
                         placeholder="🔍 Filtrar por número de orden, proveedor o RNC..."
                         oninput="filtrarOrdenesModal(this.value)"
-                        style="height: 38px; font-size: 0.88rem; padding-left: 12px;" />
+                        style="height: 38px; font-size: 0.88rem; padding-left: 12px; width:300px" />
                 </div>
 
                 <div class="table-wrapper"
@@ -824,7 +824,8 @@ if ($pdo) {
                                         </td>
                                         <td style="padding: 10px 12px;">
                                             <div style="font-weight: 600; color: var(--text-dark); font-size: 0.88rem;">
-                                                <?= htmlspecialchars($op['proveedor_nombre']) ?></div>
+                                                <?= htmlspecialchars($op['proveedor_nombre']) ?>
+                                            </div>
                                             <div
                                                 style="font-size: 0.75rem; color: var(--text-muted); font-family: var(--font-mono);">
                                                 RNC: <?= htmlspecialchars($op['proveedor_rnc'] ?? 'N/A') ?></div>
