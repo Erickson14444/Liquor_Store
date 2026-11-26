@@ -20,6 +20,8 @@ $historialRecepciones = [];
 $proveedores = [];
 $productos = [];
 $almacenes = [];
+$metodosPagoContado = [];
+$cuentasBancariasDop = [];
 
 $kpiTotalRecepciones = 0;
 $kpiTotalUnidades = 0;
@@ -127,6 +129,27 @@ if ($pdo) {
             ORDER BY CASE WHEN LOWER(nombre) LIKE '%bodega%' THEN 0 ELSE 1 END, id ASC
         ");
         $almacenes = $stmtAlm->fetchAll(PDO::FETCH_ASSOC) ?: [];
+
+        // 6. Métodos de pago permitidos para compras al contado (Tesorería externa, sin caja POS)
+        $stmtMp = $pdo->query("
+            SELECT id, codigo, descripcion
+            FROM ventas.metodos_pago
+            WHERE activo = TRUE AND UPPER(codigo) IN ('EFECTIVO', 'TARJETA', 'TRANSFERENCIA', 'CHEQUE')
+            ORDER BY id ASC
+        ");
+        $metodosPagoContado = $stmtMp ? $stmtMp->fetchAll(PDO::FETCH_ASSOC) : [];
+
+        // 7. Cuentas bancarias activas en DOP (para Transferencia / Cheque al contado)
+        $stmtCb = $pdo->query("
+            SELECT cb.id, cb.nombre_banco, cb.numero_cuenta, cb.tipo_cuenta,
+                   COALESCE(m.codigo_iso, 'DOP') AS moneda_iso
+            FROM tesoreria.cuentas_bancarias cb
+            LEFT JOIN tesoreria.monedas m ON m.id = cb.moneda_id
+            WHERE cb.activa = TRUE
+              AND (COALESCE(m.es_moneda_base, TRUE) = TRUE OR UPPER(COALESCE(m.codigo_iso, 'DOP')) = 'DOP')
+            ORDER BY cb.nombre_banco ASC
+        ");
+        $cuentasBancariasDop = $stmtCb ? $stmtCb->fetchAll(PDO::FETCH_ASSOC) : [];
 
     } catch (Throwable $e) {
         $errorCarga = $e->getMessage();
@@ -423,7 +446,7 @@ if ($pdo) {
                     <div style="flex: 1;">
                         <input type="text" id="inputBuscarTablaRecepciones" class="form-control"
                             placeholder="🔍 Buscar en historial por N° recepción, factura física, NCF, proveedor..."
-                            oninput="filtrarTablaRecepciones()" style="height: 38px; width: 500px" />
+                            oninput="filtrarTablaRecepciones()" style="height: 38px; width: 500px; max-width: 100%;" />
                     </div>
                 </div>
             </div>
@@ -572,7 +595,7 @@ if ($pdo) {
                                         placeholder="🔍 Escriba nombre o RNC..." autocomplete="off"
                                         oninput="filtrarProveedoresRecep(this.value)"
                                         onfocus="abrirDropdownProveedoresRecep()"
-                                        style="height: 30px; font-size: 0.80rem; width:300px" />
+                                        style="height: 30px; font-size: 0.80rem; width: 100%;" />
                                     <div id="dropdownProveedoresRecep"
                                         style="display: none; position: absolute; top: 100%; left: 0; right: 0; max-height: 200px; overflow-y: auto; background: #ffffff; border: 1.5px solid #d4c1a7; border-radius: 6px; box-shadow: 0 4px 14px rgba(0,0,0,0.15); z-index: 1050; margin-top: 2px;">
                                         <!-- Dinámico -->
@@ -652,6 +675,113 @@ if ($pdo) {
                                     </label>
                                 </div>
                             </div>
+                        </div>
+
+                        <!-- PANEL DE LIQUIDACIÓN INMEDIATA (SOLO SI CONDICIÓN = CONTADO) -->
+                        <div id="panelPagoContadoRecep"
+                            style="display: none; margin-top: 8px; padding-top: 8px; border-top: 1px dashed #dfcaa4;">
+                            <div
+                                style="display: grid; grid-template-columns: 1.1fr 1.3fr 1fr 1.4fr; gap: 8px; align-items: end;">
+                                <div class="form-group" style="margin: 0;">
+                                    <label class="form-label" for="selectMetodoPagoContado"
+                                        style="font-size: 0.70rem; font-weight: 700; margin-bottom: 2px; color: #2e7d52;">
+                                        💳 Método de Pago (Contado) *
+                                    </label>
+                                    <select id="selectMetodoPagoContado" name="metodo_pago_id" class="form-control"
+                                        onchange="alCambiarMetodoPagoContado()"
+                                        style="height: 30px; font-size: 0.80rem;">
+                                        <?php foreach ($metodosPagoContado as $mp): ?>
+                                            <option value="<?= (int) $mp['id'] ?>"
+                                                data-codigo="<?= htmlspecialchars(strtoupper($mp['codigo'])) ?>">
+                                                <?= htmlspecialchars($mp['descripcion']) ?>
+                                            </option>
+                                        <?php endforeach; ?>
+                                    </select>
+                                </div>
+
+                                <div class="form-group" id="wrapBancoContado" style="margin: 0; display: none;">
+                                    <label class="form-label" for="selectCuentaBancoContado"
+                                        style="font-size: 0.70rem; font-weight: 700; margin-bottom: 2px;">
+                                        Cuenta Bancaria Salida (DOP) *
+                                    </label>
+                                    <select id="selectCuentaBancoContado" name="cuenta_bancaria_id" class="form-control"
+                                        style="height: 30px; font-size: 0.80rem;">
+                                        <?php if (empty($cuentasBancariasDop)): ?>
+                                            <option value="">-- Sin cuentas DOP activas --</option>
+                                        <?php else: ?>
+                                            <?php foreach ($cuentasBancariasDop as $cb): ?>
+                                                <option value="<?= (int) $cb['id'] ?>">
+                                                    <?= htmlspecialchars($cb['nombre_banco'] . ' (' . $cb['numero_cuenta'] . ')') ?>
+                                                </option>
+                                            <?php endforeach; ?>
+                                        <?php endif; ?>
+                                    </select>
+                                </div>
+
+                                <div class="form-group" id="wrapRefContado" style="margin: 0; display: none;">
+                                    <label class="form-label" id="lblRefContado" for="inputRefPagoContado"
+                                        style="font-size: 0.70rem; font-weight: 700; margin-bottom: 2px;">
+                                        No. Referencia *
+                                    </label>
+                                    <input type="text" id="inputRefPagoContado" name="referencia_pago"
+                                        class="form-control" maxlength="100" placeholder="Ej: TRF-00491"
+                                        style="height: 30px; font-size: 0.80rem; font-family: var(--font-mono);" />
+                                </div>
+
+                                <div id="lblInfoPagoContado"
+                                    style="font-size: 0.71rem; color: #2e7d52; background: #eef8f2; border: 1px solid #c2e5d1; border-radius: 5px; padding: 5px 8px; line-height: 1.25;">
+                                    <strong>Pago inmediato:</strong> Se emitirá el Comprobante de Egreso y la CxP
+                                    quedará <strong>PAGADA</strong> (saldo RD$ 0.00). Si aplican retenciones DGII, usa
+                                    <em>CRÉDITO</em> y liquida en CxP.
+                                </div>
+                            </div>
+
+                            <div id="wrapTarjetaContado"
+                                style="display: none; margin-top: 8px; grid-template-columns: 0.9fr 1fr 0.8fr 1.3fr; gap: 8px;">
+                                <div class="form-group" style="margin: 0;">
+                                    <label class="form-label" for="selectTipoTarjetaContado"
+                                        style="font-size: 0.70rem; font-weight: 700; margin-bottom: 2px;">Tipo Tarjeta
+                                        *</label>
+                                    <select id="selectTipoTarjetaContado" class="form-control"
+                                        style="height: 30px; font-size: 0.80rem;">
+                                        <option value="DEBITO">Débito Corporativa</option>
+                                        <option value="CREDITO">Crédito Corporativa</option>
+                                    </select>
+                                </div>
+                                <div class="form-group" style="margin: 0;">
+                                    <label class="form-label" for="selectMarcaTarjetaContado"
+                                        style="font-size: 0.70rem; font-weight: 700; margin-bottom: 2px;">Marca
+                                        *</label>
+                                    <select id="selectMarcaTarjetaContado" class="form-control"
+                                        style="height: 30px; font-size: 0.80rem;">
+                                        <option value="VISA">Visa</option>
+                                        <option value="MASTERCARD">Mastercard</option>
+                                        <option value="AMEX">Amex</option>
+                                        <option value="OTRA">Otra</option>
+                                    </select>
+                                </div>
+                                <div class="form-group" style="margin: 0;">
+                                    <label class="form-label" for="inputUlt4TarjetaContado"
+                                        style="font-size: 0.70rem; font-weight: 700; margin-bottom: 2px;">Últ. 4 Dígitos
+                                        *</label>
+                                    <input type="text" id="inputUlt4TarjetaContado" class="form-control" maxlength="4"
+                                        placeholder="1234"
+                                        style="height: 30px; font-size: 0.80rem; font-family: var(--font-mono);"
+                                        oninput="this.value=this.value.replace(/\D/g,'').slice(0,4);" />
+                                </div>
+                                <div class="form-group" style="margin: 0;">
+                                    <label class="form-label" for="inputAutTarjetaContado"
+                                        style="font-size: 0.70rem; font-weight: 700; margin-bottom: 2px;">No.
+                                        Autorización / Voucher *</label>
+                                    <input type="text" id="inputAutTarjetaContado" class="form-control" maxlength="50"
+                                        placeholder="Ej: AUT-849201"
+                                        style="height: 30px; font-size: 0.80rem; font-family: var(--font-mono);" />
+                                </div>
+                            </div>
+
+
+
+
                         </div>
                     </div>
 
@@ -770,12 +900,11 @@ if ($pdo) {
             </div>
 
             <div class="modal-body" style="padding: 16px 20px; max-height: 70vh; overflow-y: auto;">
-                <!-- Buscador de órdenes en el modal -->
                 <div style="margin-bottom: 14px;">
                     <input type="text" id="filtroModalOrdenes" class="form-control"
                         placeholder="🔍 Filtrar por número de orden, proveedor o RNC..."
                         oninput="filtrarOrdenesModal(this.value)"
-                        style="height: 38px; font-size: 0.88rem; padding-left: 12px; width:300px" />
+                        style="height: 38px; font-size: 0.88rem; padding-left: 12px; width: 300px; max-width: 100%;" />
                 </div>
 
                 <div class="table-wrapper"
@@ -892,10 +1021,10 @@ if ($pdo) {
     <!-- Script inicial para precarga de orden por GET si aplica y catálogos -->
     <script>
         const ORDEN_ID_INICIAL = <?= $ordenIdPreseleccionada ?>;
-        const CATALOGO_PRODUCTOS = <?= json_encode($productos, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
-        const PROVEEDORES_LISTA = <?= json_encode($proveedores, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
+        const CATALOGO_PRODUCTOS = <?= json_encode($productos, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE) ?>;
+        const PROVEEDORES_LISTA = <?= json_encode($proveedores, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE) ?>;
     </script>
-    <script src="recepciones.js?v=28"></script>
+    <script src="recepciones.js?v=<?= time() ?>"></script>
 </body>
 
 </html>

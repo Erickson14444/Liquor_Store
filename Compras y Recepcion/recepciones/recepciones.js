@@ -128,7 +128,7 @@ document.addEventListener('DOMContentLoaded', function () {
     // 1. Precargar caché de catálogo
     if (typeof CATALOGO_PRODUCTOS !== 'undefined' && Array.isArray(CATALOGO_PRODUCTOS)) {
         CATALOGO_PRODUCTOS.forEach(p => {
-            if (p && p.id) MAPA_CATALOGO_CACHE.set(parseInt(p.id), p);
+            if (p && p.id) MAPA_CATALOGO_CACHE.set(parseInt(p.id, 10), p);
         });
     }
 
@@ -217,6 +217,20 @@ function iniciarRecepcionDirecta() {
 
     const ncf = document.getElementById('inputNcf');
     if (ncf) ncf.value = '';
+
+    const radioCredito = document.querySelector('input[name="condicion_pago"][value="CREDITO"]');
+    if (radioCredito) radioCredito.checked = true;
+
+    const selMet = document.getElementById('selectMetodoPagoContado');
+    if (selMet && selMet.options.length > 0) selMet.selectedIndex = 0;
+
+    const inpRefContado = document.getElementById('inputRefPagoContado');
+    if (inpRefContado) inpRefContado.value = '';
+
+    const inpUlt4 = document.getElementById('inputUlt4TarjetaContado');
+    if (inpUlt4) inpUlt4.value = '';
+    const inpAut = document.getElementById('inputAutTarjetaContado');
+    if (inpAut) inpAut.value = '';
 
     const inputBuscar = document.getElementById('inputBuscarCatalogo');
     if (inputBuscar) inputBuscar.value = '';
@@ -322,9 +336,8 @@ function limpiarProveedorSeleccionadoRecep() {
     if (boxBusq) boxBusq.style.display = 'block';
     if (badge) badge.style.display = 'none';
     if (dd) dd.style.display = 'none';
-    if (input) {
-        input.value = '';
-    }
+    if (input) input.value = '';
+
     if (lblInfo) {
         lblInfo.textContent = 'Días habituales: --';
         lblInfo.style.color = 'var(--text-muted)';
@@ -341,9 +354,6 @@ document.addEventListener('click', (e) => {
     }
 });
 
-/**
- * Evento al cambiar proveedor de forma manual
- */
 function alCambiarProveedorManual() {
     actualizarInfoProveedorManual();
     actualizarNotaCondicionPago();
@@ -370,7 +380,7 @@ function actualizarInfoProveedorManual() {
 }
 
 /**
- * Actualiza la nota informativa según la condición de pago
+ * Muestra u oculta el panel de liquidación inmediata según la condición de pago (CONTADO vs CRÉDITO)
  */
 function actualizarNotaCondicionPago() {
     const radios = document.getElementsByName('condicion_pago');
@@ -382,17 +392,40 @@ function actualizarNotaCondicionPago() {
         }
     }
 
-    let dias = 30;
-    if (ORDEN_ACTUAL && ORDEN_ACTUAL.dias_credito_habitual) {
-        dias = ORDEN_ACTUAL.dias_credito_habitual;
-    } else {
-        const hidden = document.getElementById('selectProveedorRecepcion');
-        const provId = hidden ? hidden.value : '';
-        const lista = (typeof PROVEEDORES_LISTA !== 'undefined' && Array.isArray(PROVEEDORES_LISTA)) ? PROVEEDORES_LISTA : [];
-        const p = lista.find(item => String(item.persona_id) === String(provId));
-        if (p && p.dias_credito_habitual) {
-            dias = parseInt(p.dias_credito_habitual) || 0;
-        }
+    const panel = document.getElementById('panelPagoContadoRecep');
+    if (panel) {
+        panel.style.display = (valor === 'CONTADO') ? 'block' : 'none';
+    }
+    alCambiarMetodoPagoContado();
+}
+
+/**
+ * Muestra los campos bancarios/referencia cuando el pago al contado es Transferencia o Cheque
+ */
+function alCambiarMetodoPagoContado() {
+    const sel = document.getElementById('selectMetodoPagoContado');
+    const wrapBanco = document.getElementById('wrapBancoContado');
+    const wrapRef = document.getElementById('wrapRefContado');
+    const lblRef = document.getElementById('lblRefContado');
+    const inpRef = document.getElementById('inputRefPagoContado');
+    if (!sel || !wrapBanco || !wrapRef) return;
+
+    const cod = String(sel.options[sel.selectedIndex]?.getAttribute('data-codigo') || 'EFECTIVO').toUpperCase();
+    const esBanco = (cod === 'TRANSFERENCIA' || cod === 'CHEQUE');
+
+    wrapBanco.style.display = esBanco ? 'block' : 'none';
+    wrapRef.style.display = esBanco ? 'block' : 'none';
+
+    if (lblRef) {
+        lblRef.textContent = (cod === 'CHEQUE') ? 'No. Cheque *' : 'No. Referencia TRF *';
+    }
+    if (inpRef) {
+        inpRef.placeholder = (cod === 'CHEQUE') ? 'Ej: CHQ-00125' : 'Ej: TRF-00491';
+    }
+
+    const wrapTarj = document.getElementById('wrapTarjetaContado');
+    if (wrapTarj) {
+        wrapTarj.style.display = (cod === 'TARJETA') ? 'grid' : 'none';
     }
 }
 
@@ -441,7 +474,7 @@ function filtrarOrdenesModal(query) {
  */
 async function importarOrdenDesdeModal(ordenId) {
     cerrarModalImportarOrden();
-    const id = parseInt(ordenId);
+    const id = parseInt(ordenId, 10);
     if (!id) return;
 
     const contenedor = document.getElementById('contenedorLineasRecepcion');
@@ -460,16 +493,13 @@ async function importarOrdenDesdeModal(ordenId) {
         ORDEN_ACTUAL = data.orden;
         const lineas = data.lineas || [];
 
-        // 1. Establecer input oculto
         const inpOrden = document.getElementById('inputOrdenCompraId');
         if (inpOrden) inpOrden.value = id;
 
-        // 2. Establecer y bloquear proveedor según la orden
         if (ORDEN_ACTUAL.proveedor_id) {
             seleccionarProveedorRecep(ORDEN_ACTUAL.proveedor_id, true);
         }
 
-        // 3. Actualizar banner de orden vinculada
         const banner = document.getElementById('bannerOrdenImportada');
         if (banner) {
             const texto = document.getElementById('textoOrdenVinculada');
@@ -479,7 +509,6 @@ async function importarOrdenDesdeModal(ordenId) {
             banner.style.display = 'flex';
         }
 
-        // 4. Actualizar badge de modo
         const badgeModo = document.getElementById('badgeModoRecepcion');
         if (badgeModo) {
             badgeModo.textContent = `ORDEN: ${ORDEN_ACTUAL.numero_orden}`;
@@ -487,11 +516,10 @@ async function importarOrdenDesdeModal(ordenId) {
             badgeModo.style.background = '#e3f2fd';
         }
 
-        // 5. Limpiar mapa e insertar líneas de la orden
         MAPA_PRODUCTOS_RECEPCION.clear();
         lineas.forEach(l => {
-            const prodId = parseInt(l.producto_maestro_id);
-            const cantPend = parseInt(l.cantidad_pendiente || 0);
+            const prodId = parseInt(l.producto_maestro_id, 10);
+            const cantPend = parseInt(l.cantidad_pendiente || 0, 10);
             const costoPact = parseFloat(l.costo_pactado_unitario || l.costo_unitario_pactado || 0);
 
             MAPA_PRODUCTOS_RECEPCION.set(prodId, {
@@ -513,9 +541,9 @@ async function importarOrdenDesdeModal(ordenId) {
 
         renderizarContenedorProductos();
         buscarProductosCatalogo(document.getElementById('inputBuscarCatalogo')?.value || '');
+        actualizarNotaCondicionPago();
         calcularGranTotalRecepcion();
 
-        // Abrir el modal de recepción con la orden cargada
         abrirModalNuevaRecepcion(false);
 
     } catch (e) {
@@ -550,7 +578,6 @@ function desvincularOrdenCompra() {
         badgeModo.style.background = '#fdf5ea';
     }
 
-    // Relajar límites de pendiente en los productos ya cargados
     MAPA_PRODUCTOS_RECEPCION.forEach(item => {
         item.pendiente = 999999;
     });
@@ -560,7 +587,7 @@ function desvincularOrdenCompra() {
 }
 
 /**
- * Genera un número de lote sugerido basado en la fecha y SKU
+ * Genera un número de lote sugerido basado en la fecha
  */
 function generarNumeroLoteSugerido(sku) {
     const hoy = new Date();
@@ -595,7 +622,7 @@ function buscarProductosCatalogo(query) {
 
     let html = '';
     filtrados.forEach(p => {
-        const prodId = parseInt(p.id);
+        const prodId = parseInt(p.id, 10);
         const yaAgregado = MAPA_PRODUCTOS_RECEPCION.has(prodId);
         const costo = parseFloat(p.costo_promedio || 0).toFixed(2);
 
@@ -629,14 +656,10 @@ function buscarProductosCatalogo(query) {
  * Agrega un producto a la recepción
  */
 function agregarProductoARecepcion(productoId) {
-    const prodId = parseInt(productoId);
-    if (!prodId) return;
+    const prodId = parseInt(productoId, 10);
+    if (!prodId || MAPA_PRODUCTOS_RECEPCION.has(prodId)) return;
 
-    if (MAPA_PRODUCTOS_RECEPCION.has(prodId)) {
-        return;
-    }
-
-    const prod = MAPA_CATALOGO_CACHE.get(prodId) || (typeof CATALOGO_PRODUCTOS !== 'undefined' ? CATALOGO_PRODUCTOS.find(p => parseInt(p.id) === prodId) : null);
+    const prod = MAPA_CATALOGO_CACHE.get(prodId) || (typeof CATALOGO_PRODUCTOS !== 'undefined' ? CATALOGO_PRODUCTOS.find(p => parseInt(p.id, 10) === prodId) : null);
     if (!prod) return;
 
     const costoRef = parseFloat(prod.costo_promedio || 0) > 0
@@ -668,7 +691,7 @@ function agregarProductoARecepcion(productoId) {
  * Quita un producto de la recepción
  */
 function quitarProductoDeRecepcion(productoId) {
-    const prodId = parseInt(productoId);
+    const prodId = parseInt(productoId, 10);
     if (!prodId) return;
 
     MAPA_PRODUCTOS_RECEPCION.delete(prodId);
@@ -695,7 +718,6 @@ function actualizarBotonEnPanelCatalogo(productoId, agregado) {
 
 /**
  * Renderiza todos los productos agregados en el contenedor de recepción
- * con formato de tabla compacta idéntica a Órdenes de Compra
  */
 function renderizarContenedorProductos() {
     const contenedor = document.getElementById('contenedorLineasRecepcion');
@@ -725,7 +747,7 @@ function renderizarContenedorProductos() {
             : '';
 
         item.lotes.forEach((lot, lotIdx) => {
-            const cant = parseInt(lot.cant || 0) || 0;
+            const cant = parseInt(lot.cant || 0, 10) || 0;
             const costo = parseFloat(lot.costo || 0) || 0;
             const subtotal = cant * costo;
             const esPrimerLote = (lotIdx === 0);
@@ -792,9 +814,6 @@ function renderizarContenedorProductos() {
     calcularGranTotalRecepcion();
 }
 
-/**
- * Agrega una nueva partición de lote para un producto
- */
 function dividirLote(productoId) {
     const item = MAPA_PRODUCTOS_RECEPCION.get(productoId);
     if (!item) return;
@@ -809,9 +828,6 @@ function dividirLote(productoId) {
     renderizarContenedorProductos();
 }
 
-/**
- * Elimina una partición de lote específica
- */
 function eliminarSubLote(productoId, loteIdx) {
     const item = MAPA_PRODUCTOS_RECEPCION.get(productoId);
     if (!item || item.lotes.length <= 1) return;
@@ -820,9 +836,6 @@ function eliminarSubLote(productoId, loteIdx) {
     renderizarContenedorProductos();
 }
 
-/**
- * Evento al cambiar datos en los inputs de lote
- */
 function alCambiarDatoLote(productoId) {
     const item = MAPA_PRODUCTOS_RECEPCION.get(productoId);
     if (!item) return;
@@ -837,7 +850,7 @@ function alCambiarDatoLote(productoId) {
         const vencInp = f.querySelector('.input-lote-venc');
 
         nuevosLotes.push({
-            cant: parseInt(cantInp?.value || 0) || 0,
+            cant: parseInt(cantInp?.value || 0, 10) || 0,
             costo: parseFloat(costoInp?.value || 0) || 0,
             lote: (numInp?.value || '').trim(),
             venc: (vencInp?.value || '').trim()
@@ -849,9 +862,6 @@ function alCambiarDatoLote(productoId) {
     calcularGranTotalRecepcion();
 }
 
-/**
- * Recalcula subtotales de un producto
- */
 function recalcularProducto(productoId) {
     const item = MAPA_PRODUCTOS_RECEPCION.get(productoId);
     if (!item) return;
@@ -863,7 +873,7 @@ function recalcularProducto(productoId) {
         const costoInp = f.querySelector('.input-lote-costo');
         const subtotalSpan = f.querySelector('.subtotal-lote');
 
-        const cant = parseInt(cantInp?.value || 0) || 0;
+        const cant = parseInt(cantInp?.value || 0, 10) || 0;
         const costo = parseFloat(costoInp?.value || 0) || 0;
         const subtotal = cant * costo;
 
@@ -873,9 +883,6 @@ function recalcularProducto(productoId) {
     });
 }
 
-/**
- * Recalcula el total acumulado de la recepción
- */
 function calcularGranTotalRecepcion() {
     let totalUnidades = 0;
     let montoTotal = 0;
@@ -884,7 +891,7 @@ function calcularGranTotalRecepcion() {
     MAPA_PRODUCTOS_RECEPCION.forEach(item => {
         let unidadesProd = 0;
         item.lotes.forEach(lot => {
-            const c = parseInt(lot.cant || 0) || 0;
+            const c = parseInt(lot.cant || 0, 10) || 0;
             const cost = parseFloat(lot.costo || 0) || 0;
             if (c > 0) {
                 totalUnidades += c;
@@ -917,13 +924,13 @@ function calcularGranTotalRecepcion() {
 }
 
 /**
- * Guarda la recepción en la base de datos
+ * Guarda la recepción en la base de datos (y liquida CxP automáticamente si es CONTADO)
  */
 async function guardarRecepcion(event) {
     event.preventDefault();
 
     const inpOrden = document.getElementById('inputOrdenCompraId');
-    const ordenId = inpOrden && inpOrden.value ? parseInt(inpOrden.value) : null;
+    const ordenId = inpOrden && inpOrden.value ? parseInt(inpOrden.value, 10) : null;
 
     const selProv = document.getElementById('selectProveedorRecepcion');
     const proveedorId = selProv ? selProv.value.trim() : '';
@@ -987,6 +994,79 @@ async function guardarRecepcion(event) {
         }
     }
 
+    let metodoPagoId = null;
+    let metodoPagoLabel = '';
+    let cuentaBancariaId = null;
+    let referenciaPago = '';
+    let tarjetaDatos = null;
+
+    if (condicionPago === 'CONTADO') {
+        const selMet = document.getElementById('selectMetodoPagoContado');
+        const codMet = String(selMet?.options[selMet.selectedIndex]?.getAttribute('data-codigo') || 'EFECTIVO').toUpperCase();
+        metodoPagoId = selMet ? parseInt(selMet.value, 10) : null;
+        metodoPagoLabel = selMet?.options[selMet.selectedIndex]?.textContent?.trim() || codMet;
+
+        if (codMet === 'TRANSFERENCIA' || codMet === 'CHEQUE') {
+            cuentaBancariaId = parseInt(document.getElementById('selectCuentaBancoContado')?.value || '0', 10);
+            referenciaPago = (document.getElementById('inputRefPagoContado')?.value || '').trim();
+
+            if (!cuentaBancariaId) {
+                mostrarMensajeModal({
+                    tipo: 'advertencia',
+                    titulo: 'Cuenta Bancaria Requerida',
+                    mensaje: `Seleccione la cuenta bancaria en DOP desde la cual se realizó el pago por ${codMet}.`
+                });
+                return;
+            }
+            if (!referenciaPago) {
+                mostrarMensajeModal({
+                    tipo: 'advertencia',
+                    titulo: codMet === 'CHEQUE' ? 'Número de Cheque Requerido' : 'Referencia Bancaria Requerida',
+                    mensaje: `Ingrese el ${codMet === 'CHEQUE' ? 'número de cheque' : 'número de referencia bancaria'} del pago al contado.`
+                });
+                document.getElementById('inputRefPagoContado')?.focus();
+                return;
+            }
+        }
+
+        else if (codMet === 'TARJETA') {
+            const ult4 = (document.getElementById('inputUlt4TarjetaContado')?.value || '').trim();
+            const numAut = (document.getElementById('inputAutTarjetaContado')?.value || '').trim();
+
+            if (ult4.length !== 4) {
+                mostrarMensajeModal({
+                    tipo: 'advertencia',
+                    titulo: 'Últimos 4 Dígitos Requeridos',
+                    mensaje: 'Ingrese los últimos 4 dígitos de la tarjeta utilizada en el pago.'
+                });
+                document.getElementById('inputUlt4TarjetaContado')?.focus();
+                return;
+            }
+            if (!numAut) {
+                mostrarMensajeModal({
+                    tipo: 'advertencia',
+                    titulo: 'Autorización Requerida',
+                    mensaje: 'Ingrese el número de autorización o voucher del pago con tarjeta.'
+                });
+                document.getElementById('inputAutTarjetaContado')?.focus();
+                return;
+            }
+
+            tarjetaDatos = {
+                tipo_tarjeta: document.getElementById('selectTipoTarjetaContado')?.value || 'DEBITO',
+                marca_tarjeta: document.getElementById('selectMarcaTarjetaContado')?.value || 'VISA',
+                ultimos_4_digitos: ult4,
+                numero_autorizacion: numAut
+            };
+        }
+
+
+
+
+
+
+    }
+
     if (MAPA_PRODUCTOS_RECEPCION.size === 0) {
         mostrarMensajeModal({
             tipo: 'advertencia',
@@ -1009,7 +1089,7 @@ async function guardarRecepcion(event) {
         item.lotes.forEach(lot => {
             if (errorValidacion) return;
 
-            const cant = parseInt(lot.cant || 0);
+            const cant = parseInt(lot.cant || 0, 10);
             const costo = parseFloat(lot.costo || 0);
             const numLote = (lot.lote || '').trim().toUpperCase();
             const venc = (lot.venc || '').trim();
@@ -1071,11 +1151,15 @@ async function guardarRecepcion(event) {
         return;
     }
 
+    const textoContable = (condicionPago === 'CONTADO')
+        ? `Se registrará la entrada física a inventario y se <strong>saldará automáticamente</strong> la CxP al contado (${metodoPagoLabel}).`
+        : `Se registrará la entrada física a inventario (Kardex) y la obligación pendiente en Cuentas por Pagar.`;
+
     mostrarMensajeModal({
         tipo: 'pregunta',
         esConfirmacion: true,
         titulo: '¿Confirmar Recepción de Mercancía?',
-        mensaje: `Se registrará la entrada física a inventario (Kardex) y la obligación en Cuentas por Pagar.<br><br><strong>Almacén Destino:</strong> ${almacenNombre}<br><strong>Factura:</strong> ${numFactura} | <strong>NCF:</strong> ${ncf}<br><strong>Condición:</strong> ${condicionPago} | <strong>Líneas:</strong> ${lineasPayload.length}`,
+        mensaje: `${textoContable}<br><br><strong>Almacén Destino:</strong> ${almacenNombre}<br><strong>Factura:</strong> ${numFactura} | <strong>NCF:</strong> ${ncf}<br><strong>Condición:</strong> ${condicionPago} | <strong>Líneas:</strong> ${lineasPayload.length}`,
         textoBoton: 'Sí, Registrar Entrada',
         textoCancelar: 'Revisar',
         alConfirmar: async () => {
@@ -1093,6 +1177,10 @@ async function guardarRecepcion(event) {
                     numero_factura_proveedor: numFactura,
                     ncf_proveedor: ncf,
                     condicion_pago: condicionPago,
+                    metodo_pago_id: metodoPagoId,
+                    cuenta_bancaria_id: cuentaBancariaId,
+                    referencia_pago: referenciaPago,
+                    tarjeta_datos: tarjetaDatos,
                     lineas: lineasPayload
                 };
 
@@ -1102,7 +1190,13 @@ async function guardarRecepcion(event) {
                     body: JSON.stringify(payload)
                 });
 
-                const data = await resp.json();
+                const textoResp = await resp.text();
+                let data;
+                try {
+                    data = JSON.parse(textoResp);
+                } catch (parseErr) {
+                    throw new Error('Respuesta no válida del servidor: ' + textoResp.replace(/<[^>]+>/g, ' ').trim().slice(0, 220));
+                }
 
                 if (data && data.ok) {
                     mostrarMensajeModal({
@@ -1163,6 +1257,7 @@ async function verComprobanteRecepcion(recepcionId) {
         const rec = data.recepcion;
         const det = data.detalles || [];
         const cxp = data.cxp || null;
+        const egreso = data.egreso || null;
 
         if (titulo) {
             titulo.textContent = `Comprobante de Recepción #${rec.id} — Factura ${rec.numero_factura_proveedor}`;
@@ -1172,7 +1267,7 @@ async function verComprobanteRecepcion(recepcionId) {
         let totalUnidades = 0;
 
         det.forEach(d => {
-            const cant = parseInt(d.cantidad_recibida_buena || 0);
+            const cant = parseInt(d.cantidad_recibida_buena || 0, 10);
             const costo = parseFloat(d.costo_unitario_facturado || 0);
             const subtotal = parseFloat(d.subtotal_linea || 0);
 
@@ -1198,12 +1293,13 @@ async function verComprobanteRecepcion(recepcionId) {
             cxpHtml = `
                 <div style="background: #fdfcf9; border: 1px solid #e7dcc8; border-radius: 8px; padding: 12px 16px; margin-top: 16px;">
                     <strong style="color: #6e6254; font-size: 0.85rem; text-transform: uppercase;">Cuenta por Pagar Generada (Formato 606)</strong>
-                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 10px; margin-top: 6px; font-size: 0.85rem;">
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 10px; margin-top: 6px; font-size: 0.85rem;">
                         <div>ID Deuda: <strong>#${cxp.id}</strong></div>
                         <div>Monto Deuda: <strong>RD$ ${parseFloat(cxp.monto_original).toFixed(2)}</strong></div>
                         <div>Saldo Pendiente: <strong>RD$ ${parseFloat(cxp.saldo_pendiente).toFixed(2)}</strong></div>
                         <div>Fecha Vencimiento: <strong style="color: #b78103;">${cxp.fecha_vencimiento}</strong></div>
-                        <div>Estado: <span style="font-weight: 700; color: #2e7d52;">${cxp.estado}</span></div>
+                        <div>Estado: <span style="font-weight: 700; color: ${cxp.estado === 'PAGADA' ? '#2e7d52' : '#b78103'};">${cxp.estado}</span></div>
+                        ${egreso ? `<div>Comprobante Pago: <strong style="font-family: var(--font-mono); color: #2e7d52;">${egreso.numero_comprobante}</strong></div>` : ''}
                     </div>
                 </div>
             `;
@@ -1287,9 +1383,6 @@ async function verComprobanteRecepcion(recepcionId) {
     }
 }
 
-/**
- * Cierre del modal de comprobante de recepción
- */
 function cerrarModalRecepcion() {
     const modal = document.getElementById('modalVerRecepcion');
     if (modal) {

@@ -1,22 +1,26 @@
 <?php
 /**
  * ============================================================================
- * Backend API: Recepciones de Compra (Entregas Parciales y Multi-Lote)
+ * Backend API: Recepciones de Compra (Entregas Parciales, Multi-Lote y Contado)
  * House & Ice • Sistema Administrativo (ERP Licorero)
  * Ubicación: Compras y Recepcion/recepciones/procesar_recepciones.php
  * ============================================================================
  */
 
+ini_set('display_errors', '0');
 header('Content-Type: application/json; charset=utf-8');
 
 require_once __DIR__ . '/../../config/conexion.php';
+if (file_exists(__DIR__ . '/../../config/auditoria_helper.php')) {
+    require_once __DIR__ . '/../../config/auditoria_helper.php';
+}
 
 if (empty($_SESSION['usuario']['usuario_id'])) {
     echo json_encode([
         'ok' => false,
         'status' => 'error',
         'mensaje' => 'Sesión expirada o no iniciada.'
-    ]);
+    ], JSON_UNESCAPED_UNICODE);
     exit;
 }
 
@@ -101,7 +105,7 @@ try {
                 'ok' => true,
                 'orden' => $orden,
                 'lineas' => $lineasPendientes
-            ]);
+            ], JSON_UNESCAPED_UNICODE);
             break;
 
         // ====================================================================
@@ -181,18 +185,33 @@ try {
                 LIMIT 1
             ");
             $stmtCxp->execute([$recepcionId]);
-            $cxp = $stmtCxp->fetch(PDO::FETCH_ASSOC);
+            $cxp = $stmtCxp->fetch(PDO::FETCH_ASSOC) ?: null;
+
+            $egreso = null;
+            if ($cxp && !empty($cxp['id'])) {
+                $stmtEgr = $pdo->prepare("
+                    SELECT ce.id, ce.numero_comprobante, ce.monto_total_pagado, ce.fecha_pago
+                    FROM compras.comprobante_egreso_detalles ced
+                    JOIN compras.comprobantes_egreso_cxp ce ON ce.id = ced.comprobante_egreso_id
+                    WHERE ced.cuenta_por_pagar_id = ?
+                    ORDER BY ce.id DESC
+                    LIMIT 1
+                ");
+                $stmtEgr->execute([(int) $cxp['id']]);
+                $egreso = $stmtEgr->fetch(PDO::FETCH_ASSOC) ?: null;
+            }
 
             echo json_encode([
                 'ok' => true,
                 'recepcion' => $recepcion,
                 'detalles' => $detalles,
-                'cxp' => $cxp
-            ]);
+                'cxp' => $cxp,
+                'egreso' => $egreso
+            ], JSON_UNESCAPED_UNICODE);
             break;
 
         // ====================================================================
-        // 3. Registrar Recepción de Mercancía (Entregas Parciales y Multi-Lote)
+        // 3. Registrar Recepción de Mercancía (Multi-Lote + Liquidación Contado)
         // ====================================================================
         case 'registrar_recepcion':
             if (!usuarioPuedeRegistrarRecepcion()) {
@@ -204,15 +223,11 @@ try {
             $ordenId = !empty($input['orden_compra_id']) ? (int) $input['orden_compra_id'] : null;
             $proveedorIdInput = !empty($input['proveedor_id']) ? trim((string) $input['proveedor_id']) : null;
             $almacenId = (int) ($input['almacen_id'] ?? 0);
-            $numFactura = trim($input['numero_factura_proveedor'] ?? '');
-            $ncfProveedor = trim($input['ncf_proveedor'] ?? '');
-            $condicionPago = strtoupper(trim($input['condicion_pago'] ?? 'CREDITO'));
-            $ncfProveedor = strtoupper($ncfProveedor);
-
-
+            $numFactura = trim((string) ($input['numero_factura_proveedor'] ?? ''));
+            $ncfProveedor = strtoupper(trim((string) ($input['ncf_proveedor'] ?? '')));
+            $condicionPago = strtoupper(trim((string) ($input['condicion_pago'] ?? 'CREDITO')));
 
             $lineasRecibidas = $input['lineas'] ?? [];
-
             if (is_string($lineasRecibidas)) {
                 $lineasRecibidas = json_decode($lineasRecibidas, true) ?: [];
             }
@@ -284,7 +299,100 @@ try {
                 throw new Exception("La condición de pago debe ser CONTADO o CREDITO.");
             }
 
-            $ncfProveedor = strtoupper($ncfProveedor);
+            // Obtener nombre del proveedor para concepto bancario y auditoría
+            $stmtProvNom = $pdo->prepare("SELECT nombre_razon_social FROM identidad.personas WHERE persona_id = ? LIMIT 1");
+            $stmtProvNom->execute([$proveedorId]);
+            $proveedorNombre = (string) ($stmtProvNom->fetchColumn() ?: 'Proveedor');
+
+            // Si es al CONTADO, validar método de pago (bóveda/banco externo, nunca caja POS)
+            $metodoContadoRow = null;
+            $cuentaContadoRow = null;
+            $refContado = '';
+
+            if ($condicionPago === 'CONTADO') {
+                $metodoPagoIn = (int) ($input['metodo_pago_id'] ?? 0);
+                if ($metodoPagoIn > 0) {
+                    $stMp = $pdo->prepare("SELECT id, codigo, descripcion FROM ventas.metodos_pago WHERE id = ? AND activo = TRUE LIMIT 1");
+                    $stMp->execute([$metodoPagoIn]);
+                    $metodoContadoRow = $stMp->fetch(PDO::FETCH_ASSOC);
+                } else {
+                    $metodoContadoRow = $pdo->query("SELECT id, codigo, descripcion FROM ventas.metodos_pago WHERE UPPER(codigo) = 'EFECTIVO' AND activo = TRUE LIMIT 1")->fetch(PDO::FETCH_ASSOC);
+                }
+
+                if (!$metodoContadoRow) {
+                    throw new Exception("El método de pago seleccionado para la compra al contado no es válido.");
+                }
+
+                $tarjetaContado = null;
+                $codMetContado = strtoupper((string) $metodoContadoRow['codigo']);
+                if (!in_array($codMetContado, ['EFECTIVO', 'TARJETA', 'TRANSFERENCIA', 'CHEQUE'], true)) {
+                    throw new Exception("El método '{$codMetContado}' no está permitido para pagar recepciones al contado.");
+                }
+
+                if ($codMetContado === 'TARJETA') {
+                    $td = is_array($input['tarjeta_datos'] ?? null) ? $input['tarjeta_datos'] : [];
+                    $tipoTj = strtoupper(trim((string) ($td['tipo_tarjeta'] ?? 'DEBITO')));
+                    $marcaTj = strtoupper(trim((string) ($td['marca_tarjeta'] ?? 'VISA')));
+                    $ult4 = preg_replace('/\D/', '', (string) ($td['ultimos_4_digitos'] ?? ''));
+                    $numAut = trim((string) ($td['numero_autorizacion'] ?? ''));
+
+                    if (strlen($ult4) !== 4) {
+                        throw new Exception("Para pago al contado con Tarjeta debe ingresar los últimos 4 dígitos.");
+                    }
+                    if ($numAut === '') {
+                        throw new Exception("Para pago al contado con Tarjeta debe ingresar el número de autorización.");
+                    }
+
+                    $tarjetaContado = [
+                        'tipo_tarjeta' => in_array($tipoTj, ['CREDITO', 'DEBITO'], true) ? $tipoTj : 'DEBITO',
+                        'marca_tarjeta' => in_array($marcaTj, ['VISA', 'MASTERCARD', 'AMEX', 'OTRA'], true) ? $marcaTj : 'OTRA',
+                        'ultimos_4_digitos' => $ult4,
+                        'numero_autorizacion' => $numAut,
+                    ];
+                }
+
+                if (in_array($codMetContado, ['TRANSFERENCIA', 'CHEQUE'], true)) {
+                    $ctaIdIn = (int) ($input['cuenta_bancaria_id'] ?? 0);
+                    $refContado = trim((string) ($input['referencia_pago'] ?? ''));
+
+                    if ($ctaIdIn <= 0) {
+                        throw new Exception("Debe seleccionar una cuenta bancaria en DOP para el pago por {$codMetContado}.");
+                    }
+                    if ($refContado === '') {
+                        $etq = ($codMetContado === 'CHEQUE') ? 'número de cheque' : 'número de referencia bancaria';
+                        throw new Exception("Debe ingresar el {$etq} para liquidar la recepción al contado.");
+                    }
+
+                    $stCta = $pdo->prepare("
+                        SELECT cb.id, cb.nombre_banco, cb.numero_cuenta, cb.activa, cb.moneda_id,
+                               COALESCE(m.codigo_iso, 'DOP') AS codigo_iso,
+                               COALESCE(m.es_moneda_base, TRUE) AS es_moneda_base
+                        FROM tesoreria.cuentas_bancarias cb
+                        LEFT JOIN tesoreria.monedas m ON m.id = cb.moneda_id
+                        WHERE cb.id = ? LIMIT 1
+                    ");
+                    $stCta->execute([$ctaIdIn]);
+                    $cuentaContadoRow = $stCta->fetch(PDO::FETCH_ASSOC);
+                    if (!$cuentaContadoRow || !in_array($cuentaContadoRow['activa'], [true, 't', 1, '1'], true)) {
+                        throw new Exception("La cuenta bancaria seleccionada no existe o está inactiva.");
+                    }
+                    $esDop = in_array($cuentaContadoRow['es_moneda_base'], [true, 't', 1, '1'], true) || strtoupper((string) $cuentaContadoRow['codigo_iso']) === 'DOP';
+                    if (!$esDop) {
+                        throw new Exception("La cuenta «{$cuentaContadoRow['nombre_banco']}» está en {$cuentaContadoRow['codigo_iso']}. Seleccione una cuenta en DOP.");
+                    }
+
+                    $stDupRef = $pdo->prepare("
+                        SELECT id, TO_CHAR(fecha_movimiento, 'DD/MM/YYYY') AS fecha_fmt
+                        FROM tesoreria.movimientos_bancarios
+                        WHERE cuenta_bancaria_id = ? AND UPPER(TRIM(referencia)) = UPPER(?)
+                        LIMIT 1
+                    ");
+                    $stDupRef->execute([$ctaIdIn, $refContado]);
+                    if ($dupM = $stDupRef->fetch(PDO::FETCH_ASSOC)) {
+                        throw new Exception("La referencia «{$refContado}» ya existe en {$cuentaContadoRow['nombre_banco']} (Mov. #{$dupM['id']} del {$dupM['fecha_fmt']}).");
+                    }
+                }
+            }
 
             // Validar antes de la transacción si la Factura o el NCF ya existen para este proveedor
             $stmtDupFac = $pdo->prepare("
@@ -361,8 +469,8 @@ try {
                 $prodId = (int) ($linea['producto_maestro_id'] ?? 0);
                 $cantRec = (int) ($linea['cantidad_recibida_buena'] ?? 0);
                 $costoFact = (float) ($linea['costo_unitario_facturado'] ?? 0);
-                $lote = trim($linea['numero_lote'] ?? '');
-                $venc = trim($linea['fecha_vencimiento'] ?? '');
+                $lote = trim((string) ($linea['numero_lote'] ?? ''));
+                $venc = trim((string) ($linea['fecha_vencimiento'] ?? ''));
 
                 if ($cantRec <= 0) {
                     continue;
@@ -446,7 +554,7 @@ try {
                 }
             }
 
-            $montoTotalFactura = 0;
+            $montoTotalFactura = 0.00;
             foreach ($lineasValidas as $lv) {
                 $montoTotalFactura += ($lv['cantidad_recibida_buena'] * $lv['costo_unitario_facturado']);
             }
@@ -580,7 +688,6 @@ try {
             ");
 
             foreach ($lineasValidas as $l) {
-                // A. Guardar detalle de recepción
                 $stmtInsDet->execute([
                     $recepcionId,
                     $l['producto_maestro_id'],
@@ -591,7 +698,6 @@ try {
                     $ordenId
                 ]);
 
-                // B. Registrar o actualizar Lote FEFO
                 $stmtBuscarLote->execute([$l['producto_maestro_id'], $l['numero_lote']]);
                 $loteExistente = $stmtBuscarLote->fetch(PDO::FETCH_ASSOC);
                 $loteId = null;
@@ -613,7 +719,6 @@ try {
                     $loteId = (int) $stmtInsertarLote->fetchColumn();
                 }
 
-                // C. Incrementar existencia física en el almacén destino seleccionado
                 $stmtUpsertStock->execute([
                     $almacenId,
                     $l['producto_maestro_id'],
@@ -621,7 +726,6 @@ try {
                     $l['cantidad_recibida_buena']
                 ]);
 
-                // D. Insertar línea en detalle de Kardex
                 $stmtInsMovDet->execute([
                     $movimientoId,
                     $l['producto_maestro_id'],
@@ -630,14 +734,12 @@ try {
                     $l['costo_unitario_facturado']
                 ]);
 
-                // E. Actualizar Costo Promedio del Catálogo
                 $stmtActualizarCostoProm->execute([
                     $l['costo_unitario_facturado'],
                     $l['costo_unitario_facturado'],
                     $l['producto_maestro_id']
                 ]);
 
-                // F. Si proviene de Orden de Compra, amortizar cantidad recibida en la orden
                 if ($ordenId !== null && $ordenId > 0) {
                     $stmtActualizarOcDet->execute([
                         $l['cantidad_recibida_buena'],
@@ -658,8 +760,8 @@ try {
                 $saldoPend = (int) $stmtCalcPend->fetchColumn();
 
                 $nuevoEstadoOrden = ($saldoPend === 0) ? 'COMPLETADA' : 'RECIBIDA_PARCIAL';
-                $stmtUpdOc = $pdo->prepare("UPDATE compras.ordenes_compra SET estado = ? WHERE id = ?");
-                $stmtUpdOc->execute([$nuevoEstadoOrden, $ordenId]);
+                $pdo->prepare("UPDATE compras.ordenes_compra SET estado = ? WHERE id = ?")
+                    ->execute([$nuevoEstadoOrden, $ordenId]);
             }
 
             // 3. Verificar si el trigger trg_recepcion_compra_cxp ya generó la Cuenta por Pagar (CxP)
@@ -705,15 +807,168 @@ try {
                 $cxpId = (int) $stmtInsCxp->fetchColumn();
             }
 
+            // 4. Si la recepción fue al CONTADO, emitir Comprobante de Egreso y saldar la CxP automáticamente
+            $numComprobanteContado = null;
+            if ($condicionPago === 'CONTADO' && $cxpId > 0 && $montoTotalFactura > 0) {
+                $seqEgr = $pdo->query("SELECT pg_get_serial_sequence('compras.comprobantes_egreso_cxp', 'id')")->fetchColumn()
+                    ?: 'compras.comprobantes_egreso_cxp_id_seq';
+                $egresoId = (int) $pdo->query("SELECT nextval('{$seqEgr}')")->fetchColumn();
+                $numComprobanteContado = 'EGR-' . date('Y') . '-' . str_pad((string) $egresoId, 6, '0', STR_PAD_LEFT);
+
+                // 4A. Cabecera del comprobante de egreso
+                $pdo->prepare("
+                    INSERT INTO compras.comprobantes_egreso_cxp (
+                        id, numero_comprobante, proveedor_id, usuario_registro_id,
+                        monto_total_pagado, fecha_pago, moneda_id, tasa_cambio
+                    ) VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP, 1, 1.0000)
+                ")->execute([
+                            $egresoId,
+                            $numComprobanteContado,
+                            $proveedorId,
+                            $usuarioId,
+                            $montoTotalFactura
+                        ]);
+
+                // 4B. Detalle de egreso (dispara trg_actualizar_saldo_cxp_egreso -> CxP = PAGADA, saldo = 0.00)
+                $pdo->prepare("
+                    INSERT INTO compras.comprobante_egreso_detalles (
+                        comprobante_egreso_id, cuenta_por_pagar_id, monto_aplicado,
+                        saldo_anterior, saldo_restante, monto_retenciones
+                    ) VALUES (?, ?, ?, ?, 0.00, 0.00)
+                ")->execute([
+                            $egresoId,
+                            $cxpId,
+                            $montoTotalFactura,
+                            $montoTotalFactura
+                        ]);
+
+                // Respaldo trigger-safe si no existiera el trigger
+                $stSaldoPost = $pdo->prepare("SELECT saldo_pendiente FROM compras.cuentas_por_pagar WHERE id = ?");
+                $stSaldoPost->execute([$cxpId]);
+                if ((float) $stSaldoPost->fetchColumn() > 0.00) {
+                    $pdo->prepare("UPDATE compras.cuentas_por_pagar SET saldo_pendiente = 0.00, estado = 'PAGADA' WHERE id = ?")
+                        ->execute([$cxpId]);
+                }
+
+                // 4C. Detalle de pago en Tesorería (sesion_caja_id = NULL para no alterar Arqueo Ciego POS)
+                $stDp = $pdo->prepare("
+                    INSERT INTO tesoreria.detalles_pago (
+                        metodo_pago_id, moneda_id, tasa_cambio, monto_pagado, monto_devuelta, sesion_caja_id
+                    ) VALUES (?, 1, 1.0000, ?, 0.00, NULL)
+                    RETURNING id
+                ");
+                $stDp->execute([(int) $metodoContadoRow['id'], $montoTotalFactura]);
+                $detallePagoId = (int) $stDp->fetchColumn();
+
+                // 4D. Enlace puente (antes del subtipo para que los triggers espejo de CxP detecten el egreso)
+                $pdo->prepare("
+                    INSERT INTO compras.egreso_cxp_pagos (comprobante_egreso_id, detalle_pago_id)
+                    VALUES (?, ?)
+                ")->execute([$egresoId, $detallePagoId]);
+
+                // 4E. Subtipo bancario + movimiento trigger-safe si fue TRANSFERENCIA o CHEQUE
+                // 4E. Subtipo bancario / tarjeta + movimiento trigger-safe si fue TRANSFERENCIA o CHEQUE
+                $codMetContado = strtoupper((string) $metodoContadoRow['codigo']);
+                if (in_array($codMetContado, ['TRANSFERENCIA', 'CHEQUE'], true) && $cuentaContadoRow) {
+                    $ctaId = (int) $cuentaContadoRow['id'];
+                    $bancoNom = (string) $cuentaContadoRow['nombre_banco'];
+
+                    if ($codMetContado === 'TRANSFERENCIA') {
+                        $pdo->prepare("
+                            INSERT INTO tesoreria.pago_transferencia (
+                                detalle_pago_id, banco_origen, cuenta_bancaria_id, numero_referencia, fecha_transferencia, titular_origen
+                            ) VALUES (?, ?, ?, ?, CURRENT_DATE, 'House & Ice')
+                        ")->execute([$detallePagoId, $bancoNom, $ctaId, $refContado]);
+
+                        $tipoMovBanc = 'TRANSFERENCIA_SALIDA';
+                        $conceptoMov = mb_substr("Compra Contado ({$proveedorNombre}) • Rec. #{$recepcionId} / {$numComprobanteContado} • Ref: {$refContado}", 0, 255, 'UTF-8');
+                    } else {
+                        $pdo->prepare("
+                            INSERT INTO tesoreria.pago_cheque (
+                                detalle_pago_id, numero_cheque, banco_emisor, titular_cheque,
+                                fecha_emision, cuenta_bancaria_id, estado_cheque
+                            ) VALUES (?, ?, ?, ?, CURRENT_DATE, ?, 'RECIBIDO')
+                        ")->execute([$detallePagoId, $refContado, $bancoNom, $proveedorNombre, $ctaId]);
+
+                        $tipoMovBanc = 'CHEQUE_SALIDA';
+                        $conceptoMov = mb_substr("Cheque Compra Contado ({$proveedorNombre}) • Rec. #{$recepcionId} / {$numComprobanteContado} • Chq #{$refContado}", 0, 255, 'UTF-8');
+                    }
+
+                    $stBusMov = $pdo->prepare("
+                        SELECT id FROM tesoreria.movimientos_bancarios
+                        WHERE detalle_pago_id = ?
+                           OR (cuenta_bancaria_id = ? AND UPPER(TRIM(referencia)) = UPPER(?))
+                        ORDER BY id DESC LIMIT 1
+                    ");
+                    $stBusMov->execute([$detallePagoId, $ctaId, $refContado]);
+                    $movExistId = (int) ($stBusMov->fetchColumn() ?: 0);
+
+                    if ($movExistId > 0) {
+                        $pdo->prepare("
+                            UPDATE tesoreria.movimientos_bancarios
+                            SET tipo_movimiento = ?, monto = ?, concepto = ?,
+                                fecha_movimiento = CURRENT_DATE, usuario_id = ?, detalle_pago_id = ?
+                            WHERE id = ?
+                        ")->execute([$tipoMovBanc, $montoTotalFactura, $conceptoMov, $usuarioId, $detallePagoId, $movExistId]);
+                    } else {
+                        $pdo->prepare("
+                            INSERT INTO tesoreria.movimientos_bancarios (
+                                cuenta_bancaria_id, tipo_movimiento, monto, referencia,
+                                concepto, fecha_movimiento, usuario_id, detalle_pago_id
+                            ) VALUES (?, ?, ?, ?, ?, CURRENT_DATE, ?, ?)
+                        ")->execute([$ctaId, $tipoMovBanc, $montoTotalFactura, $refContado, $conceptoMov, $usuarioId, $detallePagoId]);
+                    }
+                } elseif ($codMetContado === 'TARJETA' && $tarjetaContado) {
+                    $pdo->prepare("
+                        INSERT INTO tesoreria.pago_tarjeta (
+                            detalle_pago_id, tipo_tarjeta, marca_tarjeta, ultimos_4_digitos, numero_autorizacion, numero_lote
+                        ) VALUES (?, ?, ?, ?, ?, NULL)
+                    ")->execute([
+                                $detallePagoId,
+                                $tarjetaContado['tipo_tarjeta'],
+                                $tarjetaContado['marca_tarjeta'],
+                                $tarjetaContado['ultimos_4_digitos'],
+                                $tarjetaContado['numero_autorizacion']
+                            ]);
+                }
+                if (function_exists('registrarAuditoria')) {
+                    registrarAuditoria(
+                        $pdo,
+                        $usuarioId,
+                        null,
+                        'LIQUIDAR_EGRESO_CXP',
+                        'compras.comprobantes_egreso_cxp',
+                        null,
+                        [
+                            'comprobante_id' => $egresoId,
+                            'numero_comprobante' => $numComprobanteContado,
+                            'origen' => 'RECEPCION_CONTADO',
+                            'recepcion_id' => $recepcionId,
+                            'cxp_id' => $cxpId,
+                            'proveedor' => $proveedorNombre,
+                            'metodo_pago' => $codMetContado,
+                            'total_pagado' => $montoTotalFactura,
+                            'total_retenciones' => 0.00,
+                            'facturas_afectadas' => 1
+                        ]
+                    );
+                }
+            }
+
             $pdo->commit();
+
+            $msgFinal = ($numComprobanteContado !== null)
+                ? "Recepción #{$recepcionId} (Factura: {$numFactura}) ingresada en «{$almacenNombre}» y saldada automáticamente al contado con el Comprobante de Egreso {$numComprobanteContado} (CxP marcada como PAGADA)."
+                : "Recepción #{$recepcionId} (Factura: {$numFactura}) procesada exitosamente en «{$almacenNombre}». Se actualizó el inventario, Kardex, lotes y cuenta por pagar.";
 
             echo json_encode([
                 'ok' => true,
-                'mensaje' => "Recepción #{$recepcionId} (Factura: {$numFactura}) procesada exitosamente en «{$almacenNombre}». Se actualizó el inventario, Kardex, lotes y cuenta por pagar.",
+                'mensaje' => $msgFinal,
                 'recepcion_id' => $recepcionId,
                 'orden_id' => $ordenId,
-                'almacen_id' => $almacenId
-            ]);
+                'almacen_id' => $almacenId,
+                'numero_comprobante' => $numComprobanteContado
+            ], JSON_UNESCAPED_UNICODE);
             break;
 
         default:
@@ -733,6 +988,8 @@ try {
             $mensaje = 'Ya existe una recepción registrada con ese N° de Factura Física para este proveedor. Por favor revisa el número de factura.';
         } elseif (stripos($msgDb, 'uk_recepcion_ncf') !== false) {
             $mensaje = 'Ya existe una recepción registrada con ese NCF para este proveedor. Por favor verifica el número de comprobante fiscal.';
+        } elseif (stripos($msgDb, 'uk_movbanco_ref') !== false) {
+            $mensaje = 'Ese número de referencia bancaria o cheque ya fue registrado en la cuenta seleccionada.';
         } else {
             $mensaje = 'Ya existe un registro duplicado para esta recepción. Verifica el N° de Factura, el NCF y los lotes ingresados.';
         }
@@ -742,7 +999,7 @@ try {
         'ok' => false,
         'status' => 'error',
         'mensaje' => $mensaje
-    ]);
+    ], JSON_UNESCAPED_UNICODE);
 } catch (Throwable $e) {
     if (isset($pdo) && $pdo->inTransaction()) {
         $pdo->rollBack();
@@ -751,7 +1008,5 @@ try {
         'ok' => false,
         'status' => 'error',
         'mensaje' => $e->getMessage()
-    ]);
+    ], JSON_UNESCAPED_UNICODE);
 }
-
-
