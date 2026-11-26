@@ -372,7 +372,7 @@ $isConfigActive = $isConfigOnlyActive;
         <ul class="sidebar-subnav">
           <li><a href="<?= $tesoreriaPfx ?>MovimientosBancarios/movimientos_bancarios.php"
               class="sidebar-sublink <?= ($currentPage === 'movimientos_bancarios.php') ? 'active' : '' ?>"><span>💰</span>
-              Depósitos de Arqueos</a></li>
+              Movimientos Bancarios</a></li>
         </ul>
       </li>
     <?php endif; ?>

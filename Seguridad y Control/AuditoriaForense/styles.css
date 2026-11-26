@@ -1,47 +1,69 @@
 /* ============================================================================
- * ESTILOS DE AUDITORÍA FORENSE
+ * ESTILOS DE AUDITORÍA FORENSE (OPTIMIZADO Y COMPACTO)
  * Ubicación: Seguridad y Control/AuditoriaForense/styles.css
  * ============================================================================ */
 
-/* KPIs Forenses */
+.main-content {
+  padding: 14px 20px 20px;
+  max-width: 100%;
+  overflow-x: hidden;
+}
+
+/* Cabecera compacta */
+.page-header.aud-header-compact {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+  gap: 12px;
+}
+
+.page-header.aud-header-compact .page-title {
+  font-size: 1.25rem;
+  font-weight: 700;
+  margin: 0;
+  color: var(--text-dark, #251c16);
+}
+
+.page-header.aud-header-compact .page-subtitle {
+  font-size: 0.78rem;
+  color: var(--text-muted, #8c8173);
+  margin: 2px 0 0 0;
+}
+
+/* KPIs Forenses: Compactos y en una sola línea */
 .aud-kpi-container {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
-  gap: 16px;
-  margin-bottom: 24px;
+  gap: 10px;
+  margin-bottom: 10px;
 }
 
-@media (max-width: 1100px) {
+@media (max-width: 1000px) {
   .aud-kpi-container {
     grid-template-columns: repeat(2, 1fr);
-  }
-}
-
-@media (max-width: 600px) {
-  .aud-kpi-container {
-    grid-template-columns: 1fr;
   }
 }
 
 .aud-kpi-card {
   background: #ffffff;
   border: 1px solid var(--border-light, #eae3d5);
-  border-radius: var(--radius-md, 8px);
-  padding: 16px;
+  border-radius: 6px;
+  padding: 8px 12px;
   display: flex;
   align-items: center;
-  gap: 14px;
-  box-shadow: 0 2px 8px rgba(37, 28, 22, 0.04);
+  gap: 10px;
+  box-shadow: 0 1px 3px rgba(37, 28, 22, 0.03);
 }
 
 .aud-kpi-icon {
-  width: 48px;
-  height: 48px;
-  border-radius: 8px;
+  width: 36px;
+  height: 36px;
+  border-radius: 6px;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 1.5rem;
+  font-size: 1.2rem;
   flex-shrink: 0;
 }
 
@@ -50,77 +72,105 @@
 .aud-kpi-icon.orange { background: #fdf2e9; color: #d35400; }
 .aud-kpi-icon.purple { background: #f5eef8; color: #7d3c98; }
 
+.aud-kpi-data {
+  min-width: 0;
+  flex: 1;
+}
+
 .aud-kpi-data h4 {
-  font-size: 0.78rem;
+  font-size: 0.68rem;
   color: var(--text-muted, #8c8173);
   text-transform: uppercase;
-  letter-spacing: 0.5px;
-  margin-bottom: 4px;
+  letter-spacing: 0.3px;
+  margin: 0 0 1px 0;
   font-weight: 700;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .aud-kpi-data .aud-kpi-value {
   font-family: var(--font-mono, monospace);
-  font-size: 1.3rem;
+  font-size: 1.15rem;
   font-weight: 800;
   color: var(--text-dark, #251c16);
+  line-height: 1.1;
 }
 
 .aud-kpi-data .aud-kpi-sub {
-  font-size: 0.74rem;
+  font-size: 0.68rem;
   color: var(--text-muted, #8c8173);
-  margin-top: 2px;
+  margin-top: 1px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
-/* Barra de Filtros */
+/* Barra de Filtros: 1 Sola Línea y Compacta */
 .aud-filter-bar {
   display: flex;
-  gap: 12px;
-  flex-wrap: wrap;
+  gap: 8px;
   align-items: flex-end;
-  margin-bottom: 16px;
+  margin-bottom: 10px;
   background: #ffffff;
-  padding: 14px 18px;
-  border-radius: var(--radius-md, 8px);
+  padding: 8px 12px;
+  border-radius: 6px;
   border: 1px solid var(--border-light, #eae3d5);
-  box-shadow: 0 1px 4px rgba(37, 28, 22, 0.03);
+  box-shadow: 0 1px 3px rgba(37, 28, 22, 0.02);
+  flex-wrap: wrap;
 }
 
 .aud-filter-group {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 2px;
 }
 
 .aud-filter-group label {
-  font-size: 0.72rem;
+  font-size: 0.66rem;
   font-weight: 700;
   color: var(--text-muted, #8c8173);
   text-transform: uppercase;
+  letter-spacing: 0.2px;
+}
+
+.aud-filter-bar .form-control {
+  height: 32px;
+  padding: 4px 8px;
+  font-size: 0.78rem;
+  border: 1px solid var(--border-light, #eae3d5);
+  border-radius: 4px;
 }
 
 /* Badges de Acción y Tablas */
 .badge-tabla {
   font-family: var(--font-mono, monospace);
-  font-size: 0.76rem;
-  font-weight: 600;
+  font-size: 0.75rem;
+  font-weight: 700;
   background: #f4efe6;
   color: #5c432d;
   border: 1px solid #e0d4c1;
-  padding: 2px 7px;
+  padding: 2px 6px;
   border-radius: 4px;
+  white-space: nowrap;
+  display: inline-block;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  vertical-align: middle;
 }
 
 .badge-accion {
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  padding: 3px 8px;
+  padding: 2px 7px;
   border-radius: 4px;
-  font-size: 0.74rem;
+  font-size: 0.72rem;
   font-weight: 800;
   font-family: var(--font-mono, monospace);
-  letter-spacing: 0.3px;
+  letter-spacing: 0.2px;
+  white-space: nowrap;
 }
 
 .badge-accion.insert { background: #eef8f2; color: #2e7d52; border: 1px solid #c2e5d1; }
@@ -132,50 +182,366 @@
 .badge-override-pin {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
+  gap: 3px;
   background: #fdf5ea;
   color: #8c4c15;
   border: 1px solid #edd5b2;
-  padding: 2px 6px;
-  border-radius: 10px;
-  font-size: 0.72rem;
+  padding: 1px 6px;
+  border-radius: 8px;
+  font-size: 0.70rem;
   font-weight: 700;
+  white-space: nowrap;
 }
 
-/* Modal Inspector Forense */
+/* Tabla Forense Compacta y Encajada al 100% (SIN SCROLL HORIZONTAL) */
+.aud-table-card {
+  background: #ffffff;
+  border: 1px solid var(--border-light, #eae3d5);
+  border-radius: 6px;
+  box-shadow: 0 1px 4px rgba(37, 28, 22, 0.04);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  margin-bottom: 0;
+}
+
+.aud-table-card-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 14px;
+  background: #fdfbf7;
+  border-bottom: 1px solid var(--border-light, #eae3d5);
+  flex-shrink: 0;
+}
+
+.aud-table-card-top .table-card-title {
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--text-dark, #251c16);
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* Contenedor con scroll vertical propio y cabecera fija (Sticky) */
+.aud-table-wrapper {
+  width: 100%;
+  max-height: calc(100vh - 270px);
+  min-height: 250px;
+  overflow-y: auto;
+  overflow-x: hidden;
+  position: relative;
+}
+
+.aud-data-table {
+  width: 100%;
+  table-layout: fixed;
+  border-collapse: collapse;
+}
+
+.aud-data-table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  background: #f5f0e8;
+  padding: 8px 10px;
+  font-size: 0.70rem;
+  font-weight: 700;
+  color: #635345;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+  border-bottom: 2px solid #e0d4c1;
+  text-align: left;
+  white-space: nowrap;
+}
+
+.aud-data-table tbody td {
+  padding: 7px 10px;
+  vertical-align: middle;
+  font-size: 0.78rem;
+  border-bottom: 1px solid #f2ece1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.aud-data-table tbody tr:hover {
+  background-color: #faf6f0;
+}
+
+/* Modal Inspector Forense (Control de Tamaño y Botón X Visible) */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background-color: rgba(33, 24, 19, 0.55);
+  display: none;
+  align-items: center;
+  justify-content: center;
+  z-index: 99999;
+  padding: 16px;
+  backdrop-filter: blur(2px);
+}
+
+.modal-overlay.active,
+.modal-overlay.open {
+  display: flex !important;
+}
+
+.modal-forense-box {
+  background: #ffffff;
+  border: 1px solid var(--border-light, #eae3d5);
+  border-radius: 8px;
+  width: 100%;
+  max-width: 680px;
+  max-height: 85vh;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 16px 40px rgba(33, 24, 19, 0.3);
+  overflow: hidden;
+  animation: modalIn 0.15s ease-out;
+}
+
+.modal-forense-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 16px;
+  background-color: #fcf9f5;
+  border-bottom: 1px solid var(--border-light, #eae3d5);
+  flex-shrink: 0;
+}
+
+.modal-forense-header h3 {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--text-dark, #251c16);
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* Botón X destacado y funcional */
+.modal-close-btn {
+  background: #f4efe6 !important;
+  border: 1px solid #e0d4c1 !important;
+  border-radius: 6px !important;
+  width: 32px !important;
+  height: 32px !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  font-size: 1.4rem !important;
+  line-height: 1 !important;
+  color: #4a3c31 !important;
+  cursor: pointer !important;
+  transition: all 0.15s ease !important;
+  padding: 0 !important;
+}
+
+.modal-close-btn:hover {
+  background: #b53d32 !important;
+  color: #ffffff !important;
+  border-color: #922b21 !important;
+  transform: scale(1.05);
+}
+
+.modal-forense-body {
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  overflow-y: auto;
+  max-height: calc(85vh - 105px);
+  flex: 1;
+}
+
+.modal-forense-footer {
+  padding: 8px 16px;
+  background-color: #fcf9f5;
+  border-top: 1px solid var(--border-light, #eae3d5);
+  display: flex;
+  justify-content: flex-end;
+  flex-shrink: 0;
+}
+
+/* Vista Amigable de Propiedades (Human-Readable) */
+.aud-status-banner {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border-radius: 6px;
+  font-size: 0.82rem;
+  font-weight: 700;
+  margin-bottom: 8px;
+}
+.aud-status-banner.insert {
+  background: #eef8f2;
+  color: #206b3c;
+  border: 1px solid #bce6cc;
+}
+.aud-status-banner.update {
+  background: #edf4fb;
+  color: #1a588b;
+  border: 1px solid #bdd6ee;
+}
+.aud-status-banner.delete {
+  background: #fdf0ee;
+  color: #a72d22;
+  border: 1px solid #f9cac5;
+}
+
+.aud-section-title {
+  font-size: 0.78rem;
+  font-weight: 800;
+  color: #554437;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+  margin: 10px 0 6px 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.aud-prop-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 8px;
+}
+
+.aud-prop-card {
+  background: #fdfbf7;
+  border: 1px solid #ebd9bf;
+  border-radius: 6px;
+  padding: 8px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.aud-prop-label {
+  font-size: 0.66rem;
+  font-weight: 700;
+  color: #8c7b70;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+
+.aud-prop-value {
+  font-size: 0.88rem;
+  font-weight: 700;
+  color: #251c16;
+  word-break: break-word;
+}
+
+.aud-prop-value.money {
+  color: #206b3c;
+  font-family: var(--font-mono, monospace);
+  font-size: 0.94rem;
+}
+
+.aud-prop-value.code {
+  font-family: var(--font-mono, monospace);
+  color: #1a588b;
+  background: #edf4fb;
+  padding: 1px 5px;
+  border-radius: 4px;
+  display: inline-block;
+  width: fit-content;
+}
+
+.aud-subtable {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.76rem;
+  background: #ffffff;
+  border: 1px solid #ebd9bf;
+  border-radius: 6px;
+  overflow: hidden;
+  margin-top: 4px;
+}
+
+.aud-subtable th {
+  background: #f8f4ec;
+  padding: 6px 8px;
+  text-align: left;
+  font-weight: 700;
+  color: #635345;
+  text-transform: uppercase;
+  font-size: 0.68rem;
+  border-bottom: 1px solid #ebd9bf;
+}
+
+.aud-subtable td {
+  padding: 6px 8px;
+  border-bottom: 1px solid #f2ece1;
+}
+
+.aud-subtable tr:last-child td {
+  border-bottom: none;
+}
+
+/* Acordeón para datos técnicos / JSON (Opcional) */
+.aud-technical-details {
+  margin-top: 10px;
+  border-top: 1px dashed #dfd5c4;
+  padding-top: 8px;
+}
+
+.aud-technical-details summary {
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: #9c8e80;
+  cursor: pointer;
+  user-select: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  transition: color 0.15s ease;
+}
+
+.aud-technical-details summary:hover {
+  color: #554437;
+}
+
+/* Visor JSON y Diff */
 .json-viewer-box {
   background: #1e1e1e;
   color: #d4d4d4;
   font-family: var(--font-mono, monospace);
-  font-size: 0.82rem;
-  padding: 12px 14px;
+  font-size: 0.76rem;
+  padding: 10px 12px;
   border-radius: 6px;
-  max-height: 320px;
+  max-height: 180px;
   overflow-y: auto;
   white-space: pre-wrap;
   word-break: break-all;
   border: 1px solid #333;
+  margin-top: 6px;
 }
 
 .diff-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 14px;
-  margin-top: 12px;
+  gap: 10px;
+  margin-top: 8px;
 }
 
-@media (max-width: 800px) {
+@media (max-width: 600px) {
   .diff-grid {
     grid-template-columns: 1fr;
   }
 }
 
 .diff-col h5 {
-  font-size: 0.78rem;
+  font-size: 0.74rem;
   font-weight: 800;
   color: var(--text-muted, #8c8173);
   text-transform: uppercase;
-  margin-bottom: 6px;
+  margin: 0 0 6px 0;
   display: flex;
   justify-content: space-between;
 }
@@ -187,23 +553,23 @@
 .diff-table {
   width: 100%;
   border-collapse: collapse;
-  font-size: 0.82rem;
-  margin-top: 10px;
+  font-size: 0.78rem;
+  margin-top: 6px;
 }
 
 .diff-table th {
   background: #f8f5ef;
-  padding: 6px 10px;
+  padding: 5px 8px;
   text-align: left;
   font-weight: 700;
   border-bottom: 2px solid var(--border-light);
-  font-size: 0.74rem;
+  font-size: 0.70rem;
   color: #7a6e60;
   text-transform: uppercase;
 }
 
 .diff-table td {
-  padding: 6px 10px;
+  padding: 5px 8px;
   border-bottom: 1px solid #eee;
   font-family: var(--font-mono, monospace);
 }

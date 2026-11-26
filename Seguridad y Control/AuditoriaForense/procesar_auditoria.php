@@ -49,8 +49,9 @@ try {
             $params = [];
 
             if ($tabla !== '') {
-                $where[] = "a.tabla_afectada = ?";
+                $where[] = "(a.tabla_afectada = ? OR a.tabla_afectada LIKE ?)";
                 $params[] = $tabla;
+                $params[] = "%." . $tabla;
             }
 
             if ($tipoAccion !== '') {
@@ -145,6 +146,8 @@ try {
 
             // Decodificar JSONB para enviar estructurado
             foreach ($registros as &$r) {
+                $t = (string)($r['tabla_afectada'] ?? '');
+                $r['tabla_limpia'] = strpos($t, '.') !== false ? substr($t, strrpos($t, '.') + 1) : $t;
                 $r['datos_anteriores'] = $r['datos_anteriores'] ? json_decode($r['datos_anteriores'], true) : null;
                 $r['datos_nuevos'] = $r['datos_nuevos'] ? json_decode($r['datos_nuevos'], true) : null;
             }

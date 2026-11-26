@@ -1,7 +1,7 @@
 <?php
 /**
  * ============================================================================
- * Vista Principal: Auditoría Forense
+ * Vista Principal: Auditoría Forense (Compacta, Práctica y Amigable)
  * House & Ice • Sistema Administrativo (ERP Licorero)
  * Ubicación: Seguridad y Control/AuditoriaForense/auditoria.php
  * ============================================================================
@@ -16,6 +16,117 @@ requerirSesionActiva(false, '../../Login y Menu/login.php');
 if (!usuarioEsAdministrador() && !usuarioTienePermiso('VER_AUDITORIA_FORENSE')) {
     header("Location: ../../Login y Menu/menu.php?error=acceso_denegado");
     exit;
+}
+
+// ============================================================================
+// FUNCIONES AUXILIARES: TRADUCCIÓN A LENGUAJE HUMANO (SIN CÓDIGO NI IDs)
+// ============================================================================
+function formatearNombreTablaAmigable(string $tabla): string {
+    $t = strpos($tabla, '.') !== false ? substr($tabla, strrpos($tabla, '.') + 1) : $tabla;
+    $map = [
+        'comprobantes_egreso_cxp' => 'Comprobantes CxP',
+        'movimientos_inventario' => 'Movimientos Stock',
+        'traslados_internos'     => 'Traslados Internos',
+        'consignaciones'         => 'Consignaciones',
+        'cupones_descuento'      => 'Cupones Descuento',
+        'promociones_campanas'   => 'Promociones y Campañas',
+        'facturas'               => 'Facturación / Ventas',
+        'facturas_detalles'      => 'Detalle Factura',
+        'cotizaciones'           => 'Cotizaciones',
+        'devoluciones'           => 'Devoluciones',
+        'ordenes_compra'         => 'Órdenes de Compra',
+        'recepciones'            => 'Recepciones Mercancía',
+        'caja_sesiones'          => 'Sesiones de Caja',
+        'caja_movimientos'       => 'Movimientos de Caja',
+        'cuentas_por_cobrar'     => 'Cuentas por Cobrar (CxC)',
+        'notas_debito'           => 'Notas de Débito',
+        'usuarios'               => 'Usuarios',
+        'roles'                  => 'Roles y Permisos',
+        'articulos'              => 'Catálogo Artículos',
+        'personas'               => 'Clientes y Proveedores'
+    ];
+    return $map[strtolower($t)] ?? ucwords(str_replace('_', ' ', $t));
+}
+
+function formatearAccionAmigable(string $accion): string {
+    $map = [
+        'LIQUIDAR_EGRESO_CXP'        => 'Liquidación Egreso CxP',
+        'LIQUIDAR_CONSIGNACION'      => 'Liquidación Consignación',
+        'CREAR_CONSIGNACION'         => 'Creación Consignación',
+        'INVENTARIO_TRASLADO_EMISION'=> 'Emisión Traslado Stock',
+        'INVENTARIO_AJUSTE_ENTRADA'  => 'Entrada por Ajuste Stock',
+        'INVENTARIO_AJUSTE_SALIDA'   => 'Salida por Ajuste Stock',
+        'FACTURACION_B01'            => 'Factura Crédito Fiscal (B01)',
+        'FACTURACION_B02'            => 'Factura Consumo (B02)',
+        'FACTURACION_B03'            => 'Nota de Débito Fiscal (B03)',
+        'FACTURACION_B04'            => 'Nota de Crédito / Devolución',
+        'APERTURA_CAJA'              => 'Apertura de Caja',
+        'CIERRE_CAJA'                => 'Cierre de Caja',
+        'DEVOLUCION_VENTA'           => 'Devolución de Venta',
+        'RECEPCION_MERCANCIA'        => 'Recepción de Mercancía',
+        'ANULACION_VENTA'            => 'Anulación de Venta',
+        'OVERRIDE_PIN'               => 'Autorización con PIN'
+    ];
+    $accUp = strtoupper(trim($accion));
+    if (isset($map[$accUp])) return $map[$accUp];
+    return ucwords(str_replace('_', ' ', strtolower($accion)));
+}
+
+function generarResumenAmigable(?array $datos): string {
+    if (empty($datos) || !is_array($datos)) {
+        return '(Sin datos adicionales)';
+    }
+
+    $nombresCampos = [
+        'numero_comprobante' => 'Comprobante',
+        'total_pagado'       => 'Total Pagado',
+        'total_retenciones'  => 'Retenciones',
+        'facturas_afectadas' => 'Facturas',
+        'ncf'                => 'NCF',
+        'estado'             => 'Estado',
+        'numero'             => 'Nº',
+        'numero_traslado'    => 'Nº Traslado',
+        'almacen_origen'     => 'Origen',
+        'almacen_destino'    => 'Destino',
+        'almacen_nombre'     => 'Almacén',
+        'tipo_movimiento'    => 'Tipo',
+        'justificacion'      => 'Motivo',
+        'monto'              => 'Monto',
+        'total'              => 'Total',
+        'subtotal'           => 'Subtotal',
+        'descuento'          => 'Descuento',
+        'cliente'            => 'Cliente',
+        'proveedor'          => 'Proveedor'
+    ];
+
+    $partes = [];
+    foreach ($datos as $k => $v) {
+        $kLower = strtolower($k);
+        // Omitir estrictamente IDs técnicos
+        if ($kLower === 'id' || substr($kLower, -3) === '_id' || substr($kLower, -5) === '_uuid' || $kLower === 'uuid') {
+            continue;
+        }
+        if (is_array($v)) {
+            $partes[] = "Artículos: " . count($v);
+            continue;
+        }
+        if (!is_scalar($v) || $v === null || $v === '') {
+            continue;
+        }
+
+        $etiqueta = $nombresCampos[$kLower] ?? ucwords(str_replace('_', ' ', $kLower));
+        $valStr = (string)$v;
+
+        // Formatear montos en moneda local RD$
+        if (is_numeric($v) && (strpos($kLower, 'total') !== false || strpos($kLower, 'monto') !== false || strpos($kLower, 'pagado') !== false || strpos($kLower, 'retencion') !== false)) {
+            $valStr = 'RD$ ' . number_format((float)$v, 2);
+        }
+
+        $partes[] = "{$etiqueta}: {$valStr}";
+        if (count($partes) >= 3) break;
+    }
+
+    return !empty($partes) ? implode(' • ', $partes) : '(Detalles registrados)';
 }
 
 $kpiTotalRegistros = 0;
@@ -48,14 +159,23 @@ if ($pdo) {
         }
     } catch (Throwable $e) {}
 
-    // 2. Filtros disponibles
+    // 2. Filtros disponibles (Nombre de tabla sin esquema)
     try {
-        $tablasDisponibles = $pdo->query("
+        $tablasRaw = $pdo->query("
             SELECT DISTINCT tabla_afectada 
             FROM seguridad.auditoria 
             WHERE tabla_afectada IS NOT NULL AND tabla_afectada <> '' 
             ORDER BY tabla_afectada ASC
         ")->fetchAll(PDO::FETCH_COLUMN) ?: [];
+
+        $tablasDisponibles = [];
+        foreach ($tablasRaw as $tr) {
+            $nombreLimpio = strpos($tr, '.') !== false ? substr($tr, strrpos($tr, '.') + 1) : $tr;
+            if ($nombreLimpio !== '' && !isset($tablasDisponibles[$nombreLimpio])) {
+                $tablasDisponibles[$nombreLimpio] = $nombreLimpio;
+            }
+        }
+        ksort($tablasDisponibles);
 
         $accionesDisponibles = $pdo->query("
             SELECT DISTINCT accion 
@@ -109,8 +229,8 @@ if ($pdo) {
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>House &amp; Ice • Auditoría Forense</title>
-    <link rel="stylesheet" href="../../Ventas y Facturacion/styles.css?v=33" />
-    <link rel="stylesheet" href="styles.css?v=1" />
+    <link rel="stylesheet" href="../styles.css?v=<?= time() ?>" />
+    <link rel="stylesheet" href="styles.css?v=<?= time() ?>" />
 </head>
 
 <body>
@@ -124,7 +244,7 @@ if ($pdo) {
             <a href="../../Login y Menu/menu.php" class="topbar-brand" style="text-decoration: none;">
                 <span class="brand-title">HOUSE &amp; ICE</span>
                 <span class="brand-dot">•</span>
-                <span class="brand-subtitle">Auditoría Forense</span>
+                <span class="brand-subtitle">Auditoría del Sistema</span>
             </a>
         </div>
         <div class="topbar-actions">
@@ -142,166 +262,160 @@ if ($pdo) {
         </div>
     </header>
 
-    <div class="app-container">
+    <div class="app-container app-layout">
         <!-- SIDEBAR DE NAVEGACIÓN -->
         <?php include_once __DIR__ . '/../../sidebar.php'; ?>
 
         <!-- MAIN CONTENT -->
         <main class="main-content">
-            <!-- CABECERA DEL MÓDULO -->
-            <div class="page-header" style="align-items: center;">
+            <!-- CABECERA DEL MÓDULO (COMPACTA) -->
+            <div class="page-header aud-header-compact">
                 <div>
-                    <h1 class="page-title">🛡️ Auditoría Forense</h1>
+                    <h1 class="page-title">🛡️ Auditoría del Sistema</h1>
                     <p class="page-subtitle">
-                        Caja negra inmutable: Trazabilidad total de transacciones, diffs JSONB (datos anteriores vs nuevos) y autorizaciones con PIN.
+                        Registro claro y transparente de todas las transacciones, operaciones y autorizaciones con PIN.
                     </p>
                 </div>
-                <div style="display: flex; gap: 10px; align-items: center;">
-                    <button type="button" class="btn btn-secondary" onclick="recargarAuditoria()" style="background:#fff; border: 1px solid var(--border-light); font-weight: 600;">
-                        🔄 Actualizar Registros
+                <div>
+                    <button type="button" class="btn btn-secondary btn-sm" onclick="recargarAuditoria()" style="background:#fff; border: 1px solid var(--border-light); font-weight: 600; padding: 4px 10px; font-size: 0.8rem;">
+                        🔄 Actualizar
                     </button>
                 </div>
             </div>
 
-            <!-- TARJETAS DE INDICADORES (KPIS: EXACTAMENTE 4 TARJETAS) -->
+            <!-- TARJETAS DE INDICADORES (KPIS COMPACTOS) -->
             <div class="aud-kpi-container">
                 <div class="aud-kpi-card">
                     <div class="aud-kpi-icon dark">👁️</div>
                     <div class="aud-kpi-data">
-                        <h4>Total Eventos Forenses</h4>
+                        <h4>Total Registros</h4>
                         <div class="aud-kpi-value"><?= number_format($kpiTotalRegistros) ?></div>
-                        <div class="aud-kpi-sub">Transacciones registradas</div>
+                        <div class="aud-kpi-sub">Operaciones auditadas</div>
                     </div>
                 </div>
 
                 <div class="aud-kpi-card">
                     <div class="aud-kpi-icon blue">📅</div>
                     <div class="aud-kpi-data">
-                        <h4>Eventos del Día</h4>
+                        <h4>Operaciones de Hoy</h4>
                         <div class="aud-kpi-value" style="color: #1e6091;"><?= number_format($kpiHoyRegistros) ?></div>
-                        <div class="aud-kpi-sub">Actividad hoy en vivo</div>
+                        <div class="aud-kpi-sub">Actividad del día</div>
                     </div>
                 </div>
 
                 <div class="aud-kpi-card">
                     <div class="aud-kpi-icon orange">🔑</div>
                     <div class="aud-kpi-data">
-                        <h4>Overrides con PIN</h4>
+                        <h4>Autorizaciones PIN</h4>
                         <div class="aud-kpi-value" style="color: #d35400;"><?= number_format($kpiOverridesPin) ?></div>
-                        <div class="aud-kpi-sub">Autorizaciones de supervisor</div>
+                        <div class="aud-kpi-sub">Permitidas por supervisor</div>
                     </div>
                 </div>
 
                 <div class="aud-kpi-card">
                     <div class="aud-kpi-icon purple">🗄️</div>
                     <div class="aud-kpi-data">
-                        <h4>Módulos y Tablas</h4>
-                        <div class="aud-kpi-value" style="color: #7d3c98;"><?= $kpiTablasDist ?> tablas</div>
-                        <div class="aud-kpi-sub">Ventas, compras, stock, caja</div>
+                        <h4>Módulos Auditados</h4>
+                        <div class="aud-kpi-value" style="color: #7d3c98;"><?= $kpiTablasDist ?></div>
+                        <div class="aud-kpi-sub">Tablas vigiladas</div>
                     </div>
                 </div>
             </div>
 
-            <!-- FILTROS AVANZADOS -->
+            <!-- FILTROS AVANZADOS (COMPACTOS Y AMIGABLES) -->
             <div class="aud-filter-bar">
-                <div class="aud-filter-group" style="flex: 2; min-width: 220px;">
-                    <label>Búsqueda Profunda (JSON, Acción, Usuario)</label>
-                    <input type="text" id="filtroBusqueda" class="form-control" placeholder="Buscar NCF, ID, cédula, monto, producto o texto..." oninput="alCambiarFiltroAuditoria()" />
+                <div class="aud-filter-group" style="flex: 2; min-width: 180px;">
+                    <label>Búsqueda en Registros</label>
+                    <input type="text" id="filtroBusqueda" class="form-control" placeholder="Buscar comprobante, NCF, monto, producto, usuario..." oninput="alCambiarFiltroAuditoria()" />
                 </div>
 
-                <div class="aud-filter-group" style="flex: 1.2; min-width: 170px;">
-                    <label>Tabla Afectada</label>
+                <div class="aud-filter-group" style="flex: 1.2; min-width: 150px;">
+                    <label>Módulo / Tabla</label>
                     <select id="filtroTabla" class="form-control" onchange="alCambiarFiltroAuditoria()">
-                        <option value="">-- Todas las Tablas --</option>
-                        <?php foreach ($tablasDisponibles as $t): ?>
-                            <option value="<?= htmlspecialchars($t) ?>"><?= htmlspecialchars($t) ?></option>
-                        <?php endforeach; ?>
-                    </select>
-                </div>
-
-                <div class="aud-filter-group" style="flex: 1.2; min-width: 170px;">
-                    <label>Tipo de Acción</label>
-                    <select id="filtroAccion" class="form-control" onchange="alCambiarFiltroAuditoria()">
-                        <option value="">-- Todas las Acciones --</option>
-                        <?php foreach ($accionesDisponibles as $acc): ?>
-                            <option value="<?= htmlspecialchars($acc) ?>"><?= htmlspecialchars($acc) ?></option>
-                        <?php endforeach; ?>
-                    </select>
-                </div>
-
-                <div class="aud-filter-group" style="flex: 1.2; min-width: 160px;">
-                    <label>Usuario Operador</label>
-                    <select id="filtroUsuario" class="form-control" onchange="alCambiarFiltroAuditoria()">
-                        <option value="">-- Todos los Usuarios --</option>
-                        <?php foreach ($usuariosList as $u): ?>
-                            <option value="<?= htmlspecialchars($u['usuario_id']) ?>">
-                                <?= htmlspecialchars($u['username']) ?> (<?= htmlspecialchars($u['nombre_razon_social'] ?: 'S/N') ?>)
+                        <option value="">-- Todos los Módulos --</option>
+                        <?php foreach ($tablasDisponibles as $tLimpia): ?>
+                            <option value="<?= htmlspecialchars($tLimpia) ?>">
+                                <?= htmlspecialchars(formatearNombreTablaAmigable($tLimpia)) ?>
                             </option>
                         <?php endforeach; ?>
                     </select>
                 </div>
 
-                <div class="aud-filter-group" style="align-items: center; justify-content: flex-end; padding-bottom: 6px;">
-                    <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; text-transform: none; font-size: 0.8rem; font-weight: 700; color: #8c4c15;">
+                <div class="aud-filter-group" style="flex: 1.2; min-width: 140px;">
+                    <label>Operación Realizada</label>
+                    <select id="filtroAccion" class="form-control" onchange="alCambiarFiltroAuditoria()">
+                        <option value="">-- Todas las Operaciones --</option>
+                        <?php foreach ($accionesDisponibles as $acc): ?>
+                            <option value="<?= htmlspecialchars($acc) ?>">
+                                <?= htmlspecialchars(formatearAccionAmigable($acc)) ?>
+                            </option>
+                        <?php endforeach; ?>
+                    </select>
+                </div>
+
+                <div class="aud-filter-group" style="flex: 1.2; min-width: 140px;">
+                    <label>Usuario Operador</label>
+                    <select id="filtroUsuario" class="form-control" onchange="alCambiarFiltroAuditoria()">
+                        <option value="">-- Todos los Usuarios --</option>
+                        <?php foreach ($usuariosList as $u): ?>
+                            <option value="<?= htmlspecialchars($u['usuario_id']) ?>">
+                                <?= htmlspecialchars($u['username']) ?>
+                            </option>
+                        <?php endforeach; ?>
+                    </select>
+                </div>
+
+                <div class="aud-filter-group" style="align-items: center; justify-content: flex-end; padding-bottom: 5px;">
+                    <label style="display: flex; align-items: center; gap: 5px; cursor: pointer; text-transform: none; font-size: 0.74rem; font-weight: 700; color: #8c4c15;">
                         <input type="checkbox" id="filtroSoloOverrides" onchange="alCambiarFiltroAuditoria()" />
-                        Solo Overrides con PIN
+                        Solo con PIN Supervisor
                     </label>
                 </div>
 
                 <div>
-                    <button type="button" class="btn btn-secondary" onclick="limpiarFiltrosAuditoria()" style="padding: 8px 14px;">
+                    <button type="button" class="btn btn-secondary btn-sm" onclick="limpiarFiltrosAuditoria()" style="height: 32px; padding: 4px 10px; font-size: 0.78rem;">
                         Limpiar
                     </button>
                 </div>
             </div>
 
-            <!-- TABLA FORENSE -->
-            <div class="table-card">
-                <div class="table-card-top">
-                    <div class="table-card-info">
-                        <h2 class="table-card-title">Eventos y Modificaciones Sensibles del Sistema</h2>
-                        <span class="badge-count" id="badgeTotalAud"><?= count($listaAuditoria) ?> eventos</span>
+            <!-- TABLA FORENSE (ENCAJADA AL 100%, SIN SCROLL HORIZONTAL, SIN IDs TÉCNICOS) -->
+            <div class="aud-table-card">
+                <div class="aud-table-card-top">
+                    <div class="table-card-title">
+                        <span>Historial de Transacciones y Movimientos</span>
+                        <span class="badge-count" id="badgeTotalAud"><?= count($listaAuditoria) ?> registros</span>
                     </div>
-                    <div style="font-size: 0.8rem; color: var(--text-muted);">
-                        Indexado en PostgreSQL mediante GIN (idx_auditoria_gin_datos_nuevos)
+                    <div style="font-size: 0.72rem; color: var(--text-muted);">
+                        Seguridad y Trazabilidad Activa
                     </div>
                 </div>
 
-                <div class="table-wrapper">
-                    <table class="data-table" id="tablaAuditoria">
+                <div class="aud-table-wrapper">
+                    <table class="aud-data-table" id="tablaAuditoria">
                         <thead>
                             <tr>
-                                <th style="width: 80px;">ID</th>
-                                <th>Fecha y Hora</th>
-                                <th>Tabla Afectada</th>
-                                <th>Acción Realizada</th>
-                                <th>Usuario Operador</th>
-                                <th>Supervisor (PIN)</th>
-                                <th>Resumen de Datos</th>
-                                <th class="text-center" style="width: 140px;">Inspección</th>
+                                <th style="width: 15%;">Fecha y Hora</th>
+                                <th style="width: 17%;">Módulo / Área</th>
+                                <th style="width: 17%;">Operación</th>
+                                <th style="width: 14%;">Usuario</th>
+                                <th style="width: 13%;">Supervisor PIN</th>
+                                <th style="width: 16%;">Resumen de la Operación</th>
+                                <th class="text-center" style="width: 8%;">Detalle</th>
                             </tr>
                         </thead>
                         <tbody id="tbodyAuditoria">
                             <?php if (empty($listaAuditoria)): ?>
                                 <tr>
-                                    <td colspan="8" style="text-align: center; padding: 36px; color: var(--text-muted);">
-                                        No hay eventos de auditoría registrados en la base de datos.
+                                    <td colspan="7" style="text-align: center; padding: 28px; color: var(--text-muted);">
+                                        No hay registros de auditoría en la base de datos.
                                     </td>
                                 </tr>
                             <?php else: ?>
                                 <?php foreach ($listaAuditoria as $row): 
                                     $nuevosArr = $row['datos_nuevos'] ? json_decode($row['datos_nuevos'], true) : [];
-                                    $resumenTxt = '';
-                                    if (is_array($nuevosArr)) {
-                                        $partes = [];
-                                        foreach ($nuevosArr as $k => $v) {
-                                            if (is_scalar($v)) {
-                                                $partes[] = "{$k}: {$v}";
-                                            }
-                                            if (count($partes) >= 3) break;
-                                        }
-                                        $resumenTxt = implode(' • ', $partes);
-                                    }
+                                    $resumenTxt = generarResumenAmigable($nuevosArr);
+
                                     $claseAccion = 'update';
                                     $accUp = strtoupper($row['accion']);
                                     if (strpos($accUp, 'INSERT') !== false || strpos($accUp, 'CREAR') !== false || strpos($accUp, 'APERTURA') !== false) {
@@ -313,21 +427,31 @@ if ($pdo) {
                                     } elseif (!empty($row['supervisor_id'])) {
                                         $claseAccion = 'override';
                                     }
+
+                                    $tablaLimpia = strpos($row['tabla_afectada'], '.') !== false 
+                                        ? substr($row['tabla_afectada'], strrpos($row['tabla_afectada'], '.') + 1) 
+                                        : $row['tabla_afectada'];
+
+                                    $nombreModuloAmigable = formatearNombreTablaAmigable($tablaLimpia);
+                                    $nombreAccionAmigable = formatearAccionAmigable($row['accion']);
                                 ?>
                                     <tr class="fila-aud" data-id="<?= $row['auditoria_id'] ?>">
-                                        <td style="font-family: var(--font-mono); font-weight: 700; color: #888;">#<?= $row['auditoria_id'] ?></td>
                                         <td>
-                                            <span style="font-size: 0.82rem; font-weight: 600;"><?= htmlspecialchars($row['fecha_fmt']) ?></span>
+                                            <span style="font-size: 0.78rem; font-weight: 600;"><?= htmlspecialchars($row['fecha_fmt']) ?></span>
                                         </td>
                                         <td>
-                                            <span class="badge-tabla"><?= htmlspecialchars($row['tabla_afectada']) ?></span>
+                                            <span class="badge-tabla" title="<?= htmlspecialchars($row['tabla_afectada']) ?>">
+                                                <?= htmlspecialchars($nombreModuloAmigable) ?>
+                                            </span>
                                         </td>
                                         <td>
-                                            <span class="badge-accion <?= $claseAccion ?>"><?= htmlspecialchars($row['accion']) ?></span>
+                                            <span class="badge-accion <?= $claseAccion ?>">
+                                                <?= htmlspecialchars($nombreAccionAmigable) ?>
+                                            </span>
                                         </td>
                                         <td>
                                             <strong><?= htmlspecialchars($row['usuario_username']) ?></strong>
-                                            <small style="display: block; font-size: 0.72rem; color: var(--text-muted);"><?= htmlspecialchars($row['usuario_nombre']) ?></small>
+                                            <small style="display: block; font-size: 0.70rem; color: var(--text-muted);"><?= htmlspecialchars($row['usuario_nombre']) ?></small>
                                         </td>
                                         <td>
                                             <?php if (!empty($row['supervisor_id'])): ?>
@@ -335,17 +459,17 @@ if ($pdo) {
                                                     🔒 <?= htmlspecialchars($row['supervisor_username'] ?: 'Supervisor') ?>
                                                 </span>
                                             <?php else: ?>
-                                                <span style="color: #bbb; font-size: 0.76rem;">—</span>
+                                                <span style="color: #bbb; font-size: 0.74rem;">—</span>
                                             <?php endif; ?>
                                         </td>
                                         <td>
-                                            <div style="font-size: 0.78rem; color: #555; max-width: 320px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="<?= htmlspecialchars($resumenTxt) ?>">
-                                                <?= htmlspecialchars($resumenTxt ?: '(Sin detalles adicionales)') ?>
+                                            <div style="font-size: 0.75rem; color: #444; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="<?= htmlspecialchars($resumenTxt) ?>">
+                                                <?= htmlspecialchars($resumenTxt) ?>
                                             </div>
                                         </td>
                                         <td class="text-center">
-                                            <button type="button" class="btn btn-sm btn-outline" onclick="inspeccionarForense(<?= $row['auditoria_id'] ?>)" style="padding: 3px 8px; font-weight: 600;">
-                                                🔍 Inspeccionar
+                                            <button type="button" class="btn btn-sm btn-outline" onclick="inspeccionarForense(<?= $row['auditoria_id'] ?>)" style="padding: 2px 7px; font-weight: 600; font-size: 0.75rem;">
+                                                🔍 Ver
                                             </button>
                                         </td>
                                     </tr>
@@ -359,24 +483,26 @@ if ($pdo) {
     </div>
 
     <!-- ========================================================================= -->
-    <!-- MODAL: INSPECTOR FORENSE DE JSONB Y DIFF                                  -->
+    <!-- MODAL: DETALLE AMIGABLE Y ENTENDIBLE DE AUDITORÍA                         -->
     <!-- ========================================================================= -->
-    <div class="modal-overlay" id="modalInspectorForense">
-        <div class="modal-dialog modal-lg">
-            <div class="modal-header">
-                <h3><span>🔍</span> Inspector Forense • Registro #<span id="txtModalAudId">-</span></h3>
-                <button type="button" class="modal-close-btn" onclick="cerrarModal('modalInspectorForense')">&times;</button>
+    <div class="modal-overlay" id="modalInspectorForense" onclick="cerrarModalBackdrop(event, 'modalInspectorForense')">
+        <div class="modal-forense-box" onclick="event.stopPropagation()">
+            <div class="modal-forense-header">
+                <h3><span>🔍</span> Detalle de la Operación</h3>
+                <button type="button" class="modal-close-btn" onclick="cerrarModal('modalInspectorForense')" aria-label="Cerrar">&times;</button>
             </div>
-            <div class="modal-body" id="bodyInspectorForense">
-                <!-- Inyectado dinámicamente -->
+            <div class="modal-forense-body" id="bodyInspectorForense">
+                <!-- Inyectado dinámicamente en formato amigable -->
             </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" onclick="cerrarModal('modalInspectorForense')">Cerrar</button>
+            <div class="modal-forense-footer">
+                <button type="button" class="btn btn-secondary btn-sm" onclick="cerrarModal('modalInspectorForense')" style="padding: 4px 14px; font-size: 0.8rem;">
+                    Cerrar
+                </button>
             </div>
         </div>
     </div>
 
-    <script src="auditoria.js?v=1"></script>
+    <script src="auditoria.js?v=3"></script>
 </body>
 
 </html>
