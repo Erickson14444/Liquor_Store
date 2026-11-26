@@ -5,7 +5,8 @@
  * Ubicación: Ventas y Facturacion/ControlCaja/procesar_caja.php
  * House & Ice • Sistema Administrativo (ERP Licorero)
  * Tablas: ventas.sesiones_caja, ventas.cajas_pos, ventas.arqueo_detalles,
- *         ventas.movimiento_caja, seguridad.auditoria
+ *         ventas.movimiento_caja, tesoreria.movimientos_bancarios,
+ *         seguridad.auditoria
  * ============================================================================
  */
 
@@ -246,7 +247,7 @@ try {
         registrarAuditoria(
             $pdo,
             $usuarioSesionId,
-            $usuarioSesionId,
+            $supervisorAutorizadorId,
             'CAJA_ABRIR_TURNO',
             'ventas.sesiones_caja',
             ['caja_estado_anterior' => $cajaRow['estado']],
@@ -288,7 +289,7 @@ try {
             responderJson('error', 'La sesión no se encuentra en estado ABIERTA para iniciar el arqueo.');
         }
 
-        $puedeSupervisar = function_exists('usuarioPuedeAccederControlCaja') && usuarioPuedeAccederControlCaja();
+        $puedeSupervisar = function_exists('usuarioPuedeAuditarCaja') && usuarioPuedeAuditarCaja();
         if (!$puedeSupervisar && (string) $ses['cajero_id'] !== (string) $usuarioSesionId) {
             $pdo->rollBack();
             responderJson('error', 'Solo el cajero titular del turno o un supervisor puede iniciar el arqueo de esta caja.', [], 403);
@@ -324,14 +325,9 @@ try {
         $tarjetaDeclarada = round(max(0.0, floatval($datos['tarjeta_declarada'] ?? 0)), 2);
         $cantVouchers = max(0, intval($datos['cantidad_vouchers'] ?? 0));
         $montoRetenido = round(max(0.0, floatval($datos['monto_retenido_fondo'] ?? 0)), 2);
-        $estadoDeposito = strtoupper(trim((string) ($datos['estado_deposito'] ?? 'PENDIENTE')));
 
         if ($sesionId <= 0) {
             responderJson('error', 'ID de sesión de caja no válido.');
-        }
-
-        if (!in_array($estadoDeposito, ['PENDIENTE', 'DEPOSITADO', 'RETENIDO', 'NO_APLICA'], true)) {
-            $estadoDeposito = 'PENDIENTE';
         }
 
         $pdo->beginTransaction();
@@ -355,7 +351,7 @@ try {
         }
 
         // Un cajero solo puede cerrar su propia sesión; supervisores/admins pueden cerrar cualquiera
-        $puedeSupervisar = function_exists('usuarioPuedeAccederControlCaja') && usuarioPuedeAccederControlCaja();
+        $puedeSupervisar = function_exists('usuarioPuedeAuditarCaja') && usuarioPuedeAuditarCaja();
         if (!$puedeSupervisar && (string) $sesion['cajero_id'] !== (string) $usuarioSesionId) {
             $pdo->rollBack();
             responderJson('error', 'No tienes autorización para cerrar el turno de otro cajero.', [], 403);
@@ -371,17 +367,19 @@ try {
         $descuadreEfectivo = round($efectivoDeclarado - $efectivoEsperado, 2);
         $descuadreTarjeta = round($tarjetaDeclarada - $tarjetaEsperada, 2);
 
-        // Si el 100% del efectivo se retiene como fondo, ajustar coherencia con chk_arqueo_retenido_valido
+        // Regla de separación de áreas (Opción B):
+        // Al cerrar turno NUNCA se marca DEPOSITADO manualmente.
+        // Si queda efectivo neto por encima del menudo retenido pasa a PENDIENTE (bóveda para Tesorería);
+        // si el 100% queda retenido como fondo en gaveta pasa a RETENIDO.
         $montoRetenidoFinal = min($montoRetenido, $efectivoDeclarado);
-        if ($estadoDeposito === 'RETENIDO' && $montoRetenidoFinal <= 0) {
-            $montoRetenidoFinal = $efectivoDeclarado;
-        }
+        $netoDepositar = round(max(0.0, $efectivoDeclarado - $montoRetenidoFinal), 2);
+        $estadoDeposito = ($netoDepositar > 0) ? 'PENDIENTE' : 'RETENIDO';
 
         // Reemplazar detalles de arqueo de esta sesión
         $pdo->prepare("DELETE FROM ventas.arqueo_detalles WHERE sesion_caja_id = ?")
             ->execute([$sesionId]);
 
-        // Detalle EFECTIVO (usa el estado_deposito seleccionado por el usuario)
+        // Detalle EFECTIVO
         $pdo->prepare("
             INSERT INTO ventas.arqueo_detalles
                 (sesion_caja_id, metodo_pago_id, monto_declarado_cajero, monto_esperado_sistema, cantidad_vouchers, estado_deposito, monto_retenido_fondo)
@@ -443,6 +441,7 @@ try {
                 'cantidad_vouchers' => $cantVouchers,
                 'estado_deposito' => $estadoDeposito,
                 'monto_retenido_fondo' => $montoRetenidoFinal,
+                'neto_depositar' => $netoDepositar,
             ]
         );
 
@@ -465,6 +464,8 @@ try {
             'tarjeta_esperada' => $tarjetaEsperada,
             'tarjeta_declarada' => $tarjetaDeclarada,
             'descuadre_tarjeta' => $descuadreTarjeta,
+            'estado_deposito' => $estadoDeposito,
+            'neto_depositar' => $netoDepositar,
             'veredicto' => $veredicto,
         ]);
     }
@@ -640,7 +641,7 @@ try {
             $consignacionesTj = round(floatval($rowCg['cg_tarjeta']), 2);
         }
 
-        // 6. Movimientos de Caja Chica (JOIN corregido por seguridad.usuarios)
+        // 6. Movimientos de Caja Chica
         $stmtMov = $pdo->prepare("
             SELECT mc.id,
                    mc.tipo_movimiento,
@@ -676,13 +677,21 @@ try {
         $stmtDevTj->execute([$sesionId]);
         $devTarjeta = round(floatval($stmtDevTj->fetchColumn() ?: 0), 2);
 
-        // 8. Detalles guardados en ventas.arqueo_detalles
+        // 8. Detalles guardados en ventas.arqueo_detalles + trazabilidad bancaria (Tesorería)
         $stmtDetArq = $pdo->prepare("
             SELECT ad.metodo_pago_id, mp.codigo, mp.descripcion,
                    ad.monto_declarado_cajero, ad.monto_esperado_sistema, ad.diferencia,
-                   ad.cantidad_vouchers, ad.estado_deposito, ad.monto_retenido_fondo
+                   ad.cantidad_vouchers, ad.estado_deposito, ad.monto_retenido_fondo,
+                   ROUND(GREATEST(0, ad.monto_declarado_cajero - ad.monto_retenido_fondo), 2) AS neto_depositar,
+                   ad.movimiento_bancario_id,
+                   mb.referencia AS volante_deposito,
+                   TO_CHAR(mb.fecha_movimiento, 'DD/MM/YYYY') AS fecha_deposito_fmt,
+                   cb.nombre_banco AS banco_deposito,
+                   cb.numero_cuenta AS cuenta_deposito
             FROM ventas.arqueo_detalles ad
             JOIN ventas.metodos_pago mp ON ad.metodo_pago_id = mp.id
+            LEFT JOIN tesoreria.movimientos_bancarios mb ON mb.id = ad.movimiento_bancario_id
+            LEFT JOIN tesoreria.cuentas_bancarias cb     ON cb.id = mb.cuenta_bancaria_id
             WHERE ad.sesion_caja_id = ?
             ORDER BY mp.id ASC
         ");

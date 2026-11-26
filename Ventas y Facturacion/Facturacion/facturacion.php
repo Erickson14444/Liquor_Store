@@ -304,15 +304,27 @@ foreach ($secuenciasFiscales as $sec) {
     }
 
     .pos-scanner-strip {
-      display: grid; grid-template-columns: 3.5fr 1.1fr 1.1fr auto; gap: 12px; align-items: end;
-      background: #fff; border: 1px solid #e7dcc8; border-radius: 10px;
-      padding: 10px 14px; margin-bottom: 12px;
+      display: grid;
+      grid-template-columns: 3.5fr 1.1fr 1.1fr auto;
+      gap: 12px;
+      align-items: end;
+      background: #fff;
+      border: 1px solid #e7dcc8;
+      border-radius: 10px;
+      padding: 10px 14px;
+      margin-bottom: 12px;
     }
+
     @media (max-width: 1200px) {
-      .pos-scanner-strip { grid-template-columns: 1fr 1fr; }
+      .pos-scanner-strip {
+        grid-template-columns: 1fr 1fr;
+      }
     }
+
     @media (max-width: 700px) {
-      .pos-scanner-strip { grid-template-columns: 1fr; }
+      .pos-scanner-strip {
+        grid-template-columns: 1fr;
+      }
     }
 
     /* Coordinación de tamaños uniformes (35px) sincronizados con los textboxes */
@@ -323,7 +335,7 @@ foreach ($secuenciasFiscales as $sec) {
       font-size: 0.81rem !important;
       font-weight: 600 !important;
       border-radius: var(--radius-sm, 6px) !important;
-      display: inline-flex !important;
+      display: inline-flex;
       align-items: center !important;
       justify-content: center !important;
       gap: 5px !important;
@@ -331,6 +343,7 @@ foreach ($secuenciasFiscales as $sec) {
       box-sizing: border-box !important;
       transition: all 0.15s ease !important;
     }
+
     .pos-btn-sync:hover {
       transform: translateY(-1px);
     }
@@ -352,6 +365,7 @@ foreach ($secuenciasFiscales as $sec) {
       transition: all 0.15s ease !important;
       box-shadow: 0 2px 5px rgba(0, 0, 0, 0.12) !important;
     }
+
     .pos-btn-turno:hover {
       transform: translateY(-1px);
       box-shadow: 0 3px 7px rgba(0, 0, 0, 0.18) !important;
@@ -379,12 +393,14 @@ foreach ($secuenciasFiscales as $sec) {
       margin-left: 4px !important;
       letter-spacing: 0.3px;
     }
+
     .pos-btn-emitir:hover:not(:disabled) {
       background: #3c2a1e !important;
       border-color: #3c2a1e !important;
       box-shadow: 0 4px 12px rgba(0, 0, 0, 0.35) !important;
       transform: translateY(-1px);
     }
+
     .pos-btn-emitir:disabled {
       opacity: 0.55 !important;
       cursor: not-allowed !important;
@@ -712,40 +728,48 @@ foreach ($secuenciasFiscales as $sec) {
         <div style="display: flex; align-items: center; gap: 6px; flex-wrap: wrap;">
           <!-- 1. CAJA CHICA -->
           <?php if ($puedeFacturar): ?>
-            <button type="button" class="btn btn-outline pos-btn-sync" onclick="abrirModalCajaChicaFacturacion()" style="border-color: #d8b888; color: #794a15; background: #fffcf8;" title="Entrada / Salida de caja chica">
+            <button type="button" class="btn btn-outline pos-btn-sync" onclick="abrirModalCajaChicaFacturacion()"
+              style="border-color: #d8b888; color: #794a15; background: #fffcf8;" title="Entrada / Salida de caja chica">
               💵 Caja Chica
             </button>
           <?php endif; ?>
 
           <!-- 2. IMPORTAR COTIZACIÓN -->
-          <button type="button" class="btn btn-outline pos-btn-sync" onclick="abrirModalCotizaciones()" title="Importar cotización pendiente">
+          <button type="button" class="btn btn-outline pos-btn-sync" onclick="abrirModalCotizaciones()"
+            title="Importar cotización pendiente">
             📄 Importar Cotización
             <?php if (count($cotizacionesPend) > 0): ?>
-                <span class="pos-inline-count"><?= count($cotizacionesPend) ?></span>
+              <span class="pos-inline-count"><?= count($cotizacionesPend) ?></span>
             <?php endif; ?>
           </button>
 
           <!-- 3. FACTURAS EMITIDAS -->
-          <button type="button" class="btn btn-outline pos-btn-sync" onclick="abrirModalHistorial()" title="Ver facturas emitidas">
+          <button type="button" class="btn btn-outline pos-btn-sync" onclick="abrirModalHistorial()"
+            title="Ver facturas emitidas">
             🧾 Facturas Emitidas (<?= count($facturasRecientes) ?>)
           </button>
 
           <!-- 4. PEDIDO A DOMICILIO (SIN PARÉNTESIS) -->
-          <button type="button" class="btn btn-outline pos-btn-sync" id="btnAbrirPedidoDelivery" onclick="abrirModalPedidoDelivery()" title="Configurar pedido a domicilio">
+          <button type="button" class="btn btn-outline pos-btn-sync" id="btnAbrirPedidoDelivery"
+            onclick="abrirModalPedidoDelivery()" title="Configurar pedido a domicilio">
             🛵 Pedido a Domicilio
           </button>
 
           <!-- 5. FINALIZAR / EMPEZAR TURNO (MÁS GRANDE QUE LOS ANTERIORES) -->
           <?php if (!empty($sesionCajaActiva)): ?>
-            <button type="button" class="btn btn-gold pos-btn-turno" onclick="abrirModalArqueoFacturacion()" style="background: #965318; border-color: #965318; color: #fff;" title="Finalizar turno y arqueo">
+            <button type="button" class="btn btn-gold pos-btn-turno" onclick="abrirModalArqueoFacturacion()"
+              style="background: #965318; border-color: #965318; color: #fff;" title="Finalizar turno y arqueo">
               🔒 Finalizar Turno
             </button>
           <?php elseif ($enCuadreCaja): ?>
-            <button type="button" class="btn btn-gold pos-btn-turno" onclick="abrirModalArqueoFacturacion()" style="background: #b25e09; border-color: #b25e09; color: #fff;" title="Concluir conteo físico">
+            <button type="button" class="btn btn-gold pos-btn-turno" onclick="abrirModalArqueoFacturacion()"
+              style="background: #b25e09; border-color: #b25e09; color: #fff;" title="Concluir conteo físico">
               ⏳ Concluir Arqueo
             </button>
           <?php else: ?>
-            <a href="../ControlCaja/control_caja.php" class="btn btn-primary pos-btn-turno" style="background: #2e7d52; border-color: #2e7d52; color: #fff; text-decoration: none;" title="Abrir turno de caja">
+            <a href="../ControlCaja/control_caja.php" class="btn btn-primary pos-btn-turno"
+              style="background: #2e7d52; border-color: #2e7d52; color: #fff; text-decoration: none;"
+              title="Abrir turno de caja">
               🟢 Iniciar Turno
             </a>
           <?php endif; ?>
@@ -756,7 +780,8 @@ foreach ($secuenciasFiscales as $sec) {
               🔒 <?= $enCuadreCaja ? 'En Arqueo' : 'Sin Turno' ?>
             </button>
           <?php else: ?>
-            <button type="button" class="pos-btn-emitir" id="btnGuardarFactura" onclick="abrirModalCobro()" title="Emitir Factura">
+            <button type="button" class="pos-btn-emitir" id="btnGuardarFactura" onclick="abrirModalCobro()"
+              title="Emitir Factura">
               💳 Emitir Factura
             </button>
           <?php endif; ?>
@@ -825,11 +850,14 @@ foreach ($secuenciasFiscales as $sec) {
             <div class="pos-field-group">
               <label for="selectCondicionVenta" class="form-label">CONDICIÓN DE VENTA:</label>
               <div style="display: flex; gap: 6px; align-items: center;">
-                <select id="selectCondicionVenta" class="form-control" style="flex: 1; min-width: 95px;" onchange="alCambiarCondicionVenta()">
+                <select id="selectCondicionVenta" class="form-control" style="flex: 1; min-width: 95px;"
+                  onchange="alCambiarCondicionVenta()">
                   <option value="CONTADO">Contado</option>
                   <option value="CREDITO">Crédito (30d)</option>
                 </select>
-                <select id="selectMoneda" class="form-control" style="width: 58px; max-width: 58px; padding: 0 4px; font-size: 0.82rem; text-align: center; font-weight: 700; flex-shrink: 0;" onchange="alCambiarMoneda()">
+                <select id="selectMoneda" class="form-control"
+                  style="width: 70px; max-width: 70px; padding: 0 4px; font-size: 0.82rem; text-align: center; font-weight: 700; flex-shrink: 0;"
+                  onchange="alCambiarMoneda()">
                   <?php foreach ($monedas as $mon): ?>
                     <option value="<?= (int) $mon['id'] ?>" data-iso="<?= htmlspecialchars($mon['codigo_iso']) ?>"
                       data-simbolo="<?= htmlspecialchars($mon['simbolo']) ?>"
@@ -868,23 +896,22 @@ foreach ($secuenciasFiscales as $sec) {
       </div>
 
       <!-- BARRA DE ESCÁNER + ALMACÉN POS + CUPÓN + CATÁLOGO -->
+      <!-- BARRA DE ESCÁNER + ALMACÉN POS + CUPÓN + CATÁLOGO -->
       <div class="pos-scanner-strip">
         <div class="form-group" style="margin-bottom: 0; min-width: 0;">
           <label for="inputScannerPos" class="form-label">ESCÁNER RÁPIDO (CÓDIGO DE BARRAS O SKU)</label>
           <div style="display: flex; gap: 6px; width: 100%;">
-            <input type="text" id="inputScannerPos" class="form-control"
-            <input type="text" id="inputScannerPos" class="form-control"
-                   style="flex: 1; min-width: 0; width: 100%;"
-                   placeholder="Escanea botella, six-pack o caja y presiona Enter..."
-                   autocomplete="off"
-                   onkeydown="if(event.key==='Enter'){ event.preventDefault(); escanearCodigoPos(); }" />
+            <input type="text" id="inputScannerPos" class="form-control" style="flex: 1; min-width: 0; width: 100%;"
+              placeholder="Escanea botella, six-pack o caja y presiona Enter..." autocomplete="off"
+              onkeydown="if(event.key==='Enter'){ event.preventDefault(); escanearCodigoPos(); }" />
             <button type="button" class="btn btn-secondary pos-btn-sync" onclick="escanearCodigoPos()">Agregar</button>
           </div>
         </div>
 
         <div class="form-group" style="margin-bottom: 0; min-width: 0;">
           <label for="selectAlmacenPos" class="form-label">ALMACÉN DE DESPACHO (FEFO)</label>
-          <select id="selectAlmacenPos" class="form-control" style="width: 100%;" onchange="recalcularCarritoServidor()">
+          <select id="selectAlmacenPos" class="form-control" style="width: 100%;"
+            onchange="recalcularCarritoServidor()">
             <?php foreach ($almacenes as $alm): ?>
               <option value="<?= (int) $alm['id'] ?>"><?= htmlspecialchars($alm['nombre']) ?></option>
             <?php endforeach; ?>
@@ -895,11 +922,13 @@ foreach ($secuenciasFiscales as $sec) {
           <label for="inputCodigoCupon" class="form-label">CUPÓN PROMOCIONAL</label>
           <div style="display: flex; gap: 6px; width: 100%;">
             <input type="text" id="inputCodigoCupon" class="form-control"
-                   style="flex: 1; min-width: 0; width: 100%; text-transform: uppercase; font-family: monospace; font-weight: 700;"
-                   placeholder="LQR-A1B2C3"
-                   onkeydown="if(event.key==='Enter'){ event.preventDefault(); aplicarCuponPos(); }" />
+              style="flex: 1; min-width: 0; width: 100%; text-transform: uppercase; font-family: monospace; font-weight: 700;"
+              placeholder="LQR-A1B2C3"
+              onkeydown="if(event.key==='Enter'){ event.preventDefault(); aplicarCuponPos(); }" />
             <button type="button" class="btn btn-secondary pos-btn-sync" onclick="aplicarCuponPos()">Aplicar</button>
-            <button type="button" class="btn btn-outline pos-btn-sync" id="btnQuitarCupon" style="display: none; padding: 0 8px !important; color: #b71c1c;" onclick="quitarCuponPos()" title="Quitar cupón">✕</button>
+            <button type="button" class="btn btn-outline pos-btn-sync" id="btnQuitarCupon"
+              style="display: none; padding: 0 8px !important; color: #b71c1c;" onclick="quitarCuponPos()"
+              title="Quitar cupón">✕</button>
           </div>
         </div>
 
@@ -910,9 +939,10 @@ foreach ($secuenciasFiscales as $sec) {
         </div>
       </div>
 
-      <div id="estadoCuponTexto" style="font-size: 0.8rem; color: #7a6b5d; margin-top: -6px; margin-bottom: 12px; padding: 0 4px;">
-        Si el cliente presenta una <strong>Nota de Crédito B04</strong>, se aplica como medio de pago en el modal de Cobro.
-      </div>
+      <div id="estadoCuponTexto"
+        style="font-size: 0.8rem; color: #7a6b5d; margin-top: -6px; margin-bottom: 12px; padding: 0 4px;">
+        Si el cliente presenta una <strong>Nota de Crédito B04</strong>, se aplica como medio de pago en el modal de
+        Cobro.
       </div>
 
       <!-- BANNERS DINÁMICOS (DELIVERY, COTIZACIÓN, CASHBACK, ALERTAS STOCK) -->
@@ -947,7 +977,9 @@ foreach ($secuenciasFiscales as $sec) {
             <h2 class="table-card-title">Detalle de Partidas en Carrito</h2>
             <span class="badge-count" id="badgeArticulosCarrito">0 Artículos</span>
           </div>
-          <button type="button" class="btn btn-outline pos-btn-sync" id="btnLimpiarCarrito" onclick="limpiarCarritoConConfirmacion()" style="display: none; color: #b71c1c; border-color: #f0c5c1;" title="Vaciar todos los artículos del carrito">
+          <button type="button" class="btn btn-outline pos-btn-sync" id="btnLimpiarCarrito"
+            onclick="limpiarCarritoConConfirmacion()" style="display: none; color: #b71c1c; border-color: #f0c5c1;"
+            title="Vaciar todos los artículos del carrito">
             🗑️ Vaciar Carrito
           </button>
         </div>
@@ -1681,16 +1713,15 @@ foreach ($secuenciasFiscales as $sec) {
                 <label class="form-label" for="pos_monto_retenido">FONDO DEJADO EN GAVETA (RD$)</label>
                 <input type="number" step="0.01" min="0" id="pos_monto_retenido" name="monto_retenido_fondo"
                   class="arqueo-input-control"
-                  value="<?= htmlspecialchars((string) ($sesionCajaActiva['monto_inicial_efectivo'] ?? '2500.00')) ?>" />
+                  value="<?= htmlspecialchars((string) ($sesionCajaActiva['monto_inicial_efectivo'] ?? '2500.00')) ?>"
+                  oninput="recalcularEfectivoFacturacion()" />
               </div>
               <div class="form-group" style="margin-bottom: 0;">
-                <label class="form-label" for="pos_estado_deposito">DESTINO DEL EFECTIVO</label>
-                <select id="pos_estado_deposito" name="estado_deposito" class="arqueo-input-control"
-                  style="font-family: inherit;">
-                  <option value="PENDIENTE">PENDIENTE (En Bóveda Local)</option>
-                  <option value="DEPOSITADO">DEPOSITADO (A Banco)</option>
-                  <option value="RETENIDO">RETENIDO (100% en Gaveta)</option>
-                </select>
+                <label class="form-label">NETO A BÓVEDA (PARA TESORERÍA)</label>
+                <div id="posLblNetoBoveda" class="arqueo-input-control"
+                  style="background: #fdfaf4; border-color: #d8b888; color: #794a15; font-weight: 800; font-family: monospace; display: flex; align-items: center;">
+                  RD$ 0.00
+                </div>
               </div>
             </div>
           </div>

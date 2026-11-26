@@ -2,7 +2,7 @@
 /**
  * ============================================================================
  * Módulo 4: Ventas • Proceso 1: Control de Caja (Vista Principal Dual RBAC)
- * Ubicación: c:\xampp\htdocs\Liquor_Store\Ventas y Facturacion\ControlCaja\control_caja.php
+ * Ubicación: Ventas y Facturacion/ControlCaja/control_caja.php
  * House & Ice • Sistema Administrativo (ERP Licorero)
  * ============================================================================
  */
@@ -23,6 +23,11 @@ if (function_exists('usuarioPuedeAccederControlCaja') && !usuarioPuedeAccederCon
 }
 
 $puedeAuditarCaja = function_exists('usuarioPuedeAuditarCaja') ? usuarioPuedeAuditarCaja() : true;
+$puedeVerTesoreria = (function_exists('usuarioEsAdministrador') && usuarioEsAdministrador())
+  || (function_exists('usuarioTienePermiso') && (
+    usuarioTienePermiso('REGISTRAR_MOVIMIENTOS_BANCARIOS') || usuarioTienePermiso('VER_REPORTES_FINANCIEROS')
+  ));
+
 $cajasPos = [];
 $empleadosCajeros = [];
 $historialSesiones = [];
@@ -40,7 +45,7 @@ if ($pdo) {
               AND estado <> 'CERRADA'
         ");
 
-    // 1. Terminales físicas de caja con su sesión activa (incluyendo s.cajero_id para validar titularidad)
+    // 1. Terminales físicas de caja con su sesión activa
     $stmtCajas = $pdo->query("
             SELECT cp.id,
                    cp.nombre_equipo,
@@ -115,12 +120,21 @@ if ($pdo) {
                        s.diferencia_descuadre,
                        cp.nombre_equipo,
                        p.nombre_razon_social AS cajero_nombre,
-                       e.codigo_empleado
+                       e.codigo_empleado,
+                       ad.estado_deposito,
+                       COALESCE(ad.monto_retenido_fondo, 0) AS monto_retenido_fondo,
+                       ROUND(GREATEST(0, COALESCE(ad.monto_declarado_cajero, 0) - COALESCE(ad.monto_retenido_fondo, 0)), 2) AS neto_depositar,
+                       mb.referencia AS volante_deposito,
+                       cb.nombre_banco AS banco_deposito
                 FROM ventas.sesiones_caja s
                 JOIN ventas.cajas_pos cp ON s.caja_id = cp.id
                 JOIN seguridad.usuarios u ON s.cajero_id = u.usuario_id
                 JOIN identidad.personas p ON u.persona_id = p.persona_id
                 LEFT JOIN identidad.empleados e ON e.persona_id = p.persona_id
+                LEFT JOIN ventas.metodos_pago mp_ef ON mp_ef.codigo = 'EFECTIVO'
+                LEFT JOIN ventas.arqueo_detalles ad ON ad.sesion_caja_id = s.id AND ad.metodo_pago_id = mp_ef.id
+                LEFT JOIN tesoreria.movimientos_bancarios mb ON mb.id = ad.movimiento_bancario_id
+                LEFT JOIN tesoreria.cuentas_bancarias cb     ON cb.id = mb.cuenta_bancaria_id
                 ORDER BY s.id DESC
                 LIMIT 60
             ");
@@ -579,7 +593,8 @@ if (!function_exists('obtenerInicialesCajero')) {
       <div class="page-header">
         <div>
           <h1 class="page-title">
-            <?= $puedeAuditarCaja ? 'Control de Caja y Arqueo Ciego' : 'Apertura de Turno de Caja' ?></h1>
+            <?= $puedeAuditarCaja ? 'Control de Caja y Arqueo Ciego' : 'Apertura de Turno de Caja' ?>
+          </h1>
           <p class="page-subtitle">
             <?= $puedeAuditarCaja
               ? 'Asignación operativa de turnos a terminales POS, fondo inicial (menudo), control de disponibilidad y auditoría de arqueos ciegos.'
@@ -587,12 +602,25 @@ if (!function_exists('obtenerInicialesCajero')) {
           </p>
         </div>
 
-        <div style="display: flex; gap: 10px; align-items: center;">
+        <div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
+          <?php if ($puedeVerTesoreria): ?>
+            <a href="../../Tesoreria/MovimientosBancarios/movimientos_bancarios.php" class="btn btn-beige"
+              style="text-decoration: none;">
+              🏦 Depósitos (Tesorería)
+            </a>
+          <?php endif; ?>
           <a href="../Facturacion/facturacion.php" class="btn btn-gold" style="text-decoration: none;">
             🛒 Ir a Facturación (POS)
           </a>
         </div>
       </div>
+
+      <?php if (!empty($errorDb)): ?>
+        <div
+          style="background: #ffebee; color: #b71c1c; border: 1px solid #ef9a9a; border-radius: 8px; padding: 12px 16px; margin-bottom: 18px; font-size: 0.88rem;">
+          <strong>Aviso de base de datos:</strong> <?= htmlspecialchars($errorDb) ?>
+        </div>
+      <?php endif; ?>
 
       <?php if (!$puedeAuditarCaja && $cajeroYaTieneTurno): ?>
         <div
@@ -620,7 +648,8 @@ if (!function_exists('obtenerInicialesCajero')) {
           <div style="font-size: 0.74rem; font-weight: 700; color: #2e7d32; text-transform: uppercase;">Turnos Abiertos
             Hoy</div>
           <div style="font-size: 1.5rem; font-weight: 800; font-family: monospace; color: #2e7d32;">
-            <?= $cajasAbiertas ?></div>
+            <?= $cajasAbiertas ?>
+          </div>
           <div style="font-size: 0.74rem; color: #8a7b70;">Cajeros operando en vivo</div>
         </div>
 
@@ -628,7 +657,8 @@ if (!function_exists('obtenerInicialesCajero')) {
           <div style="font-size: 0.74rem; font-weight: 700; color: #b25e09; text-transform: uppercase;">Terminales en
             Arqueo</div>
           <div style="font-size: 1.5rem; font-weight: 800; font-family: monospace; color: #b25e09;">
-            <?= $cajasEnCuadre ?></div>
+            <?= $cajasEnCuadre ?>
+          </div>
           <div style="font-size: 0.74rem; color: #8a7b70;">En proceso de cuadre ciego</div>
         </div>
 
@@ -637,7 +667,8 @@ if (!function_exists('obtenerInicialesCajero')) {
             <div style="font-size: 0.74rem; font-weight: 700; color: #c62828; text-transform: uppercase;">Faltantes en
               Arqueo</div>
             <div style="font-size: 1.5rem; font-weight: 800; font-family: monospace; color: #c62828;">
-              <?= $faltantesDetectados ?></div>
+              <?= $faltantesDetectados ?>
+            </div>
             <div style="font-size: 0.74rem; color: #8a7b70;">RD$ <?= number_format($totalFaltantesDinero, 2) ?> acumulados
             </div>
           </div>
@@ -700,10 +731,12 @@ if (!function_exists('obtenerInicialesCajero')) {
                     <?php if ($esAbierta): ?>
                       <div class="pos-cashier-row">
                         <div class="cashier-avatar-mini">
-                          <?= htmlspecialchars(obtenerInicialesCajero($cp['cajero_en_turno'])) ?></div>
+                          <?= htmlspecialchars(obtenerInicialesCajero($cp['cajero_en_turno'])) ?>
+                        </div>
                         <div class="cashier-meta">
                           <div class="cashier-name" title="<?= htmlspecialchars($cp['cajero_en_turno']) ?>">
-                            <?= htmlspecialchars($cp['cajero_en_turno']) ?></div>
+                            <?= htmlspecialchars($cp['cajero_en_turno']) ?>
+                          </div>
                           <div class="cashier-tag"><?= htmlspecialchars($cp['codigo_empleado'] ?: 'CAJERO') ?> • Turno Activo
                           </div>
                         </div>
@@ -815,7 +848,7 @@ if (!function_exists('obtenerInicialesCajero')) {
               <span class="badge-count"><?= count($historialSesiones) ?> turnos</span>
             </div>
             <div style="font-size: 0.8rem; color: #8a7b70;">
-              Veredicto automático de descuadre: monto esperado vs dinero declarado
+              Veredicto automático de descuadre y estado de depósito en Tesorería (solo lectura)
             </div>
           </div>
 
@@ -830,13 +863,14 @@ if (!function_exists('obtenerInicialesCajero')) {
                   <th style="text-align: right;">EFECTIVO ESPERADO</th>
                   <th style="text-align: right;">EFECTIVO DECLARADO</th>
                   <th style="text-align: center;">VEREDICTO (DIFERENCIA)</th>
+                  <th style="text-align: center;">DEPÓSITO A BANCO</th>
                   <th style="text-align: right; padding-right: 18px;">ACCIONES</th>
                 </tr>
               </thead>
               <tbody>
                 <?php if (empty($historialSesiones)): ?>
                   <tr>
-                    <td colspan="8" style="text-align: center; padding: 30px; color: #8a7b70;">
+                    <td colspan="9" style="text-align: center; padding: 30px; color: #8a7b70;">
                       No hay sesiones registradas todavía. Abre un turno desde una terminal superior para iniciar.
                     </td>
                   </tr>
@@ -858,6 +892,9 @@ if (!function_exists('obtenerInicialesCajero')) {
                       $difClase = 'veredicto-sobrante';
                       $difTxt = '🟡 SOBRANTE: + RD$ ' . number_format($dif, 2);
                     }
+
+                    $estDep = strtoupper((string) ($h['estado_deposito'] ?? ''));
+                    $netoDep = floatval($h['neto_depositar'] ?? 0);
                     ?>
                     <tr>
                       <td>
@@ -872,13 +909,16 @@ if (!function_exists('obtenerInicialesCajero')) {
                         <div style="font-size: 0.82rem; font-weight: 600;"><?= htmlspecialchars($h['fecha_apertura_fmt']) ?>
                         </div>
                         <div style="font-size: 0.76rem; color: #794a15; font-weight: 700;">Fondo: RD$
-                          <?= number_format((float) $h['monto_inicial_efectivo'], 2) ?></div>
+                          <?= number_format((float) $h['monto_inicial_efectivo'], 2) ?>
+                        </div>
                       </td>
                       <td>
                         <div style="font-size: 0.82rem; color: #211813;">
-                          <?= htmlspecialchars($h['fecha_cierre_fmt'] ?: 'En curso...') ?></div>
+                          <?= htmlspecialchars($h['fecha_cierre_fmt'] ?: 'En curso...') ?>
+                        </div>
                         <div style="font-size: 0.74rem; color: #8a7b70;">Estado:
-                          <strong><?= htmlspecialchars($h['estado']) ?></strong></div>
+                          <strong><?= htmlspecialchars($h['estado']) ?></strong>
+                        </div>
                       </td>
                       <td style="text-align: right; font-family: monospace; font-size: 0.95rem; font-weight: 700;">
                         <?= $h['monto_efectivo_esperado'] !== null ? 'RD$ ' . number_format((float) $h['monto_efectivo_esperado'], 2) : '—' ?>
@@ -891,6 +931,25 @@ if (!function_exists('obtenerInicialesCajero')) {
                           <span class="badge-veredicto <?= $difClase ?>"><?= $difTxt ?></span>
                         <?php else: ?>
                           <span style="font-size: 0.78rem; font-weight: 700; color: #b25e09;"><?= $difTxt ?></span>
+                        <?php endif; ?>
+                      </td>
+                      <td style="text-align: center; white-space: nowrap;">
+                        <?php if ($h['estado'] !== 'CERRADA'): ?>
+                          <span style="font-size: 0.75rem; color: #8a7b70;">—</span>
+                        <?php elseif ($estDep === 'DEPOSITADO'): ?>
+                          <span class="badge-veredicto veredicto-exacto">🏦 DEPOSITADO</span>
+                          <div style="font-size: 0.72rem; color: #5a4f46; font-family: monospace; margin-top: 2px;">
+                            <?= htmlspecialchars($h['banco_deposito'] ?: '') ?>        <?= !empty($h['volante_deposito']) ? ' • ' . htmlspecialchars($h['volante_deposito']) : '' ?>
+                          </div>
+                        <?php elseif ($estDep === 'PENDIENTE' && $netoDep > 0): ?>
+                          <span class="badge-veredicto veredicto-sobrante">⏳ PENDIENTE</span>
+                          <div
+                            style="font-size: 0.74rem; color: #794a15; font-family: monospace; font-weight: 700; margin-top: 2px;">
+                            RD$ <?= number_format($netoDep, 2) ?>
+                          </div>
+                        <?php else: ?>
+                          <span class="badge-veredicto"
+                            style="background: #f5f2ed; color: #6e645a; border: 1px solid #ddd5c9;">🔒 RETENIDO</span>
                         <?php endif; ?>
                       </td>
                       <td style="text-align: right; white-space: nowrap;">
@@ -1075,19 +1134,17 @@ if (!function_exists('obtenerInicialesCajero')) {
             </div>
           </div>
 
-          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
-            <div class="form-group">
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; align-items: end;">
+            <div class="form-group" style="margin: 0;">
               <label class="form-label" for="arq_monto_retenido">MENUDO DEJADO EN CAJA (RD$)</label>
               <input type="number" step="0.01" min="0" id="arq_monto_retenido" name="monto_retenido_fondo"
-                class="form-control" value="0.00" />
+                class="form-control" value="0.00" oninput="recalcularTotalEfectivoDeclarado()" />
             </div>
-            <div class="form-group">
-              <label class="form-label" for="arq_estado_deposito">DESTINO DEL SOBRANTE A BANCO</label>
-              <select id="arq_estado_deposito" name="estado_deposito" class="form-control">
-                <option value="PENDIENTE">PENDIENTE (A Bóveda Local)</option>
-                <option value="DEPOSITADO">DEPOSITADO (Conduce a Banco)</option>
-                <option value="RETENIDO">RETENIDO (100% en Gaveta)</option>
-              </select>
+            <div style="background: #fdfaf4; border: 1px solid #d8b888; border-radius: 8px; padding: 8px 12px;">
+              <div style="font-size: 0.68rem; font-weight: 700; color: #8a7b70; text-transform: uppercase;">Neto a
+                Bóveda (Para Tesorería)</div>
+              <div id="lblNetoBovedaArqueo"
+                style="font-size: 1rem; font-weight: 800; font-family: monospace; color: #794a15;">RD$ 0.00</div>
             </div>
           </div>
         </div>
@@ -1304,6 +1361,30 @@ if (!function_exists('obtenerInicialesCajero')) {
                 <div id="desCantVouchers"
                   style="font-family: monospace; font-weight: 700; font-size: 0.95rem; color: #794a15;">0 comprobantes
                 </div>
+              </div>
+            </div>
+          </div>
+
+          <div style="background: #fdfaf4; border: 1px solid #e7dcc8; border-radius: 8px; padding: 12px 14px;">
+            <div style="font-weight: 700; color: #211813; margin-bottom: 6px;">🏦 Destino del Efectivo y Depósito Bancario
+              (Solo Lectura):</div>
+            <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; font-size: 0.82rem;">
+              <div>
+                <span style="color: #8a7b70;">Menudo Retenido:</span>
+                <div id="desMenudoRetenido" style="font-family: monospace; font-weight: 700;">RD$ 0.00</div>
+              </div>
+              <div>
+                <span style="color: #8a7b70;">Neto a Depositar:</span>
+                <div id="desNetoDepositar" style="font-family: monospace; font-weight: 700; color: #794a15;">RD$ 0.00
+                </div>
+              </div>
+              <div>
+                <span style="color: #8a7b70;">Estado Tesorería:</span>
+                <div id="desEstadoDeposito" style="font-weight: 800;">—</div>
+              </div>
+              <div>
+                <span style="color: #8a7b70;">Banco / Volante:</span>
+                <div id="desBancoVolante" style="font-size: 0.78rem; font-family: monospace;">—</div>
               </div>
             </div>
           </div>

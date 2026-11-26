@@ -1494,6 +1494,15 @@ function recalcularEfectivoFacturacion() {
   });
   document.getElementById('posTotalEfectivoLbl').textContent = 'RD$ ' + total.toLocaleString('es-DO', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   document.getElementById('pos_arq_efectivo_declarado').value = total.toFixed(2);
+
+  const inpRet = document.getElementById('pos_arq_monto_retenido')
+    || document.querySelector('#formArqueoFacturacion input[name="monto_retenido_fondo"]');
+  const retenido = Math.max(0, parseFloat(inpRet?.value || '0') || 0);
+  const netoBoveda = Math.max(0, total - Math.min(retenido, total));
+  const lblBov = document.getElementById('posLblNetoBoveda');
+  if (lblBov) {
+    lblBov.textContent = 'RD$ ' + netoBoveda.toLocaleString('es-DO', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  }
 }
 
 async function enviarArqueoFacturacion(e) {

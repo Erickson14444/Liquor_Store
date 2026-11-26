@@ -46,7 +46,10 @@ $isSubdir = in_array($currentDir, [
   'cuentas_por_cobrar',
   'Consignaciones',
   'NotasDebito',
-  'AuditoriaForense'
+  'AuditoriaForense',
+  'MovimientosBancarios',
+  'KardexFefo',
+  'FiscalDgii'
 ]);
 
 if ($isSubdir) {
@@ -66,6 +69,8 @@ $inventarioPfx = $rootPfx . 'Inventario y Stock/';
 $promoPfx = $rootPfx . 'Gestion de Promociones/';
 $ventasPfx = $rootPfx . 'Ventas y Facturacion/';
 $comprasPfx = $rootPfx . 'Compras y Recepcion/';
+$tesoreriaPfx = $rootPfx . 'Tesoreria/';
+$reportesPfx = $rootPfx . 'Reportes/';
 
 // ============================================================================
 // EVALUACIÓN DE PERMISOS RBAC PARA VISIBILIDAD DEL MENÚ
@@ -82,10 +87,10 @@ $pPersonal = function_exists('usuarioPuedeAccederPersonal') ? usuarioPuedeAccede
 $pUsuarios = function_exists('usuarioPuedeAccederSeguridad') ? usuarioPuedeAccederSeguridad() : $esAdmin;
 $verIdentidad = $pClientes || $pProveedores || $pPersonal || $pUsuarios;
 
-// Módulo 2: Seguridad
+// Módulo 2: Seguridad (Auditoría Forense vive en Reportes & Auditoría)
 $pSeguridad = function_exists('usuarioPuedeAccederSeguridad') ? usuarioPuedeAccederSeguridad() : $esAdmin;
 $pAuditoria = function_exists('usuarioPuedeAccederAuditoria') ? usuarioPuedeAccederAuditoria() : $esAdmin;
-$verSeguridad = $pSeguridad || $pAuditoria;
+$verSeguridad = $pSeguridad;
 
 // Módulo 3: Inventario & Stock (Procesos)
 $pLotes = function_exists('usuarioPuedeAccederLotes') ? usuarioPuedeAccederLotes() : $esAdmin;
@@ -113,13 +118,16 @@ $verCompras = $pOrdenCompra || $pRecepcion || $pCxp;
 // Módulo 6: Promociones
 $verPromociones = function_exists('usuarioPuedeAccederPromociones') ? usuarioPuedeAccederPromociones() : $esAdmin;
 
-// Módulo 7: Movimientos Bancarios
-$pBancos = function_exists('usuarioPuedeAccederBancos') ? usuarioPuedeAccederBancos() : $esAdmin;
+// Módulo 7: Movimientos Bancarios (Tesorería)
+$pBancos = (function_exists('usuarioPuedeAccederBancos') && usuarioPuedeAccederBancos())
+  || $esAdmin
+  || $tienePermiso('REGISTRAR_MOVIMIENTOS_BANCARIOS')
+  || $tienePermiso('VER_REPORTES_FINANCIEROS');
 $verBancos = $pBancos;
 
 // Reportes & Auditoría
 $pRepFiscal = $esAdmin || $tienePermiso('EJECUTAR_CIERRES_FISCALES_PERIODO') || $tienePermiso('VER_REPORTES_FINANCIEROS');
-$pRepKardex = $pMovInv || $pLotes;
+$pRepKardex = $pMovInv || $pLotes || $tienePermiso('VER_PRODUCTOS');
 $verReportes = $pRepFiscal || $pRepKardex || $pAuditoria;
 
 // Panel de Configuración (Mantenimientos)
@@ -130,7 +138,7 @@ $pCfgMonedas = function_exists('usuarioPuedeAccederMonedas') ? usuarioPuedeAcced
 $pCfgImpuestos = function_exists('usuarioPuedeAccederImpuestos') ? usuarioPuedeAccederImpuestos() : $esAdmin;
 $pCfgRetenciones = function_exists('usuarioPuedeAccederRetenciones') ? usuarioPuedeAccederRetenciones() : $esAdmin;
 $pCfgMetodosPago = function_exists('usuarioPuedeAccederMetodosPago') ? usuarioPuedeAccederMetodosPago() : $esAdmin;
-$pCfgBancos = $pBancos;
+$pCfgBancos = function_exists('usuarioPuedeAccederBancos') ? usuarioPuedeAccederBancos() : $esAdmin;
 $verConfig = $pCfgProductos || $pCfgInfra || $pCfgSecuencias || $pCfgMonedas || $pCfgImpuestos || $pCfgRetenciones || $pCfgBancos || $pCfgMetodosPago;
 
 // Lista de páginas pertenecientes al panel de configuración
@@ -151,12 +159,13 @@ $configPages = [
 
 // Detección de módulo activo para abrir el acordeón correspondiente
 $isIdentidadActive = in_array($currentPage, ['clientes.php', 'proveedores.php', 'personal.php', 'usuarios.php']);
-$isSeguridadActive = in_array($currentPage, ['roles.php', 'auditoria.php']);
+$isSeguridadActive = in_array($currentPage, ['roles.php']);
 $isInventarioActive = in_array($currentPage, ['movimientos.php', 'traslados.php', 'lotes.php']);
 $isVentasActive = in_array($currentPage, ['delivery.php', 'facturacion.php', 'control_caja.php', 'cotizaciones.php', 'devoluciones.php', 'historial_ventas.php', 'cuentas_por_cobrar.php', 'consignaciones.php', 'notas_debito.php']);
 $isComprasActive = in_array($currentPage, ['ordenes_compra.php', 'recepciones.php', 'cuentas_por_pagar.php']);
 $isPromocionesActive = in_array($currentPage, ['promociones.php', 'cupones.php']);
 $isBancosActive = in_array($currentPage, ['movimientos_bancarios.php']);
+$isReportesActive = in_array($currentPage, ['kardex_fefo.php', 'fiscal_dgii.php', 'auditoria.php']);
 $isConfigOnlyActive = in_array($currentPage, $configPages);
 $isConfigActive = $isConfigOnlyActive;
 ?>
@@ -214,16 +223,6 @@ $isConfigActive = $isConfigOnlyActive;
             <li><a href="<?= $seguridadPfx ?>roles/roles.php"
                 class="sidebar-sublink <?= ($currentPage === 'roles.php') ? 'active' : '' ?>"><span>🔑</span> Roles y
                 Permisos</a></li>
-          <?php endif; ?>
-          <?php if ($pAuditoria): ?>
-            <li><a href="<?= $seguridadPfx ?>AuditoriaForense/auditoria.php"
-                class="sidebar-sublink <?= ($currentPage === 'auditoria.php') ? 'active' : '' ?>"><span>🔍</span> Auditoría
-                Forense</a></li>
-          <?php endif; ?>
-          <?php if ($pSeguridad): ?>
-            <li><a href="#" class="sidebar-sublink"
-                onclick="alert('Control de Accesos y Sesiones en desarrollo'); return false;"><span>🔐</span> Control de
-                Accesos</a></li>
           <?php endif; ?>
         </ul>
       </li>
@@ -292,7 +291,8 @@ $isConfigActive = $isConfigOnlyActive;
           <?php endif; ?>
           <?php if ($pConsignaciones): ?>
             <li><a href="<?= $ventasPfx ?>Consignaciones/consignaciones.php"
-                class="sidebar-sublink <?= ($currentPage === 'consignaciones.php') ? 'active' : '' ?>"><span>🍾</span> Consignaciones</a>
+                class="sidebar-sublink <?= ($currentPage === 'consignaciones.php') ? 'active' : '' ?>"><span>🍾</span>
+                Consignaciones</a>
             </li>
           <?php endif; ?>
           <?php if ($pDevoluciones): ?>
@@ -302,12 +302,14 @@ $isConfigActive = $isConfigOnlyActive;
           <?php endif; ?>
           <?php if ($pCxc): ?>
             <li><a href="<?= $ventasPfx ?>CuentasPorCobrar/cuentas_por_cobrar.php"
-                class="sidebar-sublink <?= ($currentPage === 'cuentas_por_cobrar.php') ? 'active' : '' ?>"><span>💳</span> Cuentas
+                class="sidebar-sublink <?= ($currentPage === 'cuentas_por_cobrar.php') ? 'active' : '' ?>"><span>💳</span>
+                Cuentas
                 por Cobrar (CxC)</a></li>
           <?php endif; ?>
           <?php if ($pNotaDebito): ?>
             <li><a href="<?= $ventasPfx ?>NotasDebito/notas_debito.php"
-                class="sidebar-sublink <?= ($currentPage === 'notas_debito.php') ? 'active' : '' ?>"><span>📄</span> Notas de
+                class="sidebar-sublink <?= ($currentPage === 'notas_debito.php') ? 'active' : '' ?>"><span>📄</span> Notas
+                de
                 Débito (B03)</a></li>
           <?php endif; ?>
         </ul>
@@ -333,7 +335,9 @@ $isConfigActive = $isConfigOnlyActive;
                 Recepción Check-in</a></li>
           <?php endif; ?>
           <?php if ($pCxp): ?>
-            <li><a href="<?= $comprasPfx ?>cuentas_por_pagar/cuentas_por_pagar.php" class="sidebar-sublink <?= ($currentPage === 'cuentas_por_pagar.php') ? 'active' : '' ?>"><span>🏛️</span> Cuentas por Pagar (CxP)</a></li>
+            <li><a href="<?= $comprasPfx ?>cuentas_por_pagar/cuentas_por_pagar.php"
+                class="sidebar-sublink <?= ($currentPage === 'cuentas_por_pagar.php') ? 'active' : '' ?>"><span>🏛️</span>
+                Cuentas por Pagar (CxP)</a></li>
           <?php endif; ?>
         </ul>
       </li>
@@ -366,8 +370,8 @@ $isConfigActive = $isConfigOnlyActive;
           <span class="sidebar-chevron">▸</span>
         </div>
         <ul class="sidebar-subnav">
-          <li><a href="#" class="sidebar-sublink"
-              onclick="alert('Depósito de Arqueos en Cuentas Bancarias en desarrollo'); return false;"><span>💰</span>
+          <li><a href="<?= $tesoreriaPfx ?>MovimientosBancarios/movimientos_bancarios.php"
+              class="sidebar-sublink <?= ($currentPage === 'movimientos_bancarios.php') ? 'active' : '' ?>"><span>💰</span>
               Depósitos de Arqueos</a></li>
         </ul>
       </li>
@@ -375,20 +379,22 @@ $isConfigActive = $isConfigOnlyActive;
 
     <!-- Reportes & Auditoría ▸ -->
     <?php if ($verReportes): ?>
-      <li class="sidebar-item collapsed" id="menuReportes">
-        <div class="sidebar-link" onclick="toggleSidebarMenu('menuReportes')">
+      <li class="sidebar-item <?= $isReportesActive ? '' : 'collapsed' ?>" id="menuReportes">
+        <div class="sidebar-link <?= $isReportesActive ? 'active' : '' ?>" onclick="toggleSidebarMenu('menuReportes')">
           <span>📊 Reportes &amp; Auditoría</span>
           <span class="sidebar-chevron">▸</span>
         </div>
         <ul class="sidebar-subnav">
           <?php if ($pRepFiscal): ?>
-            <li><a href="#" class="sidebar-sublink"
-                onclick="alert('Reportes Fiscales DGII 606 y 607'); return false;"><span>📜</span> Fiscal DGII (606 /
+            <li><a href="<?= $reportesPfx ?>FiscalDgii/fiscal_dgii.php"
+                class="sidebar-sublink <?= ($currentPage === 'fiscal_dgii.php') ? 'active' : '' ?>"><span>📜</span> Fiscal
+                DGII (606 /
                 607)</a></li>
           <?php endif; ?>
           <?php if ($pRepKardex): ?>
-            <li><a href="#" class="sidebar-sublink"
-                onclick="alert('Kardex FEFO en desarrollo'); return false;"><span>📊</span> Kardex Valorado FEFO</a></li>
+            <li><a href="<?= $reportesPfx ?>KardexFefo/kardex_fefo.php"
+                class="sidebar-sublink <?= ($currentPage === 'kardex_fefo.php') ? 'active' : '' ?>"><span>📊</span> Kardex
+                Valorado FEFO</a></li>
           <?php endif; ?>
           <?php if ($pAuditoria): ?>
             <li><a href="<?= $seguridadPfx ?>AuditoriaForense/auditoria.php"

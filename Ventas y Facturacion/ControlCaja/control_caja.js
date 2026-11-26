@@ -1,7 +1,7 @@
 /**
  * ============================================================================
  * Módulo 4: Ventas • Proceso 1: Control de Caja (Lógica Frontend JavaScript)
- * Ubicación: c:\xampp\htdocs\Liquor_Store\Ventas y Facturacion\ControlCaja\control_caja.js
+ * Ubicación: Ventas y Facturacion/ControlCaja/control_caja.js
  * House & Ice • Sistema Administrativo (ERP Licorero)
  * ============================================================================
  */
@@ -24,7 +24,7 @@ document.addEventListener('DOMContentLoaded', () => {
       cerrarModalApertura();
       cerrarModalArqueo();
       cerrarModalCajaChica();
-      cerrarModalDetalle();
+      cerrarModalDesglose();
     }
   });
 });
@@ -67,6 +67,7 @@ function construirCalculadoraDenominaciones() {
 
 /**
  * Recalcula en vivo el total de efectivo declarado por el cajero
+ * y el neto que pasará a bóveda para Tesorería.
  */
 function recalcularTotalEfectivoDeclarado() {
   const inputs = document.querySelectorAll('.denom-input');
@@ -93,6 +94,13 @@ function recalcularTotalEfectivoDeclarado() {
   const hiddenEfectivo = document.getElementById('arq_efectivo_declarado');
   if (hiddenEfectivo) {
     hiddenEfectivo.value = suma.toFixed(2);
+  }
+
+  const retenido = Math.max(0, parseFloat(document.getElementById('arq_monto_retenido')?.value || '0') || 0);
+  const netoBoveda = Math.max(0, suma - Math.min(retenido, suma));
+  const lblBov = document.getElementById('lblNetoBovedaArqueo');
+  if (lblBov) {
+    lblBov.innerText = 'RD$ ' + netoBoveda.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   }
 }
 
@@ -390,6 +398,27 @@ function verDesgloseArqueo(sesionId) {
       setT('desTarjetaDeclarada', fmt(arqTarj.monto_declarado_cajero || 0));
       setT('desCantVouchers', `${arqTarj.cantidad_vouchers || 0} comprobantes físicos`);
 
+      // Estado del Depósito Bancario (Tesorería - Solo Lectura)
+      const arqEf = (d.arqueo_detalles || []).find(x => x.codigo === 'EFECTIVO') || {};
+      setT('desMenudoRetenido', fmt(arqEf.monto_retenido_fondo || 0));
+      setT('desNetoDepositar', fmt(arqEf.neto_depositar || 0));
+      const estDep = String(arqEf.estado_deposito || '').toUpperCase();
+      if (estDep === 'DEPOSITADO') {
+        setT('desEstadoDeposito', '<span style="color:#2e7d32;">🏦 DEPOSITADO</span>');
+        const infoBanco = [arqEf.banco_deposito, arqEf.volante_deposito].filter(Boolean).join(' • ');
+        const fechaTxt = arqEf.fecha_deposito_fmt ? ` (${arqEf.fecha_deposito_fmt})` : '';
+        setT('desBancoVolante', escapeHtml(infoBanco + fechaTxt) || '—');
+      } else if (estDep === 'PENDIENTE') {
+        setT('desEstadoDeposito', '<span style="color:#b25e09;">⏳ PENDIENTE EN BÓVEDA</span>');
+        setT('desBancoVolante', 'Pendiente en Tesorería');
+      } else if (estDep === 'RETENIDO') {
+        setT('desEstadoDeposito', '<span style="color:#6e645a;">🔒 RETENIDO EN GAVETA</span>');
+        setT('desBancoVolante', 'No requiere depósito');
+      } else {
+        setT('desEstadoDeposito', '—');
+        setT('desBancoVolante', '—');
+      }
+
       // Tabla de Movimientos de Caja Chica
       const tbody = document.getElementById('desTbodyCajaChica');
       if (tbody) {
@@ -416,8 +445,7 @@ function verDesgloseArqueo(sesionId) {
     })
     .catch(err => {
       console.error(err);
-      const v = document.getElementById('desVeredictoTitulo');
-      if (v) v.innerHTML = `<span style="color: #c62828;">Error de conexión: ${escapeHtml(err.message)}</span>`;
+      setT('desVeredictoTxt', `<span style="color: #c62828;">Error de conexión: ${escapeHtml(err.message)}</span>`);
     });
 }
 
