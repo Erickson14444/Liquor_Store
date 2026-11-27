@@ -7,6 +7,7 @@
  * Cobertura:
  *   - Fase 1: Almacén POS, Escáner, Catálogo filtrado, Impuestos Dinámicos (cascada/paralelo)
  *   - Fase 2: Motor de Promociones en servidor (CROSS_SELLING, VOLUMEN, HAPPY_HOUR 1NF, FECHAS)
+ *             + Notificaciones inteligentes de promociones elegibles/próximas
  *             + Canje de Cupones (cupones_descuento) con prorrateo fiscal
  *   - Fase 3: Validación B01 + Asignación concurrente de NCF (FOR UPDATE) + Multimoneda
  *   - Fase 4: Split Universal de Pagos (EFECTIVO consolidado, TARJETA, TRANSFERENCIA, CHEQUE,
@@ -193,6 +194,7 @@ function calcularImpuestosLinea(array $impuestosCfg, float $baseNeta, int $canti
  *  - Calcula impuestos dinámicos (cascada/paralelo)
  *  - Suma tarifa de Delivery si corresponde
  *  - Verifica si la venta califica para generar un nuevo Cupón Cashback (CUPON_TICKET)
+ *  - Opcionalmente construye sugerencias accionables de promociones aplicables o próximas
  */
 function evaluarCarritoServidor(
     PDO $pdo,
@@ -201,7 +203,8 @@ function evaluarCarritoServidor(
     string $cuponCodigo = '',
     string $origenVenta = 'MOSTRADOR',
     int $zonaDeliveryId = 0,
-    ?string $clienteUuid = null
+    ?string $clienteUuid = null,
+    bool $incluirSugerencias = false
 ): array {
     if (empty($partidasRaw)) {
         return [
@@ -216,6 +219,7 @@ function evaluarCarritoServidor(
             'monto_total' => 0.00,
             'cupon_aplicado' => null,
             'cupon_cashback_prev' => null,
+            'sugerencias_promos' => [],
             'contiene_alcohol' => false,
             'alertas_stock' => [],
         ];
@@ -510,6 +514,264 @@ function evaluarCarritoServidor(
     }
     unset($ln);
 
+    // 2C. Construir notificaciones inteligentes de promociones elegibles o próximas (CROSS_SELLING, VOLUMEN, HAPPY_HOUR, FECHAS)
+    $sugerenciasCross = [];
+    $sugerenciasUpsell = [];
+    $clavesSugVistas = [];
+
+    if ($incluirSugerencias && !empty($reglasPromo)) {
+        $stmtBenInfo = $pdo->prepare("
+            SELECT pm.id,
+                   pm.sku,
+                   COALESCE(
+                       NULLIF(NULLIF(TRIM(pm.nombre), ''), 'Producto sin nombre asignado'),
+                       (SELECT descripcion_presentacion FROM inventario.producto_codigos_barra WHERE producto_maestro_id = pm.id ORDER BY factor_multiplicador ASC LIMIT 1),
+                       pm.sku
+                   ) AS nombre,
+                   (
+                       SELECT id
+                       FROM inventario.producto_codigos_barra
+                       WHERE producto_maestro_id = pm.id AND factor_multiplicador = 1
+                       ORDER BY id ASC
+                       LIMIT 1
+                   ) AS codigo_barra_unidad_id
+            FROM inventario.productos_maestro pm
+            WHERE pm.id = ? AND pm.id > 0
+            LIMIT 1
+        ");
+        $cacheBenInfo = [];
+
+        $obtenerInfoProductoSug = function (int $prodId) use ($stmtBenInfo, $stmtStockAlm, $almacenId, &$cacheBenInfo): ?array {
+            if (array_key_exists($prodId, $cacheBenInfo)) {
+                return $cacheBenInfo[$prodId];
+            }
+            $stmtBenInfo->execute([$prodId]);
+            $row = $stmtBenInfo->fetch(PDO::FETCH_ASSOC);
+            if (!$row) {
+                $cacheBenInfo[$prodId] = null;
+                return null;
+            }
+            $stockDisp = 0;
+            if ($almacenId > 0) {
+                $stmtStockAlm->execute([$almacenId, $prodId]);
+                $stockDisp = intval($stmtStockAlm->fetchColumn());
+            }
+            $row['stock_disponible'] = $stockDisp;
+            $row['codigo_barra_unidad_id'] = !empty($row['codigo_barra_unidad_id']) ? intval($row['codigo_barra_unidad_id']) : null;
+            $cacheBenInfo[$prodId] = $row;
+            return $row;
+        };
+
+        // Sugerencias de CROSS_SELLING (combo listo para reclamar o próximo a desbloquearse)
+        foreach ($reglasPromo as $reg) {
+            if ($reg['tipo_promocion'] !== 'CROSS_SELLING') {
+                continue;
+            }
+            $promoId = intval($reg['promocion_id']);
+            $condProdId = intval($reg['condicion_producto_id'] ?? 0);
+            $condCatId = intval($reg['condicion_categoria_id'] ?? 0);
+            $condMarcaId = intval($reg['condicion_marca_id'] ?? 0);
+            $benProdId = intval($reg['beneficio_producto_id'] ?? 0);
+            $cantReq = max(1, intval($reg['cantidad_requerida'] ?? 1));
+            $porc = floatval($reg['beneficio_porcentaje'] ?? 0);
+            $fijo = floatval($reg['beneficio_monto_fijo'] ?? 0);
+
+            if ($benProdId <= 0 || ($porc <= 0 && $fijo <= 0)) {
+                continue;
+            }
+
+            $unidadesCondicion = 0;
+            $lineaDetonante = null;
+            foreach ($consolidadas as $ln) {
+                if ($ln['producto_maestro_id'] === $benProdId && $condProdId !== $benProdId) {
+                    continue;
+                }
+                $okProd = ($condProdId === 0 || $ln['producto_maestro_id'] === $condProdId);
+                $okCat = ($condCatId === 0 || $ln['categoria_id'] === $condCatId);
+                $okMarca = ($condMarcaId === 0 || $ln['marca_id'] === $condMarcaId);
+                if ($okProd && $okCat && $okMarca) {
+                    $unidadesCondicion += $ln['cantidad_unidades'];
+                    if ($lineaDetonante === null) {
+                        $lineaDetonante = $ln;
+                    }
+                }
+            }
+
+            if ($unidadesCondicion <= 0) {
+                continue;
+            }
+
+            $benInfo = $obtenerInfoProductoSug($benProdId);
+            if (!$benInfo) {
+                continue;
+            }
+
+            $benNombre = $benInfo['nombre'];
+            $benTxt = ($porc >= 100.0)
+                ? 'GRATIS (100% desc.)'
+                : ($porc > 0 ? "con {$porc}% de descuento" : 'con RD$ ' . number_format($fijo, 2) . ' de descuento');
+
+            $bloques = intdiv($unidadesCondicion, $cantReq);
+
+            if ($bloques > 0) {
+                $yaEnCarrito = isset($consolidadas[$benProdId]) ? intval($consolidadas[$benProdId]['cantidad_unidades']) : 0;
+                $pendientes = $bloques - $yaEnCarrito;
+                if ($pendientes <= 0) {
+                    continue;
+                }
+
+                $clave = "CROSS_{$promoId}_{$benProdId}";
+                if (isset($clavesSugVistas[$clave])) {
+                    continue;
+                }
+                $clavesSugVistas[$clave] = true;
+
+                $stockDispBen = intval($benInfo['stock_disponible']);
+                $stockLibre = max(0, $stockDispBen - $yaEnCarrito);
+                $tieneStock = ($stockLibre > 0);
+                $cantAgregar = $tieneStock ? min($pendientes, $stockLibre) : $pendientes;
+                $adicionalTxt = ($yaEnCarrito > 0) ? ' adicional(es)' : '';
+
+                $sugerenciasCross[] = [
+                    'tipo' => 'CROSS_SELLING',
+                    'clase_ui' => 'tipo-cross',
+                    'icono' => '🎁',
+                    'etiqueta' => 'COMBO DISPONIBLE',
+                    'promocion_id' => $promoId,
+                    'nombre_promocion' => $reg['nombre_promocion'],
+                    'mensaje' => "Calificas para agregar {$pendientes}x {$benNombre}{$adicionalTxt} {$benTxt} («{$reg['nombre_promocion']}»).",
+                    'accion_tipo' => 'AGREGAR_PRODUCTO',
+                    'accion_texto' => "+ Agregar {$cantAgregar}x {$benNombre}",
+                    'producto_maestro_id' => $benProdId,
+                    'codigo_barra_id' => $benInfo['codigo_barra_unidad_id'],
+                    'cantidad_sugerida' => $cantAgregar,
+                    'tiene_stock' => $tieneStock,
+                    'stock_disponible' => $stockDispBen,
+                ];
+            } elseif ($lineaDetonante !== null) {
+                $faltan = $cantReq - $unidadesCondicion;
+                $clave = "CROSS_PROX_{$promoId}_{$lineaDetonante['producto_maestro_id']}";
+                if (isset($clavesSugVistas[$clave])) {
+                    continue;
+                }
+                $clavesSugVistas[$clave] = true;
+
+                $detPmId = intval($lineaDetonante['producto_maestro_id']);
+                $detFactor = max(1, intval($lineaDetonante['factor_conversion']));
+                $stockRestDet = max(0, intval($lineaDetonante['stock_disponible_almacen']) - intval($lineaDetonante['cantidad_unidades']));
+                $detInfo = $obtenerInfoProductoSug($detPmId);
+
+                if ($detFactor === 1) {
+                    $cbSug = $lineaDetonante['codigo_barra_id'];
+                    $cantSug = $faltan;
+                } elseif ($faltan % $detFactor === 0) {
+                    $cbSug = $lineaDetonante['codigo_barra_id'];
+                    $cantSug = intdiv($faltan, $detFactor);
+                } else {
+                    $cbSug = $detInfo ? $detInfo['codigo_barra_unidad_id'] : null;
+                    $cantSug = $faltan;
+                }
+
+                $sugerenciasUpsell[] = [
+                    'tipo' => 'CROSS_SELLING_PROXIMO',
+                    'clase_ui' => 'tipo-upsell',
+                    'icono' => '💡',
+                    'etiqueta' => 'COMBO PRÓXIMO',
+                    'promocion_id' => $promoId,
+                    'nombre_promocion' => $reg['nombre_promocion'],
+                    'mensaje' => "Agrega {$faltan} ud(s). más de {$lineaDetonante['producto_nombre']} para desbloquear {$benNombre} {$benTxt} («{$reg['nombre_promocion']}»).",
+                    'accion_tipo' => 'AGREGAR_PRODUCTO',
+                    'accion_texto' => "+ Completar (+{$faltan} ud" . ($faltan === 1 ? '' : 's') . ".)",
+                    'producto_maestro_id' => $detPmId,
+                    'codigo_barra_id' => $cbSug,
+                    'cantidad_sugerida' => $cantSug,
+                    'tiene_stock' => ($stockRestDet >= $faltan && intval($benInfo['stock_disponible']) > 0),
+                    'stock_disponible' => intval($lineaDetonante['stock_disponible_almacen']),
+                ];
+            }
+        }
+
+        // Sugerencias de VOLUMEN, HAPPY_HOUR y FECHAS (cuando faltan unidades para activar el descuento)
+        foreach ($consolidadas as $ln) {
+            if ($ln['monto_descuento_promo'] > 0) {
+                continue;
+            }
+            $pmId = intval($ln['producto_maestro_id']);
+            foreach ($reglasPromo as $reg) {
+                if ($reg['tipo_promocion'] === 'CROSS_SELLING') {
+                    continue;
+                }
+                $condProdId = intval($reg['condicion_producto_id'] ?? 0);
+                $condCatId = intval($reg['condicion_categoria_id'] ?? 0);
+                $condMarcaId = intval($reg['condicion_marca_id'] ?? 0);
+                $cantReq = max(1, intval($reg['cantidad_requerida'] ?? 1));
+                $porc = floatval($reg['beneficio_porcentaje'] ?? 0);
+                $fijo = floatval($reg['beneficio_monto_fijo'] ?? 0);
+
+                if ($porc <= 0 && $fijo <= 0) {
+                    continue;
+                }
+
+                $okProd = ($condProdId === 0 || $pmId === $condProdId);
+                $okCat = ($condCatId === 0 || $ln['categoria_id'] === $condCatId);
+                $okMarca = ($condMarcaId === 0 || $ln['marca_id'] === $condMarcaId);
+                if (!($okProd && $okCat && $okMarca)) {
+                    continue;
+                }
+
+                if ($ln['cantidad_unidades'] >= $cantReq) {
+                    continue;
+                }
+
+                $promoId = intval($reg['promocion_id']);
+                $clave = "UPSELL_{$promoId}_{$pmId}";
+                if (isset($clavesSugVistas[$clave])) {
+                    continue;
+                }
+                $clavesSugVistas[$clave] = true;
+
+                $faltan = $cantReq - intval($ln['cantidad_unidades']);
+                $benTxt = $porc > 0 ? "{$porc}% de descuento" : 'RD$ ' . number_format($fijo, 2) . ' de descuento';
+                $stockRest = max(0, intval($ln['stock_disponible_almacen']) - intval($ln['cantidad_unidades']));
+                $factorLn = max(1, intval($ln['factor_conversion']));
+
+                if ($factorLn === 1) {
+                    $cbSug = $ln['codigo_barra_id'];
+                    $cantSug = $faltan;
+                } elseif ($faltan % $factorLn === 0) {
+                    $cbSug = $ln['codigo_barra_id'];
+                    $cantSug = intdiv($faltan, $factorLn);
+                } else {
+                    $infoLn = $obtenerInfoProductoSug($pmId);
+                    $cbSug = $infoLn ? $infoLn['codigo_barra_unidad_id'] : null;
+                    $cantSug = $faltan;
+                }
+
+                $etiq = ($reg['tipo_promocion'] === 'HAPPY_HOUR')
+                    ? 'HAPPY HOUR'
+                    : (($reg['tipo_promocion'] === 'VOLUMEN') ? 'DESC. VOLUMEN' : 'PROMOCIÓN');
+
+                $sugerenciasUpsell[] = [
+                    'tipo' => $reg['tipo_promocion'],
+                    'clase_ui' => 'tipo-upsell',
+                    'icono' => '🏷️',
+                    'etiqueta' => $etiq,
+                    'promocion_id' => $promoId,
+                    'nombre_promocion' => $reg['nombre_promocion'],
+                    'mensaje' => "Agrega {$faltan} ud(s). más de {$ln['producto_nombre']} para activar {$benTxt} («{$reg['nombre_promocion']}»).",
+                    'accion_tipo' => 'AGREGAR_PRODUCTO',
+                    'accion_texto' => "+ Completar (+{$faltan} ud" . ($faltan === 1 ? '' : 's') . ".)",
+                    'producto_maestro_id' => $pmId,
+                    'codigo_barra_id' => $cbSug,
+                    'cantidad_sugerida' => $cantSug,
+                    'tiene_stock' => ($stockRest >= $faltan),
+                    'stock_disponible' => intval($ln['stock_disponible_almacen']),
+                ];
+                break; // Solo la primera sugerencia más relevante por producto
+            }
+        }
+    }
+
     // 3. Validar Cupón Promocional de Cabecera (si fue ingresado) y prorratear sobre base antes de impuestos
     $subtotalBrutoTotal = 0.0;
     $descPromosTotal = 0.0;
@@ -664,6 +926,55 @@ function evaluarCarritoServidor(
         }
     }
 
+    // 6B. Sugerencia de próximo umbral de Cupón Cashback (CUPON_TICKET)
+    $sugerenciasCashback = [];
+    if ($incluirSugerencias && $montoTotal > 0) {
+        $stmtCbProx = $pdo->prepare("
+            SELECT pc.id AS promocion_id, pc.nombre_promocion, pc.monto_minimo_factura,
+                   pd.beneficio_monto_fijo, pd.beneficio_porcentaje
+            FROM promociones.promociones_campanas pc
+            JOIN promociones.promociones_detalles pd ON pd.promocion_id = pc.id
+            WHERE pc.estado = 'ACTIVA'
+              AND pc.tipo_promocion = 'CUPON_TICKET'
+              AND CURRENT_DATE BETWEEN pc.fecha_inicio AND pc.fecha_fin
+              AND COALESCE(pc.monto_minimo_factura, 0) > ?
+            ORDER BY pc.monto_minimo_factura ASC, pc.id DESC
+            LIMIT 1
+        ");
+        $stmtCbProx->execute([$montoTotal]);
+        $cbProx = $stmtCbProx->fetch(PDO::FETCH_ASSOC);
+        if ($cbProx) {
+            $minProx = floatval($cbProx['monto_minimo_factura']);
+            $faltanteCb = round($minProx - $montoTotal, 2);
+            $fijoProx = floatval($cbProx['beneficio_monto_fijo'] ?? 0);
+            $porcProx = floatval($cbProx['beneficio_porcentaje'] ?? 0);
+            $valorProx = $fijoProx > 0 ? round($fijoProx, 2) : ($porcProx > 0 ? round($minProx * ($porcProx / 100.0), 2) : 0.0);
+            $premioActual = $cuponCashbackPrev ? floatval($cuponCashbackPrev['monto_credito_ganado']) : 0.0;
+
+            if ($faltanteCb > 0 && $valorProx > $premioActual) {
+                $verbo = $cuponCashbackPrev ? 'subir tu cupón cashback a' : 'generar un cupón cashback de';
+                $sugerenciasCashback[] = [
+                    'tipo' => 'CUPON_TICKET_PROXIMO',
+                    'clase_ui' => 'tipo-cashback',
+                    'icono' => '🎟️',
+                    'etiqueta' => 'CUPÓN PRÓXIMO',
+                    'promocion_id' => intval($cbProx['promocion_id']),
+                    'nombre_promocion' => $cbProx['nombre_promocion'],
+                    'mensaje' => 'Agrega RD$ ' . number_format($faltanteCb, 2) . " más para {$verbo} RD$ " . number_format($valorProx, 2) . " («{$cbProx['nombre_promocion']}»).",
+                    'accion_tipo' => null,
+                    'accion_texto' => '',
+                    'producto_maestro_id' => null,
+                    'codigo_barra_id' => null,
+                    'cantidad_sugerida' => 0,
+                    'tiene_stock' => true,
+                    'stock_disponible' => 0,
+                ];
+            }
+        }
+    }
+
+    $sugerenciasPromos = array_merge($sugerenciasCross, $sugerenciasUpsell, $sugerenciasCashback);
+
     return [
         'lineas' => array_values($consolidadas),
         'monto_subtotal' => $subtotalBrutoTotal,
@@ -676,6 +987,7 @@ function evaluarCarritoServidor(
         'monto_total' => $montoTotal,
         'cupon_aplicado' => $cuponAplicado,
         'cupon_cashback_prev' => $cuponCashbackPrev,
+        'sugerencias_promos' => $sugerenciasPromos,
         'contiene_alcohol' => $contieneAlcohol,
         'alertas_stock' => $alertasStock,
     ];
@@ -1026,7 +1338,7 @@ try {
     }
 
     // =========================================================================
-    // 3. EVALUACIÓN EN VIVO DEL CARRITO (PROMOS 5 TIPOS, CUPÓN, IMPUESTOS, DELIVERY)
+    // 3. EVALUACIÓN EN VIVO DEL CARRITO (PROMOS 5 TIPOS, SUGERENCIAS, CUPÓN, IMPUESTOS, DELIVERY)
     // =========================================================================
     if ($accion === 'evaluar_carrito') {
         $partidasRaw = $datos['partidas'] ?? [];
@@ -1044,7 +1356,8 @@ try {
             $cuponCodigo,
             $origenVenta,
             $zonaDeliveryId,
-            $clienteUuid
+            $clienteUuid,
+            true
         );
 
         responderPos(true, 'Cálculo actualizado.', ['calculo' => $res]);

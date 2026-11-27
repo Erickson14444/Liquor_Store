@@ -160,6 +160,7 @@ try {
                        rcd.orden_compra_id,
                        (rcd.cantidad_recibida_buena * rcd.costo_unitario_facturado) AS subtotal_linea,
                        pm.sku,
+                       pm.requiere_lote,
                        COALESCE(
                            NULLIF(NULLIF(TRIM(pm.nombre), ''), 'Producto sin nombre asignado'),
                            (SELECT descripcion_presentacion FROM inventario.producto_codigos_barra WHERE producto_maestro_id = pm.id ORDER BY factor_multiplicador ASC LIMIT 1),
@@ -446,6 +447,7 @@ try {
                            d.cantidad_pendiente,
                            d.costo_pactado_unitario,
                            pm.sku,
+                           pm.requiere_lote,
                            COALESCE(
                                NULLIF(NULLIF(TRIM(pm.nombre), ''), 'Producto sin nombre asignado'),
                                (SELECT descripcion_presentacion FROM inventario.producto_codigos_barra WHERE producto_maestro_id = pm.id ORDER BY factor_multiplicador ASC LIMIT 1),
@@ -477,38 +479,49 @@ try {
                 }
 
                 $prodNombre = 'Producto';
+                $reqLoteRaw = true;
+
                 if ($ordenId !== null) {
                     if ($prodId <= 0 || !isset($dbPendientes[$prodId])) {
                         throw new Exception("El producto ID {$prodId} no pertenece a esta orden de compra.");
                     }
                     $infoProd = $dbPendientes[$prodId];
                     $prodNombre = $infoProd['producto_nombre'];
+                    $reqLoteRaw = $infoProd['requiere_lote'];
                 } else {
                     if ($prodId <= 0) {
                         throw new Exception("ID de producto inválido.");
                     }
-                    $stmtPInfo = $pdo->prepare("SELECT nombre, sku FROM inventario.productos_maestro WHERE id = ?");
+                    $stmtPInfo = $pdo->prepare("SELECT nombre, sku, requiere_lote FROM inventario.productos_maestro WHERE id = ?");
                     $stmtPInfo->execute([$prodId]);
                     $pRow = $stmtPInfo->fetch(PDO::FETCH_ASSOC);
                     if (!$pRow) {
                         throw new Exception("El producto ID {$prodId} no existe en catálogo.");
                     }
                     $prodNombre = $pRow['nombre'] ?? $pRow['sku'];
+                    $reqLoteRaw = $pRow['requiere_lote'];
                 }
 
-                if (empty($lote)) {
-                    throw new Exception("Debe ingresar el número de lote para el producto '{$prodNombre}'.");
-                }
-                if (strlen($lote) > 50) {
-                    throw new Exception("El lote '{$lote}' supera los 50 caracteres permitidos.");
-                }
+                $requiereLote = ($reqLoteRaw === true || $reqLoteRaw === 't' || $reqLoteRaw === '1' || $reqLoteRaw === 1);
 
-                if (empty($venc)) {
-                    throw new Exception("Debe ingresar la fecha de vencimiento para el lote '{$lote}' del producto '{$prodNombre}'.");
-                }
-                $dtVenc = DateTime::createFromFormat('Y-m-d', $venc);
-                if (!$dtVenc || $dtVenc->format('Y-m-d') !== $venc) {
-                    throw new Exception("La fecha de vencimiento '{$venc}' del lote '{$lote}' no tiene un formato válido (AAAA-MM-DD).");
+                if (!$requiereLote) {
+                    $lote = 'GENERICO - SIN LOTE';
+                    $venc = '2099-12-31';
+                } else {
+                    if (empty($lote)) {
+                        throw new Exception("Debe ingresar el número de lote para el producto '{$prodNombre}'.");
+                    }
+                    if (strlen($lote) > 50) {
+                        throw new Exception("El lote '{$lote}' supera los 50 caracteres permitidos.");
+                    }
+
+                    if (empty($venc)) {
+                        throw new Exception("Debe ingresar la fecha de vencimiento para el lote '{$lote}' del producto '{$prodNombre}'.");
+                    }
+                    $dtVenc = DateTime::createFromFormat('Y-m-d', $venc);
+                    if (!$dtVenc || $dtVenc->format('Y-m-d') !== $venc) {
+                        throw new Exception("La fecha de vencimiento '{$venc}' del lote '{$lote}' no tiene un formato válido (AAAA-MM-DD).");
+                    }
                 }
 
                 if ($costoFact <= 0) {
@@ -522,13 +535,16 @@ try {
 
                 $loteKey = strtoupper($lote);
                 if (in_array($loteKey, $lotesPorProducto[$prodId], true)) {
-                    throw new Exception("El número de lote '{$lote}' está repetido para el producto '{$prodNombre}'. Cada sub-lote de un mismo producto debe tener un número de lote único.");
+                    throw new Exception($requiereLote
+                        ? "El número de lote '{$lote}' está repetido para el producto '{$prodNombre}'. Cada sub-lote de un mismo producto debe tener un número de lote único."
+                        : "El producto '{$prodNombre}' (sin control de lote) está repetido en más de una línea.");
                 }
                 $lotesPorProducto[$prodId][] = $loteKey;
                 $cantidadesPorProducto[$prodId] += $cantRec;
 
                 $lineasValidas[] = [
                     'producto_maestro_id' => $prodId,
+                    'requiere_lote' => $requiereLote,
                     'numero_lote' => $lote,
                     'fecha_vencimiento' => $venc,
                     'cantidad_recibida_buena' => $cantRec,
@@ -698,25 +714,32 @@ try {
                     $ordenId
                 ]);
 
-                $stmtBuscarLote->execute([$l['producto_maestro_id'], $l['numero_lote']]);
-                $loteExistente = $stmtBuscarLote->fetch(PDO::FETCH_ASSOC);
-                $loteId = null;
 
-                if ($loteExistente) {
-                    $loteId = (int) $loteExistente['id'];
-                    $stmtActualizarLote->execute([
-                        $l['cantidad_recibida_buena'],
-                        $l['fecha_vencimiento'],
-                        $loteId
-                    ]);
+
+
+                if (!$l['requiere_lote']) {
+                    // Producto sin control de lote (ej. Funda de Hielo): usa lote comodín 0
+                    $loteId = 0;
                 } else {
-                    $stmtInsertarLote->execute([
-                        $l['producto_maestro_id'],
-                        $l['numero_lote'],
-                        $l['fecha_vencimiento'],
-                        $l['cantidad_recibida_buena']
-                    ]);
-                    $loteId = (int) $stmtInsertarLote->fetchColumn();
+                    $stmtBuscarLote->execute([$l['producto_maestro_id'], $l['numero_lote']]);
+                    $loteExistente = $stmtBuscarLote->fetch(PDO::FETCH_ASSOC);
+
+                    if ($loteExistente) {
+                        $loteId = (int) $loteExistente['id'];
+                        $stmtActualizarLote->execute([
+                            $l['cantidad_recibida_buena'],
+                            $l['fecha_vencimiento'],
+                            $loteId
+                        ]);
+                    } else {
+                        $stmtInsertarLote->execute([
+                            $l['producto_maestro_id'],
+                            $l['numero_lote'],
+                            $l['fecha_vencimiento'],
+                            $l['cantidad_recibida_buena']
+                        ]);
+                        $loteId = (int) $stmtInsertarLote->fetchColumn();
+                    }
                 }
 
                 $stmtUpsertStock->execute([

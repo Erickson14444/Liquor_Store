@@ -10,6 +10,10 @@ let ORDEN_ACTUAL = null;
 const MAPA_CATALOGO_CACHE = new Map();
 const MAPA_PRODUCTOS_RECEPCION = new Map();
 
+function productoRequiereLote(val) {
+    return val === true || val === 1 || val === '1' || val === 't' || val === 'true';
+}
+
 /**
  * Muestra un modal de mensaje o confirmación centrado, compacto y con el estilo visual institucional de House & Ice
  */
@@ -521,19 +525,21 @@ async function importarOrdenDesdeModal(ordenId) {
             const prodId = parseInt(l.producto_maestro_id, 10);
             const cantPend = parseInt(l.cantidad_pendiente || 0, 10);
             const costoPact = parseFloat(l.costo_pactado_unitario || l.costo_unitario_pactado || 0);
+            const reqLote = productoRequiereLote(l.requiere_lote);
 
             MAPA_PRODUCTOS_RECEPCION.set(prodId, {
                 id: prodId,
                 nombre: l.producto_nombre,
                 sku: l.sku,
+                requiere_lote: reqLote,
                 costo: costoPact,
                 pendiente: cantPend,
                 lotes: [
                     {
                         cant: cantPend,
                         costo: costoPact,
-                        lote: generarNumeroLoteSugerido(l.sku),
-                        venc: ''
+                        lote: reqLote ? generarNumeroLoteSugerido(l.sku) : 'GENERICO - SIN LOTE',
+                        venc: reqLote ? '' : '2099-12-31'
                     }
                 ]
             });
@@ -662,6 +668,8 @@ function agregarProductoARecepcion(productoId) {
     const prod = MAPA_CATALOGO_CACHE.get(prodId) || (typeof CATALOGO_PRODUCTOS !== 'undefined' ? CATALOGO_PRODUCTOS.find(p => parseInt(p.id, 10) === prodId) : null);
     if (!prod) return;
 
+    const reqLote = productoRequiereLote(prod.requiere_lote);
+
     const costoRef = parseFloat(prod.costo_promedio || 0) > 0
         ? parseFloat(prod.costo_promedio)
         : (parseFloat(prod.precio_base_unidad || 0) > 0 ? parseFloat(prod.precio_base_unidad) : 0);
@@ -670,14 +678,15 @@ function agregarProductoARecepcion(productoId) {
         id: prodId,
         sku: prod.sku,
         nombre: prod.nombre,
+        requiere_lote: reqLote,
         costo: costoRef,
         pendiente: 999999,
         lotes: [
             {
                 cant: 1,
                 costo: costoRef,
-                lote: generarNumeroLoteSugerido(prod.sku),
-                venc: ''
+                lote: reqLote ? generarNumeroLoteSugerido(prod.sku) : 'GENERICO - SIN LOTE',
+                venc: reqLote ? '' : '2099-12-31'
             }
         ]
     });
@@ -746,11 +755,25 @@ function renderizarContenedorProductos() {
             ? `<span style="background: #fef9e7; color: #b78103; border: 1px solid #f9e79f; font-size: 0.68rem; font-weight: 700; padding: 1px 6px; border-radius: 4px; margin-left: 4px;">Pend: ${item.pendiente} u.</span>`
             : '';
 
+        const reqLote = item.requiere_lote !== false;
+
         item.lotes.forEach((lot, lotIdx) => {
             const cant = parseInt(lot.cant || 0, 10) || 0;
             const costo = parseFloat(lot.costo || 0) || 0;
             const subtotal = cant * costo;
             const esPrimerLote = (lotIdx === 0);
+
+            const accionLoteHtml = reqLote
+                ? `<button type="button" onclick="dividirLote(${prodId})" style="background: none; border: none; color: #a66e2e; font-size: 0.70rem; font-weight: 700; cursor: pointer; padding: 0 4px; text-decoration: underline;" title="Agregar otra partición de lote">+ Lote</button>`
+                : `<span style="background: #f1f5f9; color: #475569; border: 1px solid #cbd5e1; font-size: 0.66rem; font-weight: 600; padding: 1px 5px; border-radius: 4px; margin-left: 4px;">Sin lote</span>`;
+
+            const tdLoteHtml = reqLote
+                ? `<input type="text" class="form-control input-lote-num" maxlength="50" value="${lot.lote || ''}" placeholder="LOT-..." required oninput="alCambiarDatoLote(${prodId})" style="height: 28px; width: 100px; font-size: 0.78rem; font-family: var(--font-mono); text-transform: uppercase; padding: 2px 4px;" />`
+                : `<span style="display: inline-block; background: #f8f5ef; border: 1px dashed #d4c1a7; color: #7a6b5d; font-size: 0.72rem; font-family: var(--font-mono); padding: 3px 6px; border-radius: 4px;">Sin lote (0)</span>`;
+
+            const tdVencHtml = reqLote
+                ? `<input type="date" class="form-control input-lote-venc" value="${lot.venc || ''}" required oninput="alCambiarDatoLote(${prodId})" style="height: 28px; width: 120px; font-size: 0.75rem; padding: 2px;" />`
+                : `<span style="font-size: 0.74rem; color: #8c8173; font-style: italic;">No aplica</span>`;
 
             filasHtml += `
                 <tr class="fila-lote" data-producto-id="${prodId}" data-lote-idx="${lotIdx}" style="border-bottom: 1px solid #ebdcc5; background: #ffffff;">
@@ -758,8 +781,7 @@ function renderizarContenedorProductos() {
                         ${esPrimerLote ? `
                             <div style="font-weight: 700; color: #211813; font-size: 0.82rem; line-height: 1.2;">${item.nombre}</div>
                             <div style="font-size: 0.70rem; color: var(--text-muted); font-family: var(--font-mono); margin-top: 1px;">
-                                ${item.sku} ${badgePendiente}
-                                <button type="button" onclick="dividirLote(${prodId})" style="background: none; border: none; color: #a66e2e; font-size: 0.70rem; font-weight: 700; cursor: pointer; padding: 0 4px; text-decoration: underline;" title="Agregar otra partición de lote">+ Lote</button>
+                                ${item.sku} ${badgePendiente} ${accionLoteHtml}
                             </div>
                         ` : `
                             <div style="font-size: 0.70rem; color: #a66e2e; font-style: italic; padding-left: 12px;">↳ Lote adicional #${lotIdx + 1}</div>
@@ -771,12 +793,8 @@ function renderizarContenedorProductos() {
                     <td style="padding: 6px 4px; text-align: right; vertical-align: middle;">
                         <input type="number" class="form-control text-right input-lote-costo" min="0.01" step="0.01" value="${lot.costo.toFixed(2)}" required oninput="alCambiarDatoLote(${prodId})" style="height: 28px; width: 80px; font-size: 0.82rem; font-weight: 600; font-family: var(--font-mono); padding: 2px 4px;" />
                     </td>
-                    <td style="padding: 6px 4px; vertical-align: middle;">
-                        <input type="text" class="form-control input-lote-num" maxlength="50" value="${lot.lote || ''}" placeholder="LOT-..." required oninput="alCambiarDatoLote(${prodId})" style="height: 28px; width: 100px; font-size: 0.78rem; font-family: var(--font-mono); text-transform: uppercase; padding: 2px 4px;" />
-                    </td>
-                    <td style="padding: 6px 4px; text-align: center; vertical-align: middle;">
-                        <input type="date" class="form-control input-lote-venc" value="${lot.venc || ''}" required oninput="alCambiarDatoLote(${prodId})" style="height: 28px; width: 120px; font-size: 0.75rem; padding: 2px;" />
-                    </td>
+                    <td style="padding: 6px 4px; vertical-align: middle;">${tdLoteHtml}</td>
+                    <td style="padding: 6px 4px; text-align: center; vertical-align: middle;">${tdVencHtml}</td>
                     <td style="padding: 6px 8px; text-align: right; vertical-align: middle;">
                         <span class="subtotal-lote" style="font-family: var(--font-mono); font-weight: 700; font-size: 0.82rem; color: #211813;">RD$ ${subtotal.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                     </td>
@@ -816,7 +834,7 @@ function renderizarContenedorProductos() {
 
 function dividirLote(productoId) {
     const item = MAPA_PRODUCTOS_RECEPCION.get(productoId);
-    if (!item) return;
+    if (!item || item.requiere_lote === false) return;
 
     item.lotes.push({
         cant: 1,
@@ -840,6 +858,7 @@ function alCambiarDatoLote(productoId) {
     const item = MAPA_PRODUCTOS_RECEPCION.get(productoId);
     if (!item) return;
 
+    const reqLote = item.requiere_lote !== false;
     const filas = document.querySelectorAll(`.fila-lote[data-producto-id="${productoId}"]`);
     const nuevosLotes = [];
 
@@ -852,8 +871,8 @@ function alCambiarDatoLote(productoId) {
         nuevosLotes.push({
             cant: parseInt(cantInp?.value || 0, 10) || 0,
             costo: parseFloat(costoInp?.value || 0) || 0,
-            lote: (numInp?.value || '').trim(),
-            venc: (vencInp?.value || '').trim()
+            lote: reqLote ? (numInp?.value || '').trim() : 'GENERICO - SIN LOTE',
+            venc: reqLote ? (vencInp?.value || '').trim() : '2099-12-31'
         });
     });
 
@@ -1083,6 +1102,7 @@ async function guardarRecepcion(event) {
     MAPA_PRODUCTOS_RECEPCION.forEach(item => {
         if (errorValidacion) return;
 
+        const reqLote = item.requiere_lote !== false;
         let totalRecibidoItem = 0;
         const lotesVistos = new Set();
 
@@ -1091,26 +1111,27 @@ async function guardarRecepcion(event) {
 
             const cant = parseInt(lot.cant || 0, 10);
             const costo = parseFloat(lot.costo || 0);
-            const numLote = (lot.lote || '').trim().toUpperCase();
-            const venc = (lot.venc || '').trim();
+            const numLote = reqLote ? (lot.lote || '').trim().toUpperCase() : 'GENERICO - SIN LOTE';
+            const venc = reqLote ? (lot.venc || '').trim() : '2099-12-31';
 
             if (cant > 0) {
                 totalRecibidoItem += cant;
 
-                if (!numLote) {
-                    errorValidacion = `El producto '${item.nombre}' tiene unidades a recibir pero le falta el número de lote.`;
-                    return;
-                }
+                if (reqLote) {
+                    if (!numLote) {
+                        errorValidacion = `El producto '${item.nombre}' requiere número de lote.`;
+                        return;
+                    }
+                    if (lotesVistos.has(numLote)) {
+                        errorValidacion = `El lote '${numLote}' está duplicado para el producto '${item.nombre}'. Cada lote debe ser único.`;
+                        return;
+                    }
+                    lotesVistos.add(numLote);
 
-                if (lotesVistos.has(numLote)) {
-                    errorValidacion = `El lote '${numLote}' está duplicado para el producto '${item.nombre}'. Cada lote debe ser único.`;
-                    return;
-                }
-                lotesVistos.add(numLote);
-
-                if (!venc) {
-                    errorValidacion = `Debe ingresar la fecha de vencimiento (FEFO) para el lote '${numLote}' de '${item.nombre}'.`;
-                    return;
+                    if (!venc) {
+                        errorValidacion = `Debe ingresar la fecha de vencimiento (FEFO) para el lote '${numLote}' de '${item.nombre}'.`;
+                        return;
+                    }
                 }
 
                 if (costo <= 0) {
@@ -1270,6 +1291,7 @@ async function verComprobanteRecepcion(recepcionId) {
             const cant = parseInt(d.cantidad_recibida_buena || 0, 10);
             const costo = parseFloat(d.costo_unitario_facturado || 0);
             const subtotal = parseFloat(d.subtotal_linea || 0);
+            const sinLote = !productoRequiereLote(d.requiere_lote) || d.numero_lote === 'GENERICO - SIN LOTE';
 
             totalUnidades += cant;
 
@@ -1279,8 +1301,10 @@ async function verComprobanteRecepcion(recepcionId) {
                         <strong>${d.producto_nombre}</strong><br />
                         <small style="color: var(--text-muted); font-family: var(--font-mono);">${d.sku}</small>
                     </td>
-                    <td style="font-family: var(--font-mono); font-weight: 700; color: var(--accent-gold);">${d.numero_lote}</td>
-                    <td>${d.fecha_vencimiento}</td>
+                    <td style="font-family: var(--font-mono); font-weight: 700; color: ${sinLote ? '#7a6b5d' : 'var(--accent-gold)'};">
+                        ${sinLote ? 'Sin lote (0)' : d.numero_lote}
+                    </td>
+                    <td>${sinLote ? '<span style="color: #8c8173; font-style: italic;">No aplica</span>' : d.fecha_vencimiento}</td>
                     <td class="text-center" style="font-family: var(--font-mono); font-weight: 600;">${cant}</td>
                     <td class="text-right" style="font-family: var(--font-mono);">RD$ ${costo.toFixed(2)}</td>
                     <td class="text-right" style="font-family: var(--font-mono); font-weight: 700;">RD$ ${subtotal.toFixed(2)}</td>

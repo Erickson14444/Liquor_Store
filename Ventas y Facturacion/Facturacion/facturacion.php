@@ -445,6 +445,116 @@ foreach ($secuenciasFiscales as $sec) {
       display: none;
     }
 
+    /* Notificaciones inteligentes de promociones elegibles */
+    .pos-promo-alerts-wrap {
+      display: none;
+      flex-direction: column;
+      gap: 8px;
+      margin-bottom: 12px;
+    }
+
+    .pos-promo-alert-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 10px;
+      padding: 9px 14px;
+      border-radius: 8px;
+      font-size: 0.84rem;
+      line-height: 1.35;
+    }
+
+    .pos-promo-alert-item.tipo-cross {
+      background: #fff8eb;
+      border: 1px solid #e6c280;
+      border-left: 4px solid #a66e2e;
+      color: #5a3818;
+    }
+
+    .pos-promo-alert-item.tipo-upsell {
+      background: #eef6ff;
+      border: 1px solid #b6d4fe;
+      border-left: 4px solid #1565c0;
+      color: #0d47a1;
+    }
+
+    .pos-promo-alert-item.tipo-cashback {
+      background: #f5f0ff;
+      border: 1px solid #d4c4fb;
+      border-left: 4px solid #6b21a8;
+      color: #4c1d95;
+    }
+
+    .pos-promo-alert-body {
+      display: flex;
+      align-items: center;
+      gap: 9px;
+      flex: 1;
+      min-width: 240px;
+    }
+
+    .pos-promo-alert-icon {
+      font-size: 1.1rem;
+      flex-shrink: 0;
+    }
+
+    .pos-promo-alert-badge {
+      display: inline-block;
+      font-size: 0.68rem;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 0.3px;
+      padding: 1px 6px;
+      border-radius: 4px;
+      margin-right: 6px;
+      background: rgba(0, 0, 0, 0.08);
+    }
+
+    .pos-promo-action-btn {
+      padding: 5px 12px;
+      font-size: 0.78rem;
+      font-weight: 700;
+      border-radius: 6px;
+      border: 1px solid transparent;
+      cursor: pointer;
+      white-space: nowrap;
+      transition: all 0.15s ease;
+    }
+
+    .pos-promo-alert-item.tipo-cross .pos-promo-action-btn {
+      background: #a66e2e;
+      color: #ffffff;
+      border-color: #8f5c23;
+    }
+
+    .pos-promo-alert-item.tipo-cross .pos-promo-action-btn:hover {
+      background: #8f5c23;
+      transform: translateY(-1px);
+    }
+
+    .pos-promo-alert-item.tipo-upsell .pos-promo-action-btn {
+      background: #1565c0;
+      color: #ffffff;
+      border-color: #0d47a1;
+    }
+
+    .pos-promo-alert-item.tipo-upsell .pos-promo-action-btn:hover {
+      background: #0d47a1;
+      transform: translateY(-1px);
+    }
+
+    .pos-promo-stock-warn {
+      font-size: 0.75rem;
+      font-weight: 700;
+      color: #b71c1c;
+      background: #ffebee;
+      border: 1px solid #ef9a9a;
+      padding: 3px 8px;
+      border-radius: 5px;
+      white-space: nowrap;
+    }
+
     .pos-stock-alert-banner {
       background: #ffebee;
       border: 1px solid #ef9a9a;
@@ -896,7 +1006,6 @@ foreach ($secuenciasFiscales as $sec) {
       </div>
 
       <!-- BARRA DE ESCÁNER + ALMACÉN POS + CUPÓN + CATÁLOGO -->
-      <!-- BARRA DE ESCÁNER + ALMACÉN POS + CUPÓN + CATÁLOGO -->
       <div class="pos-scanner-strip">
         <div class="form-group" style="margin-bottom: 0; min-width: 0;">
           <label for="inputScannerPos" class="form-label">ESCÁNER RÁPIDO (CÓDIGO DE BARRAS O SKU)</label>
@@ -945,7 +1054,7 @@ foreach ($secuenciasFiscales as $sec) {
         Cobro.
       </div>
 
-      <!-- BANNERS DINÁMICOS (DELIVERY, COTIZACIÓN, CASHBACK, ALERTAS STOCK) -->
+      <!-- BANNERS DINÁMICOS (DELIVERY, COTIZACIÓN, CASHBACK, SUGERENCIAS PROMO, ALERTAS STOCK) -->
       <div id="bannerPedidoDeliveryActivo" class="pos-delivery-summary-bar" style="display: none;">
         <div class="pos-delivery-summary-info">
           <span class="pos-delivery-badge-icon">🛵</span>
@@ -968,6 +1077,7 @@ foreach ($secuenciasFiscales as $sec) {
       </div>
 
       <div id="bannerCashbackPreview" class="pos-cashback-banner"></div>
+      <div id="bannerSugerenciasPromos" class="pos-promo-alerts-wrap"></div>
       <div id="bannerAlertasStock" class="pos-stock-alert-banner"></div>
 
       <!-- TABLA PRINCIPAL: DETALLE DE PARTIDAS EN CARRITO -->

@@ -113,6 +113,7 @@ if ($pdo) {
                        (SELECT descripcion_presentacion FROM inventario.producto_codigos_barra WHERE producto_maestro_id = pm.id ORDER BY factor_multiplicador ASC LIMIT 1),
                        pm.sku
                    ) AS nombre,
+                   pm.requiere_lote,
                    pm.costo_promedio,
                    pm.precio_base_unidad
             FROM inventario.productos_maestro pm

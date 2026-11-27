@@ -539,6 +539,72 @@ async function recalcularCarritoServidor() {
   }
 }
 
+/* ==========================================================================
+   NOTIFICACIONES INTELIGENTES DE PROMOCIONES ELEGIBLES / PRÓXIMAS
+   ========================================================================== */
+function renderizarSugerenciasPromos(sugerencias) {
+  const wrap = document.getElementById('bannerSugerenciasPromos');
+  if (!wrap) return;
+
+  if (!Array.isArray(sugerencias) || sugerencias.length === 0) {
+    wrap.style.display = 'none';
+    wrap.innerHTML = '';
+    return;
+  }
+
+  wrap.style.display = 'flex';
+  wrap.innerHTML = sugerencias.map((sug, idx) => {
+    const clase = ['tipo-cross', 'tipo-upsell', 'tipo-cashback'].includes(sug.clase_ui)
+      ? sug.clase_ui
+      : 'tipo-upsell';
+
+    let accionHtml = '';
+    if (sug.accion_tipo === 'AGREGAR_PRODUCTO' && sug.producto_maestro_id) {
+      if (sug.tiene_stock) {
+        accionHtml = `
+          <button type="button" class="pos-promo-action-btn" onclick="aplicarSugerenciaPromo(${idx})">
+            ${escaparHtml(sug.accion_texto || '+ Agregar')}
+          </button>
+        `;
+      } else {
+        accionHtml = `<span class="pos-promo-stock-warn">Sin stock en este almacén</span>`;
+      }
+    }
+
+    return `
+      <div class="pos-promo-alert-item ${clase}">
+        <div class="pos-promo-alert-body">
+          <span class="pos-promo-alert-icon">${escaparHtml(sug.icono || '🏷️')}</span>
+          <div>
+            <span class="pos-promo-alert-badge">${escaparHtml(sug.etiqueta || 'PROMOCIÓN')}</span>
+            <span>${escaparHtml(sug.mensaje || '')}</span>
+          </div>
+        </div>
+        ${accionHtml}
+      </div>
+    `;
+  }).join('');
+}
+
+function aplicarSugerenciaPromo(idx) {
+  const lista = Array.isArray(ultimoCalculo?.sugerencias_promos) ? ultimoCalculo.sugerencias_promos : [];
+  const sug = lista[idx];
+  if (!sug || sug.accion_tipo !== 'AGREGAR_PRODUCTO') return;
+
+  if (!sug.tiene_stock) {
+    mostrarToast('No hay stock suficiente en el almacén seleccionado para aplicar esta promoción.', 'error');
+    return;
+  }
+
+  const pmId = Number(sug.producto_maestro_id || 0);
+  const cbId = sug.codigo_barra_id ? Number(sug.codigo_barra_id) : null;
+  const cant = Math.max(1, Number(sug.cantidad_sugerida || 1));
+  if (pmId <= 0) return;
+
+  agregarItemCrudoAlCarrito(pmId, cbId, cant);
+  mostrarToast(`Promoción «${sug.nombre_promocion}»: producto agregado al carrito.`);
+}
+
 function renderizarCarritoDesdeCalculo(calc) {
   const tbody = document.getElementById('tbodyCarrito');
   const badge = document.getElementById('badgeArticulosCarrito');
@@ -560,6 +626,7 @@ function renderizarCarritoDesdeCalculo(calc) {
     if (btnLimp) btnLimp.style.display = 'none';
     if (banCb) banCb.style.display = 'none';
     if (banStock) banStock.style.display = 'none';
+    renderizarSugerenciasPromos([]);
     renderizarTotales(null);
     return;
   }
@@ -628,6 +695,8 @@ function renderizarCarritoDesdeCalculo(calc) {
       banCb.style.display = 'none';
     }
   }
+
+  renderizarSugerenciasPromos(calc.sugerencias_promos || []);
 
   if (banStock) {
     if (Array.isArray(calc.alertas_stock) && calc.alertas_stock.length > 0) {
@@ -1330,8 +1399,6 @@ function formatearTelefonoRapido(input) {
   else input.value = `(${d.slice(0, 3)}) ${d.slice(3, 6)}-${d.slice(6, 10)}`;
 }
 
-
-
 function calcularEdadExactaPos(fechaIso) {
   const partes = String(fechaIso || '').split('-').map(Number);
   if (partes.length !== 3 || partes.some(isNaN)) return null;
@@ -1344,7 +1411,6 @@ function calcularEdadExactaPos(fechaIso) {
   }
   return edad;
 }
-
 
 async function guardarClienteRapido(e) {
   e.preventDefault();
