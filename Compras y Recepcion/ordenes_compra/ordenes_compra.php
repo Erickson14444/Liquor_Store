@@ -189,6 +189,20 @@ $badgesEstado = [
             letter-spacing: 0.3px;
         }
 
+        #modalDetalleOrden .modal-box {
+            max-height: 90vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        #cuerpoDetalleOrden {
+            display: block !important;
+            flex: 1 1 auto;
+            min-height: 0;
+            max-height: calc(90vh - 130px) !important;
+            overflow-y: auto !important;
+        }
+
         .modal-xl {
             width: 96% !important;
             max-width: 1140px !important;
@@ -348,7 +362,7 @@ $badgesEstado = [
                     <div style="flex: 1; min-width: 220px;">
                         <label class="form-label">Buscar Orden o Proveedor</label>
                         <input type="text" id="inputBuscarTabla" class="form-control"
-                            placeholder="Escriba número de orden, RNC o proveedor..." oninput="filtrarTablaCliene()"
+                            placeholder="Escriba número de orden, RNC o proveedor..." oninput="filtrarTablaCliente()"
                             style="width: 350px" />
                     </div>
 
@@ -710,7 +724,7 @@ $badgesEstado = [
         const CATALOGO_PRODUCTOS = <?= json_encode($productos, JSON_UNESCAPED_UNICODE) ?>;
         window.PROVEEDORES_LISTA = <?= json_encode($proveedores, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>;
     </script>
-    <script src="ordenes_compra.js?v=48"></script>
+    <script src="ordenes_compra.js?v=49"></script>
 </body>
 
 </html>

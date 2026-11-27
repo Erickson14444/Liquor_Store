@@ -225,6 +225,9 @@ foreach ($secuenciasFiscales as $sec) {
       border-radius: 6px;
     }
 
+
+
+
     .btn-close:hover {
       color: #211813;
       background: rgba(0, 0, 0, 0.06);

@@ -883,16 +883,16 @@ async function abrirModalDetalle(ordenId) {
                     </span>
                 </div>
 
-                <div style="border: 1px solid #e2dacb; border-radius: 8px; overflow: hidden; background: #ffffff;">
+                <div style="border: 1px solid #e2dacb; border-radius: 8px; max-height: 260px; overflow-y: auto; overflow-x: auto; background: #ffffff;">
                     <table class="table-compacta-orden">
                         <thead>
                             <tr>
-                                <th style="width: 44%;">Producto</th>
-                                <th style="width: 13%; text-align: center;">Cant. Ordenada</th>
-                                <th style="width: 13%; text-align: center;">Cant. Recibida</th>
-                                <th style="width: 14%; text-align: center;">Cant. Pendiente</th>
-                                <th style="width: 16%; text-align: right;">Costo Pactado</th>
-                                <th style="width: 16%; text-align: right;">Subtotal Estimado</th>
+                                <th style="width: 34%;">Producto</th>
+                                <th style="width: 12%; text-align: center;">Cant. Ordenada</th>
+                                <th style="width: 12%; text-align: center;">Cant. Recibida</th>
+                                <th style="width: 12%; text-align: center;">Cant. Pendiente</th>
+                                <th style="width: 15%; text-align: right;">Costo Pactado</th>
+                                <th style="width: 15%; text-align: right;">Subtotal Estimado</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -923,17 +923,17 @@ async function abrirModalDetalle(ordenId) {
                     </span>
                 </div>
 
-                <div style="border: 1px solid #e2dacb; border-radius: 8px; overflow: hidden; background: #ffffff;">
+                <div style="border: 1px solid #e2dacb; border-radius: 8px; max-height: 220px; overflow-y: auto; overflow-x: auto; background: #ffffff;">
                     <table class="table-compacta-orden">
                         <thead>
                             <tr>
-                                <th style="width: 12%;"># Recepción</th>
-                                <th style="width: 18%;">N° Factura Física</th>
-                                <th style="width: 16%;">NCF Suplidor</th>
-                                <th style="width: 12%; text-align: center;">Condición</th>
-                                <th style="width: 20%;">Fecha Recepción</th>
-                                <th style="width: 12%; text-align: center;">Mercancía</th>
-                                <th style="width: 16%; text-align: right;">Monto Facturado</th>
+                                <th style="width: 10%;"># Recepción</th>
+                                <th style="width: 17%;">N° Factura Física</th>
+                                <th style="width: 15%;">NCF Suplidor</th>
+                                <th style="width: 11%; text-align: center;">Condición</th>
+                                <th style="width: 19%;">Fecha Recepción</th>
+                                <th style="width: 13%; text-align: center;">Mercancía</th>
+                                <th style="width: 15%; text-align: right;">Monto Facturado</th>
                             </tr>
                         </thead>
                         <tbody>
