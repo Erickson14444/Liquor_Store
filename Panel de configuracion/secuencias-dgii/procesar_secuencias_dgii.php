@@ -30,6 +30,21 @@ try {
             throw new Exception("Rango inválido: 'Hasta' y 'Actual' deben ser mayores o iguales a 'Desde' (> 0).");
         }
 
+        // Validación amigable antes de guardar: solo puede haber una secuencia ACTIVA por tipo de comprobante
+        if (strtoupper($estado) === 'ACTIVO') {
+            $sqlDup = "SELECT id FROM ventas.secuencias_fiscales_dgii WHERE tipo_comprobante = ? AND estado = 'ACTIVO'";
+            $paramsDup = [$tipo_comprobante];
+            if ($id) {
+                $sqlDup .= " AND id <> ?";
+                $paramsDup[] = $id;
+            }
+            $stmtDup = $pdo->prepare($sqlDup . " LIMIT 1");
+            $stmtDup->execute($paramsDup);
+            if ($stmtDup->fetchColumn()) {
+                throw new Exception("Ya existe una secuencia activa para {$tipo_comprobante}. Edítala o cámbiala a AGOTADO/VENCIDO primero.");
+            }
+        }
+
         // Ampliar restricción en BD si aún solo tenía B01..B04 para soportar todos los NCF de la DGII
         try {
             $pdo->exec("
@@ -62,6 +77,26 @@ try {
     }
 
     throw new Exception("Acción no reconocida.");
+} catch (PDOException $e) {
+    http_response_code(400);
+    $msgDb = $e->getMessage();
+    $code  = (string)$e->getCode();
+
+    if ($code === '23505' || stripos($msgDb, 'uk_secuencia_activa') !== false) {
+        $tipoLbl = !empty($tipo_comprobante) ? " para {$tipo_comprobante}" : '';
+        $mensaje = "Ya existe una secuencia activa{$tipoLbl}. Edítala o cámbiala a AGOTADO/VENCIDO primero.";
+    } elseif (stripos($msgDb, 'chk_secuencias_dgii_rango') !== false) {
+        $mensaje = "Rango inválido: 'Hasta' y 'Actual' deben ser mayores o iguales a 'Desde'.";
+    } elseif (stripos($msgDb, 'chk_secuencias_dgii_tipo') !== false) {
+        $mensaje = "Tipo de comprobante no permitido.";
+    } elseif (stripos($msgDb, 'chk_secuencias_dgii_estado') !== false) {
+        $mensaje = "Estado inválido (use ACTIVO, AGOTADO o VENCIDO).";
+    } else {
+        $mensaje = "No se pudo guardar la secuencia fiscal.";
+    }
+
+    echo json_encode(['status' => 'error', 'message' => $mensaje]);
+    exit;
 } catch (Exception $e) {
     http_response_code(400);
     echo json_encode(['status' => 'error', 'message' => $e->getMessage()]);

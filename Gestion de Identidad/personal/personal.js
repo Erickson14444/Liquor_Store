@@ -161,6 +161,10 @@ let pestanaActiva = new URLSearchParams(window.location.search).get('tab') === '
       if (p.nombre_razon_social) document.getElementById('emp_nombre_razon_social').value = p.nombre_razon_social;
       if (p.telefono_principal) document.getElementById('emp_telefono_principal').value = p.telefono_principal;
       if (p.email) document.getElementById('emp_email').value = p.email;
+      if (p.fecha_nacimiento) {
+        const fnEmp = document.getElementById('emp_fecha_nacimiento');
+        if (fnEmp) fnEmp.value = String(p.fecha_nacimiento).substring(0, 10);
+      }
       if (p.fecha_ingreso) document.getElementById('emp_fecha_ingreso').value = p.fecha_ingreso;
       if (p.estado_laboral) document.getElementById('emp_estado_laboral').value = p.estado_laboral;
 
@@ -240,6 +244,8 @@ let pestanaActiva = new URLSearchParams(window.location.search).get('tab') === '
       const codSugerido = 'EMP-' + String(count).padStart(3, '0');
       document.getElementById('emp_codigo_empleado').value = codSugerido;
       document.getElementById('emp_fecha_ingreso').value = new Date().toISOString().split('T')[0];
+      const fnEmpNew = document.getElementById('emp_fecha_nacimiento');
+      if (fnEmpNew) { fnEmpNew.value = ''; fnEmpNew.required = true; }
       document.getElementById('feedbackTercero').style.display = 'none';
 
       document.getElementById('btnGuardarEmpleado').textContent = 'Guardar Empleado';
@@ -265,6 +271,11 @@ let pestanaActiva = new URLSearchParams(window.location.search).get('tab') === '
       document.getElementById('emp_nombre_razon_social').value = emp.nombre_razon_social;
       document.getElementById('emp_telefono_principal').value = emp.telefono_principal || '';
       document.getElementById('emp_email').value = emp.email || '';
+      const fnEmpEdit = document.getElementById('emp_fecha_nacimiento');
+      if (fnEmpEdit) {
+        fnEmpEdit.value = emp.fecha_nacimiento ? String(emp.fecha_nacimiento).substring(0, 10) : '';
+        fnEmpEdit.required = false;
+      }
       document.getElementById('emp_fecha_ingreso').value = emp.fecha_ingreso || new Date().toISOString().split('T')[0];
       document.getElementById('emp_estado_laboral').value = emp.estado_laboral || 'ACTIVO';
       document.getElementById('feedbackTercero').style.display = 'none';
@@ -340,12 +351,23 @@ let pestanaActiva = new URLSearchParams(window.location.search).get('tab') === '
     // ------------------------------------------
     // GESTIÓN DE MODAL: REPARTIDOR DELIVERY
     // ------------------------------------------
+    function formatearPlacaRD(input) {
+      if (!input) return;
+      const raw = input.value.toUpperCase().replace(/[^A-Z0-9]/g, '');
+      if (!raw) { input.value = ''; return; }
+      const letra = raw[0].replace(/[^A-Z]/g, '');
+      const digitos = raw.slice(1).replace(/[^0-9]/g, '').slice(0, 6);
+      input.value = letra + digitos;
+    }
+
     function abrirModalRepartidor() {
       document.getElementById('formAccionRep').value = 'crear_repartidor';
       document.getElementById('modalTituloRepartidor').textContent = 'Asignar Nuevo Repartidor';
       document.getElementById('formRepartidor').reset();
 
+      document.getElementById('rep_empleado_id_hidden').value = '';
       document.getElementById('grupoSelectEmpleado').style.display = 'block';
+      document.getElementById('rep_empleado_id').disabled = false;
       document.getElementById('rep_empleado_id').required = true;
       document.getElementById('infoRepartidorEditando').style.display = 'none';
 
@@ -358,9 +380,10 @@ let pestanaActiva = new URLSearchParams(window.location.search).get('tab') === '
       document.getElementById('formAccionRep').value = 'editar_repartidor';
       document.getElementById('modalTituloRepartidor').textContent = 'Editar Repartidor (' + rep.codigo_empleado + ')';
       
+      document.getElementById('rep_empleado_id_hidden').value = rep.empleado_id;
       document.getElementById('grupoSelectEmpleado').style.display = 'none';
       document.getElementById('rep_empleado_id').required = false;
-      document.getElementById('rep_empleado_id').value = rep.empleado_id;
+      document.getElementById('rep_empleado_id').disabled = true;
 
       const infoBox = document.getElementById('infoRepartidorEditando');
       infoBox.style.display = 'block';
@@ -371,7 +394,8 @@ let pestanaActiva = new URLSearchParams(window.location.search).get('tab') === '
       document.getElementById('rep_telefono_principal').value = rep.telefono_principal || '';
       formatearTelefono(document.getElementById('rep_telefono_principal'));
       document.getElementById('rep_tipo_vehiculo').value = rep.tipo_vehiculo;
-      document.getElementById('rep_placa_vehiculo').value = rep.placa_vehiculo;
+      document.getElementById('rep_placa_vehiculo').value = rep.placa_vehiculo || '';
+      formatearPlacaRD(document.getElementById('rep_placa_vehiculo'));
       document.getElementById('rep_capacidad_pedidos').value = rep.capacidad_pedidos;
       document.getElementById('rep_estado_logistico').value = rep.estado_logistico;
 
@@ -391,8 +415,19 @@ let pestanaActiva = new URLSearchParams(window.location.search).get('tab') === '
 
     function guardarRepartidor(e) {
       e.preventDefault();
+      const placaInp = document.getElementById('rep_placa_vehiculo');
+      const placa = (placaInp?.value || '').trim().toUpperCase();
+      if (!/^[A-Z][0-9]{6}$/.test(placa)) {
+        mostrarToast('⚠️ La placa debe tener 1 letra seguida de 6 dígitos (ej. K031012).');
+        placaInp?.focus();
+        return;
+      }
+
       const form = document.getElementById('formRepartidor');
       const fd = new FormData(form);
+      if (document.getElementById('formAccionRep').value === 'editar_repartidor') {
+        fd.set('empleado_id', document.getElementById('rep_empleado_id_hidden').value);
+      }
       fd.append('format', 'json');
 
       const btn = document.getElementById('btnGuardarRepartidor');

@@ -146,6 +146,20 @@
       input.dataset.prevDigits = val;
     }
 
+    function ajustarTipoPersonaProveedor() {
+      const tp = document.getElementById('tipo_persona')?.value || 'JURIDICA';
+      const esEdicion = (document.getElementById('formAccion')?.value === 'editar');
+      const grp = document.getElementById('grupoFechaNacProv');
+      const inp = document.getElementById('fecha_nacimiento');
+      if (tp === 'FISICA') {
+        if (grp) grp.style.display = '';
+        if (inp) inp.required = !esEdicion;
+      } else {
+        if (grp) grp.style.display = 'none';
+        if (inp) { inp.required = false; inp.value = ''; }
+      }
+    }
+
     function aplicarMascaraDoc() {
       const tipo = document.getElementById('tipo_documento').value;
       const docInput = document.getElementById('documento_identidad');
@@ -158,7 +172,9 @@
         tipoPersona.value = 'FISICA';
       } else {
         docInput.placeholder = 'Pasaporte / Extranjero';
+        tipoPersona.value = 'FISICA';
       }
+      ajustarTipoPersonaProveedor();
       mascaraDoc(docInput);
     }
 
@@ -180,6 +196,11 @@
       if (p.telefono_principal || p.telefono) document.getElementById('telefono_principal').value = p.telefono_principal || p.telefono;
       if (p.email) document.getElementById('email').value = p.email;
       if (p.tipo_persona) document.getElementById('tipo_persona').value = p.tipo_persona;
+      ajustarTipoPersonaProveedor();
+      if (p.fecha_nacimiento) {
+        const fn = document.getElementById('fecha_nacimiento');
+        if (fn) fn.value = String(p.fecha_nacimiento).substring(0, 10);
+      }
       if (p.dias_credito_habitual !== undefined && p.dias_credito_habitual !== null) {
         document.getElementById('dias_credito_habitual').value = p.dias_credito_habitual;
       }
@@ -264,6 +285,8 @@
       document.getElementById('nombre_comercial').value = '';
       document.getElementById('telefono_principal').value = '';
       document.getElementById('email').value = '';
+      const fnP = document.getElementById('fecha_nacimiento');
+      if (fnP) fnP.value = '';
       document.getElementById('dias_credito_habitual').value = '30';
       marcarRetencionesProveedor([]);
       document.getElementById('terceroFeedback').style.display = 'none';
@@ -289,6 +312,9 @@
       marcarRetencionesProveedor(Array.isArray(prv.retenciones_ids) ? prv.retenciones_ids : []);
       document.getElementById('terceroFeedback').style.display = 'none';
 
+      ajustarTipoPersonaProveedor();
+      const fnPEdit = document.getElementById('fecha_nacimiento');
+      if (fnPEdit) fnPEdit.value = prv.fecha_nacimiento ? String(prv.fecha_nacimiento).substring(0, 10) : '';
       document.getElementById('modalProveedor').classList.add('open');
     }
 

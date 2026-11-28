@@ -266,6 +266,11 @@ $tipoMsg = $_GET['tipo'] ?? 'exito';
           </div>
 
           <div class="form-row-2">
+            <div class="form-group" id="grupoFechaNacimiento">
+              <label for="fecha_nacimiento" class="form-label">Fecha de Nacimiento (&ge; 18 años) *</label>
+              <input type="date" id="fecha_nacimiento" name="fecha_nacimiento" class="form-control"
+                max="<?= date('Y-m-d', strtotime('-18 years')) ?>" required />
+            </div>
             <div class="form-group">
               <label for="categoria_cliente" class="form-label">Categoría del Cliente *</label>
               <select id="categoria_cliente" name="categoria_cliente" class="form-control">
@@ -274,14 +279,15 @@ $tipoMsg = $_GET['tipo'] ?? 'exito';
                 <option value="MAYORISTA">MAYORISTA (Precios por caja/volumen)</option>
               </select>
             </div>
-            <div class="form-group" style="display: flex; flex-direction: column; justify-content: center;">
-              <label class="form-label"
-                style="display: flex; align-items: center; gap: 8px; cursor: pointer; margin-top: 14px;">
-                <input type="checkbox" id="permite_credito" name="permite_credito" value="1"
-                  onchange="toggleCreditoInput()" style="width: 18px; height: 18px; accent-color: #d4a359;" />
-                <span style="font-weight: 600;">¿Habilitar Crédito Operativo?</span>
-              </label>
-            </div>
+          </div>
+
+          <div class="form-group" style="display: flex; flex-direction: column; justify-content: center;">
+            <label class="form-label"
+              style="display: flex; align-items: center; gap: 8px; cursor: pointer; margin-top: 4px;">
+              <input type="checkbox" id="permite_credito" name="permite_credito" value="1"
+                onchange="toggleCreditoInput()" style="width: 18px; height: 18px; accent-color: #d4a359;" />
+              <span style="font-weight: 600;">¿Habilitar Crédito Operativo?</span>
+            </label>
           </div>
 
           <div class="form-group" id="grupoLimiteCredito" style="display: none;">
@@ -304,7 +310,7 @@ $tipoMsg = $_GET['tipo'] ?? 'exito';
 
   <div id="toast" class="toast"></div>
 
-  <script src="clientes.js?v=4"></script>
+  <script src="clientes.js?v=<?= time() ?>"></script>
 </body>
 
 </html>

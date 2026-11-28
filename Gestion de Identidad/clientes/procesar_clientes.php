@@ -146,10 +146,33 @@ try {
         $telefono         = trim($_POST['telefono_principal'] ?? $_POST['telefono'] ?? '');
         $email            = trim($_POST['email'] ?? '');
         $tipoPersona      = strtoupper(trim($_POST['tipo_persona'] ?? (($tipoDoc === 'RNC') ? 'JURIDICA' : 'FISICA')));
+        $fechaNacimiento  = trim($_POST['fecha_nacimiento'] ?? '');
         $categoriaCliente = strtoupper(trim($_POST['categoria_cliente'] ?? 'REGULAR'));
         $permiteCredito   = !empty($_POST['permite_credito']) ? true : false;
         $limiteCredito    = floatval($_POST['limite_credito'] ?? 0);
         $estadoPersona    = !empty($_POST['estado_persona']) ? filter_var($_POST['estado_persona'], FILTER_VALIDATE_BOOLEAN) : true;
+
+        // Validación de fecha de nacimiento (>= 18 años para Persona Física; obligatoria al crear, opcional al editar)
+        if ($tipoPersona === 'JURIDICA') {
+            $fechaNacimiento = null;
+        } else {
+            if ($fechaNacimiento === '') {
+                if ($accion === 'crear') {
+                    throw new Exception("La fecha de nacimiento es obligatoria para personas físicas (mayores de 18 años).");
+                }
+                $fechaNacimiento = null;
+            } else {
+                $dtNac = DateTimeImmutable::createFromFormat('Y-m-d', $fechaNacimiento);
+                $hoy   = new DateTimeImmutable('today');
+                if (!$dtNac || $dtNac->format('Y-m-d') !== $fechaNacimiento || $dtNac > $hoy) {
+                    throw new Exception("La fecha de nacimiento ingresada no es válida.");
+                }
+                $edad = $dtNac->diff($hoy)->y;
+                if ($edad < 18) {
+                    throw new Exception("No se puede registrar un menor de edad (edad calculada: {$edad} años). Debe tener al menos 18 años.");
+                }
+            }
+        }
 
         // Validaciones obligatorias
         if (empty($codigoCliente) || empty($numDoc) || empty($nombreRazon)) {
@@ -242,19 +265,20 @@ try {
                     UPDATE identidad.personas 
                     SET nombre_comercial = COALESCE(NULLIF(?, ''), nombre_comercial),
                         telefono_principal = COALESCE(NULLIF(?, ''), telefono_principal),
-                        email = COALESCE(NULLIF(?, ''), email)
+                        email = COALESCE(NULLIF(?, ''), email),
+                        fecha_nacimiento = COALESCE(?, fecha_nacimiento)
                     WHERE persona_id = ?
                 ");
-                $stmtUpPer->execute([$nombreComercial ?: $nombreRazon, $telefono, $email, $personaId]);
+                $stmtUpPer->execute([$nombreComercial ?: $nombreRazon, $telefono, $email, $fechaNacimiento, $personaId]);
             } else {
                 // Insertar nueva persona
                 $stmtInsPer = $pdo->prepare("
                     INSERT INTO identidad.personas 
-                    (persona_id, tipo_documento, documento_identidad, nombre_razon_social, nombre_comercial, telefono_principal, email, tipo_persona, estado) 
-                    VALUES (gen_random_uuid(), ?, ?, ?, ?, ?, ?, ?, true) 
+                    (persona_id, tipo_documento, documento_identidad, nombre_razon_social, nombre_comercial, telefono_principal, email, fecha_nacimiento, tipo_persona, estado) 
+                    VALUES (gen_random_uuid(), ?, ?, ?, ?, ?, ?, ?, ?, true) 
                     RETURNING persona_id
                 ");
-                $stmtInsPer->execute([$tipoDoc, $numDoc, $nombreRazon, $nombreComercial ?: $nombreRazon, $telefono, $email, $tipoPersona]);
+                $stmtInsPer->execute([$tipoDoc, $numDoc, $nombreRazon, $nombreComercial ?: $nombreRazon, $telefono, $email, $fechaNacimiento, $tipoPersona]);
                 $personaId = $stmtInsPer->fetchColumn();
             }
 
@@ -291,10 +315,12 @@ try {
                 $stmtUpPer = $pdo->prepare("
                     UPDATE identidad.personas 
                     SET tipo_documento = ?, documento_identidad = ?, nombre_razon_social = ?, 
-                        nombre_comercial = ?, telefono_principal = ?, email = ?, tipo_persona = ?, estado = ?
+                        nombre_comercial = ?, telefono_principal = ?, email = ?,
+                        fecha_nacimiento = CASE WHEN ? = 'JURIDICA' THEN NULL ELSE COALESCE(?, fecha_nacimiento) END,
+                        tipo_persona = ?, estado = ?
                     WHERE persona_id = ?
                 ");
-                $stmtUpPer->execute([$tipoDoc, $numDoc, $nombreRazon, $nombreComercial ?: $nombreRazon, $telefono, $email, $tipoPersona, $estadoPersona ? 'true' : 'false', $personaId]);
+                $stmtUpPer->execute([$tipoDoc, $numDoc, $nombreRazon, $nombreComercial ?: $nombreRazon, $telefono, $email, $tipoPersona, $fechaNacimiento, $tipoPersona, $estadoPersona ? 'true' : 'false', $personaId]);
             }
 
             // Actualizar cliente

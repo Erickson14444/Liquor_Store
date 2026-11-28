@@ -1,4 +1,4 @@
-﻿<?php
+<?php
 /**
  * Mantenimiento de Presentaciones y Códigos de Barra
  * House & Ice • Sistema Administrativo
@@ -12,14 +12,41 @@ $productosMaestros = [];
 if ($pdo) {
     try {
         $stmt = $pdo->query("
-            SELECT pcb.*, pm.sku, pm.precio_base_unidad
+            SELECT pcb.*,
+                   pm.sku,
+                   pm.precio_base_unidad,
+                   COALESCE(
+                       NULLIF(NULLIF(TRIM(pm.nombre), ''), 'Producto sin nombre asignado'),
+                       (SELECT pcb2.descripcion_presentacion
+                        FROM inventario.producto_codigos_barra pcb2
+                        WHERE pcb2.producto_maestro_id = pm.id
+                        ORDER BY pcb2.factor_multiplicador ASC
+                        LIMIT 1),
+                       pm.sku
+                   ) AS producto_nombre
             FROM inventario.producto_codigos_barra pcb
             JOIN inventario.productos_maestro pm ON pcb.producto_maestro_id = pm.id
             WHERE pm.id > 0
-            ORDER BY pm.sku ASC, pcb.factor_multiplicador ASC
+            ORDER BY producto_nombre ASC, pcb.factor_multiplicador ASC
         ");
         $presentaciones = $stmt->fetchAll(PDO::FETCH_ASSOC) ?: [];
-        $productosMaestros = $pdo->query("SELECT id, sku, precio_base_unidad FROM inventario.productos_maestro WHERE id > 0 ORDER BY sku ASC")->fetchAll(PDO::FETCH_ASSOC) ?: [];
+        $productosMaestros = $pdo->query("
+            SELECT pm.id,
+                   pm.sku,
+                   pm.precio_base_unidad,
+                   COALESCE(
+                       NULLIF(NULLIF(TRIM(pm.nombre), ''), 'Producto sin nombre asignado'),
+                       (SELECT pcb2.descripcion_presentacion
+                        FROM inventario.producto_codigos_barra pcb2
+                        WHERE pcb2.producto_maestro_id = pm.id
+                        ORDER BY pcb2.factor_multiplicador ASC
+                        LIMIT 1),
+                       pm.sku
+                   ) AS nombre
+            FROM inventario.productos_maestro pm
+            WHERE pm.id > 0
+            ORDER BY nombre ASC, pm.sku ASC
+        ")->fetchAll(PDO::FETCH_ASSOC) ?: [];
     } catch (Throwable $e) {}
 }
 
@@ -33,6 +60,145 @@ $tipoMsg = $_GET['tipo'] ?? 'exito';
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>House &amp; Ice • Presentaciones</title>
   <link rel="stylesheet" href="../styles.css?v=13" />
+  <style>
+    /* Selector buscable de Producto Maestro (estilo Órdenes de Compra) */
+    #modalPresentacion .modal-box {
+      overflow: visible;
+    }
+    #modalPresentacion .modal-body {
+      overflow: visible;
+    }
+    .pres-prod-picker {
+      position: relative;
+      width: 100%;
+    }
+    .pres-prod-input-wrap {
+      position: relative;
+    }
+    .pres-prod-search-icon {
+      position: absolute;
+      left: 10px;
+      top: 50%;
+      transform: translateY(-50%);
+      font-size: 0.85rem;
+      opacity: 0.65;
+      pointer-events: none;
+    }
+    #inputBuscarProductoMaestro {
+      width: 100%;
+      padding-left: 32px !important;
+      box-sizing: border-box;
+    }
+    .pres-prod-pill {
+      display: none;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      min-height: 36px;
+      padding: 5px 10px;
+      background: #fdf8ee;
+      border: 1.5px solid #d4a359;
+      border-radius: 6px;
+      box-sizing: border-box;
+    }
+    .pres-prod-pill-info {
+      min-width: 0;
+      flex: 1;
+    }
+    .pres-prod-pill-name {
+      font-size: 0.84rem;
+      font-weight: 700;
+      color: #211813;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .pres-prod-pill-sub {
+      font-size: 0.71rem;
+      color: #7a6b5d;
+      font-family: var(--font-mono, monospace);
+    }
+    .pres-prod-pill-btn {
+      background: #ffffff;
+      border: 1px solid #d8c6ae;
+      color: #6b441a;
+      border-radius: 5px;
+      padding: 3px 8px;
+      font-size: 0.72rem;
+      font-weight: 700;
+      cursor: pointer;
+      white-space: nowrap;
+      flex-shrink: 0;
+    }
+    .pres-prod-pill-btn:hover {
+      background: #f5ecde;
+      border-color: #a66e2e;
+    }
+    .pres-prod-dropdown {
+      display: none;
+      position: absolute;
+      top: calc(100% + 4px);
+      left: 0;
+      right: 0;
+      max-height: 250px;
+      overflow-y: auto;
+      background: #ffffff;
+      border: 1px solid #d4a359;
+      border-radius: 8px;
+      box-shadow: 0 12px 28px rgba(33, 24, 19, 0.18);
+      z-index: 2000;
+    }
+    .pres-prod-opt {
+      padding: 8px 12px;
+      cursor: pointer;
+      border-bottom: 1px solid #f2ebe1;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 10px;
+    }
+    .pres-prod-opt:last-child {
+      border-bottom: none;
+    }
+    .pres-prod-opt:hover,
+    .pres-prod-opt.active {
+      background: #fdf5ea;
+    }
+    .pres-prod-opt-name {
+      font-size: 0.84rem;
+      font-weight: 700;
+      color: #211813;
+      line-height: 1.25;
+    }
+    .pres-prod-opt-sku {
+      font-size: 0.72rem;
+      color: #8c8173;
+      font-family: var(--font-mono, monospace);
+      margin-top: 1px;
+    }
+    .pres-prod-opt-price {
+      font-size: 0.78rem;
+      font-weight: 700;
+      color: #a66e2e;
+      font-family: var(--font-mono, monospace);
+      white-space: nowrap;
+      flex-shrink: 0;
+    }
+    .pres-prod-empty {
+      padding: 12px;
+      text-align: center;
+      font-size: 0.8rem;
+      color: #8c8173;
+    }
+    .pres-prod-more {
+      padding: 6px 12px;
+      text-align: center;
+      font-size: 0.72rem;
+      color: #8c8173;
+      background: #faf7f2;
+      border-top: 1px solid #efe7da;
+    }
+  </style>
 </head>
 <body>
 
@@ -97,7 +263,7 @@ $tipoMsg = $_GET['tipo'] ?? 'exito';
             <input
               type="text"
               id="buscador"
-              placeholder="Buscar por código de barra, descripción o SKU..."
+              placeholder="Buscar por producto, descripción, barra o SKU..."
               oninput="filtrarTabla()"
             />
           </div>
@@ -108,7 +274,7 @@ $tipoMsg = $_GET['tipo'] ?? 'exito';
             <tr>
               <th>Código de Barra</th>
               <th>Descripción de la Presentación</th>
-              <th>Producto Maestro (SKU)</th>
+              <th>Producto Maestro</th>
               <th class="text-center">Factor Conversión</th>
               <th class="text-right">Precio de Venta</th>
               <th class="text-right">Acciones</th>
@@ -123,7 +289,7 @@ $tipoMsg = $_GET['tipo'] ?? 'exito';
               </tr>
             <?php else: ?>
               <?php foreach ($presentaciones as $pres): ?>
-                <tr class="fila-presentacion" data-texto="<?= strtolower(htmlspecialchars($pres['codigo_barra'] . ' ' . $pres['descripcion_presentacion'] . ' ' . $pres['sku'])) ?>">
+                <tr class="fila-presentacion" data-texto="<?= strtolower(htmlspecialchars($pres['codigo_barra'] . ' ' . $pres['descripcion_presentacion'] . ' ' . $pres['producto_nombre'] . ' ' . $pres['sku'])) ?>">
                   <td>
                     <strong style="color: #a66e2e; font-family: monospace; font-size: 0.95em;">
                       <?= htmlspecialchars($pres['codigo_barra']) ?>
@@ -133,7 +299,8 @@ $tipoMsg = $_GET['tipo'] ?? 'exito';
                     <div style="font-weight: 600; color: #211813;"><?= htmlspecialchars($pres['descripcion_presentacion']) ?></div>
                   </td>
                   <td>
-                    <span class="badge" style="background: #eadecd; color: #5a3818;"><?= htmlspecialchars($pres['sku']) ?></span>
+                    <div style="font-weight: 600; color: #211813; font-size: 0.85rem; line-height: 1.25;"><?= htmlspecialchars($pres['producto_nombre']) ?></div>
+                    <span class="badge" style="background: #f3ece1; color: #6b441a; font-family: monospace; font-size: 0.7rem; margin-top: 2px;"><?= htmlspecialchars($pres['sku']) ?></span>
                   </td>
                   <td class="text-center">
                     <span style="font-weight: bold; color: #211813;">x<?= intval($pres['factor_multiplicador']) ?> <?= ($pres['factor_multiplicador'] == 1) ? 'Unidad' : 'Unidades' ?></span>
@@ -172,14 +339,35 @@ $tipoMsg = $_GET['tipo'] ?? 'exito';
         <div class="modal-body">
           <div class="form-row-2">
             <div class="form-group">
-              <label for="producto_maestro_id" class="form-label">Producto Maestro *</label>
-              <select id="producto_maestro_id" name="producto_maestro_id" class="form-control" required onchange="actualizarPrecioSugerido()">
-                <?php foreach ($productosMaestros as $pm): ?>
-                  <option value="<?= $pm['id'] ?>" data-precio="<?= $pm['precio_base_unidad'] ?>">
-                    <?= htmlspecialchars($pm['sku']) ?> (Base: $<?= number_format($pm['precio_base_unidad'], 2) ?>)
-                  </option>
-                <?php endforeach; ?>
-              </select>
+              <label for="inputBuscarProductoMaestro" class="form-label">Producto Maestro *</label>
+              <div class="pres-prod-picker" id="presProdPicker">
+                <input type="hidden" id="producto_maestro_id" name="producto_maestro_id" value="" />
+
+                <div id="presProdPill" class="pres-prod-pill">
+                  <div class="pres-prod-pill-info">
+                    <div id="presProdPillName" class="pres-prod-pill-name"></div>
+                    <div id="presProdPillSub" class="pres-prod-pill-sub"></div>
+                  </div>
+                  <button type="button" class="pres-prod-pill-btn" onclick="limpiarProductoMaestro(true)">✕ Cambiar</button>
+                </div>
+
+                <div id="presProdInputWrap" class="pres-prod-input-wrap">
+                  <span class="pres-prod-search-icon">🔍</span>
+                  <input
+                    type="text"
+                    id="inputBuscarProductoMaestro"
+                    class="form-control"
+                    autocomplete="off"
+                    placeholder="Buscar producto por nombre o SKU..."
+                    onfocus="filtrarProductosMaestro()"
+                    oninput="filtrarProductosMaestro()"
+                    onkeydown="teclaProductoMaestro(event)"
+                  />
+                </div>
+
+                <div id="dropdownProductosMaestros" class="pres-prod-dropdown"></div>
+              </div>
+              <small id="errorProductoMaestro" style="display: none; color: var(--accent-danger); font-size: 0.76rem; font-weight: 600; margin-top: 3px;"></small>
             </div>
             <div class="form-group">
               <label for="codigo_barra" class="form-label">Código de Barra (EAN-13 / UPC) *</label>
@@ -250,6 +438,9 @@ $tipoMsg = $_GET['tipo'] ?? 'exito';
 
   <div id="toast" class="toast"></div>
 
-    <script src="presentaciones.js"></script>
+  <script>
+    const PRODUCTOS_MAESTROS_LISTA = <?= json_encode($productosMaestros, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE) ?>;
+  </script>
+  <script src="presentaciones.js?v=2"></script>
 </body>
 </html>

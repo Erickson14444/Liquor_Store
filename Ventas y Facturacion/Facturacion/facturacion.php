@@ -1585,7 +1585,8 @@ foreach ($secuenciasFiscales as $sec) {
             <div class="form-group">
               <label for="cliDocumento" class="form-label">Número de Documento *</label>
               <input type="text" id="cliDocumento" class="form-control" required placeholder="001-1234567-8"
-                maxlength="13" oninput="aplicarMascaraDocClienteRapido()" />
+                maxlength="13" oninput="aplicarMascaraDocClienteRapido()" onblur="buscarPersonaClienteRapidoPos()" />
+              <small id="cliPosPersonaFeedback" style="display: none; color: #2e7d52; font-weight: 600; font-size: 0.72rem; margin-top: 3px;"></small>
             </div>
           </div>
           <div class="form-group">
@@ -1599,9 +1600,9 @@ foreach ($secuenciasFiscales as $sec) {
               <input type="text" id="cliTelefono" class="form-control" placeholder="(809) 555-0101" maxlength="14"
                 oninput="formatearTelefonoRapido(this)" />
             </div>
-            <div class="form-group">
-              <label for="cliFechaNac" class="form-label">F. Nacimiento (&ge;18)</label>
-              <input type="date" id="cliFechaNac" class="form-control"
+            <div class="form-group" id="grupoCliFechaNacPos">
+              <label for="cliFechaNac" class="form-label">F. Nacimiento (&ge;18) *</label>
+              <input type="date" id="cliFechaNac" class="form-control" required
                 max="<?= date('Y-m-d', strtotime('-18 years')) ?>" />
             </div>
             <div class="form-group">

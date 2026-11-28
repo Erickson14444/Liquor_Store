@@ -147,10 +147,29 @@ try {
         $documento      = trim($_POST['documento_identidad'] ?? '');
         $nombreRazon    = trim($_POST['nombre_razon_social'] ?? '');
         $cargo          = trim($_POST['cargo'] ?? 'Cajero POS');
-        $fechaIngreso   = !empty($_POST['fecha_ingreso']) ? trim($_POST['fecha_ingreso']) : date('Y-m-d');
-        $telefono       = trim($_POST['telefono_principal'] ?? '');
-        $email          = trim($_POST['email'] ?? '');
-        $estadoLaboral  = trim($_POST['estado_laboral'] ?? 'ACTIVO');
+        $fechaIngreso    = !empty($_POST['fecha_ingreso']) ? trim($_POST['fecha_ingreso']) : date('Y-m-d');
+        $fechaNacimiento = trim($_POST['fecha_nacimiento'] ?? '');
+        $telefono        = trim($_POST['telefono_principal'] ?? '');
+        $email           = trim($_POST['email'] ?? '');
+        $estadoLaboral   = trim($_POST['estado_laboral'] ?? 'ACTIVO');
+
+        // Validación de fecha de nacimiento (>= 18 años; obligatoria al crear, opcional al editar registros previos)
+        if ($fechaNacimiento === '') {
+            if ($accion === 'crear_empleado') {
+                throw new Exception("La fecha de nacimiento es obligatoria para registrar al empleado (mayor de 18 años).");
+            }
+            $fechaNacimiento = null;
+        } else {
+            $dtNac = DateTimeImmutable::createFromFormat('Y-m-d', $fechaNacimiento);
+            $hoy   = new DateTimeImmutable('today');
+            if (!$dtNac || $dtNac->format('Y-m-d') !== $fechaNacimiento || $dtNac > $hoy) {
+                throw new Exception("La fecha de nacimiento ingresada no es válida.");
+            }
+            $edad = $dtNac->diff($hoy)->y;
+            if ($edad < 18) {
+                throw new Exception("No se puede registrar un empleado menor de edad (edad calculada: {$edad} años). Debe tener al menos 18 años.");
+            }
+        }
 
         // Validaciones requeridas
         if (empty($codigoEmpleado) || empty($documento) || empty($nombreRazon) || empty($cargo)) {
@@ -235,23 +254,24 @@ try {
                     throw new Exception("Esta persona ya está registrada como empleado con el código '{$codExistente}'.");
                 }
 
-                // Reutilizar persona sin crear registro nuevo (solo completar teléfono/email si estaban vacíos)
+                // Reutilizar persona sin crear registro nuevo (solo completar teléfono/email/fecha_nacimiento si estaban vacíos)
                 $stmtUpPer = $pdo->prepare("
                     UPDATE identidad.personas 
                     SET telefono_principal = COALESCE(NULLIF(?, ''), telefono_principal),
-                        email = COALESCE(NULLIF(?, ''), email)
+                        email = COALESCE(NULLIF(?, ''), email),
+                        fecha_nacimiento = COALESCE(?, fecha_nacimiento)
                     WHERE persona_id = ?
                 ");
-                $stmtUpPer->execute([$telefono, $email, $personaId]);
+                $stmtUpPer->execute([$telefono, $email, $fechaNacimiento, $personaId]);
             } else {
                 // Insertar nueva persona únicamente si NO existe en identidad.personas
                 $stmtInsPer = $pdo->prepare("
                     INSERT INTO identidad.personas 
-                    (persona_id, tipo_documento, documento_identidad, nombre_razon_social, telefono_principal, email, tipo_persona, estado) 
-                    VALUES (gen_random_uuid(), ?, ?, ?, ?, ?, 'FISICA', true) 
+                    (persona_id, tipo_documento, documento_identidad, nombre_razon_social, telefono_principal, email, fecha_nacimiento, tipo_persona, estado) 
+                    VALUES (gen_random_uuid(), ?, ?, ?, ?, ?, ?, 'FISICA', true) 
                     RETURNING persona_id
                 ");
-                $stmtInsPer->execute([$tipoDocumento, $documento, $nombreRazon, $telefono, $email]);
+                $stmtInsPer->execute([$tipoDocumento, $documento, $nombreRazon, $telefono, $email, $fechaNacimiento]);
                 $personaId = $stmtInsPer->fetchColumn();
             }
 
@@ -291,10 +311,11 @@ try {
                 $stmtUpPer = $pdo->prepare("
                     UPDATE identidad.personas 
                     SET tipo_documento = ?, documento_identidad = ?, nombre_razon_social = ?, 
-                        telefono_principal = ?, email = ?
+                        telefono_principal = ?, email = ?,
+                        fecha_nacimiento = COALESCE(?, fecha_nacimiento)
                     WHERE persona_id = ?
                 ");
-                $stmtUpPer->execute([$tipoDocumento, $documento, $nombreRazon, $telefono, $email, $personaId]);
+                $stmtUpPer->execute([$tipoDocumento, $documento, $nombreRazon, $telefono, $email, $fechaNacimiento, $personaId]);
             }
 
             // Actualizar empleado
@@ -331,7 +352,7 @@ try {
     // ACCIÓN 3: CREAR O EDITAR REPARTIDOR DELIVERY
     // ========================================================================
     if ($accion === 'crear_repartidor' || $accion === 'editar_repartidor') {
-        $empleadoId       = trim($_POST['empleado_id'] ?? '');
+        $empleadoId       = trim($_POST['empleado_id'] ?? $_POST['empleado_id_edit'] ?? '');
         $numeroLicencia   = strtoupper(trim($_POST['numero_licencia'] ?? ''));
         $telefonoRep      = trim($_POST['telefono_principal'] ?? '');
         $tipoVehiculo     = strtoupper(trim($_POST['tipo_vehiculo'] ?? 'MOTOCICLETA'));
@@ -363,6 +384,9 @@ try {
 
         if (empty($placaVehiculo)) {
             throw new Exception("La placa del vehículo asignado es obligatoria.");
+        }
+        if (!preg_match('/^[A-Z][0-9]{6}$/', $placaVehiculo)) {
+            throw new Exception("La placa debe tener 1 letra seguida de 6 dígitos (7 caracteres, ej. K031012).");
         }
         if ($capacidadPedidos < 1) {
             $capacidadPedidos = 1;

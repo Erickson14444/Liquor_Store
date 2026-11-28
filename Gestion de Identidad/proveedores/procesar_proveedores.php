@@ -172,6 +172,28 @@ try {
         $telefono        = trim($_POST['telefono_principal'] ?? $_POST['telefono_contacto'] ?? $_POST['telefono'] ?? '');
         $email           = trim($_POST['email'] ?? $_POST['email_contacto'] ?? '');
         $tipoPersona     = strtoupper(trim($_POST['tipo_persona'] ?? (($tipoDoc === 'RNC') ? 'JURIDICA' : 'FISICA')));
+        $fechaNacimiento = trim($_POST['fecha_nacimiento'] ?? '');
+
+        if ($tipoPersona === 'JURIDICA') {
+            $fechaNacimiento = null;
+        } else {
+            if ($fechaNacimiento === '') {
+                if ($accion === 'crear') {
+                    throw new Exception("La fecha de nacimiento es obligatoria para proveedores persona física (mayores de 18 años).");
+                }
+                $fechaNacimiento = null;
+            } else {
+                $dtNac = DateTimeImmutable::createFromFormat('Y-m-d', $fechaNacimiento);
+                $hoy   = new DateTimeImmutable('today');
+                if (!$dtNac || $dtNac->format('Y-m-d') !== $fechaNacimiento || $dtNac > $hoy) {
+                    throw new Exception("La fecha de nacimiento ingresada no es válida.");
+                }
+                $edad = $dtNac->diff($hoy)->y;
+                if ($edad < 18) {
+                    throw new Exception("El proveedor persona física debe ser mayor de 18 años (edad calculada: {$edad} años).");
+                }
+            }
+        }
         
         $diasCreditoRaw  = trim((string)($_POST['dias_credito_habitual'] ?? '30'));
         if ($diasCreditoRaw === '' || !preg_match('/^\d+$/', $diasCreditoRaw)) {
@@ -270,21 +292,24 @@ try {
                 UPDATE identidad.personas
                 SET nombre_comercial = COALESCE(NULLIF(?, ''), nombre_comercial),
                     telefono_principal = COALESCE(NULLIF(?, ''), telefono_principal),
-                    email = COALESCE(NULLIF(?, ''), email)
+                    email = COALESCE(NULLIF(?, ''), email),
+                    fecha_nacimiento = CASE WHEN ? = 'JURIDICA' THEN NULL ELSE COALESCE(?, fecha_nacimiento) END
                 WHERE persona_id = ?
             ");
             $stmtUpdPer->execute([
                 $nombreComercial ?: $razonSocial,
                 $telefono,
                 $email,
+                $tipoPersona,
+                $fechaNacimiento,
                 $personaId
             ]);
         } else {
             // Insertar nuevo tercero
             $stmtInsPer = $pdo->prepare("
                 INSERT INTO identidad.personas 
-                (persona_id, documento_identidad, tipo_documento, nombre_razon_social, nombre_comercial, tipo_persona, telefono_principal, email, estado)
-                VALUES (gen_random_uuid(), ?, ?, ?, ?, ?, ?, ?, true)
+                (persona_id, documento_identidad, tipo_documento, nombre_razon_social, nombre_comercial, tipo_persona, telefono_principal, email, fecha_nacimiento, estado)
+                VALUES (gen_random_uuid(), ?, ?, ?, ?, ?, ?, ?, ?, true)
                 RETURNING persona_id
             ");
             $stmtInsPer->execute([
@@ -294,7 +319,8 @@ try {
                 $nombreComercial ?: $razonSocial,
                 $tipoPersona,
                 $telefono,
-                $email
+                $email,
+                $fechaNacimiento
             ]);
             $personaId = $stmtInsPer->fetchColumn();
         }

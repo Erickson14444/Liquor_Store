@@ -1317,7 +1317,11 @@ function abrirModalCotizaciones() { abrirModal('modalImportarCotizacion'); }
 function abrirModalHistorial() { abrirModal('modalHistorialFacturas'); }
 function abrirModalNuevoCliente() {
   document.getElementById('formClienteRapido')?.reset();
+  const fb = document.getElementById('cliPosPersonaFeedback');
+  if (fb) { fb.style.display = 'none'; fb.textContent = ''; }
+  aplicarMascaraDocClienteRapido();
   abrirModal('modalNuevoClienteRapido');
+  setTimeout(() => document.getElementById('cliDocumento')?.focus(), 60);
 }
 
 async function cargarCotizacionEnCarrito(cotizacionId) {
@@ -1370,25 +1374,84 @@ function desvincularCotizacion() {
   if (b) b.style.display = 'none';
 }
 
+let TIMER_BUSCAR_PER_POS = null;
+
 function aplicarMascaraDocClienteRapido() {
   const tipo = document.getElementById('cliTipoDoc')?.value || 'CEDULA';
   const inp = document.getElementById('cliDocumento');
+  const grpNac = document.getElementById('grupoCliFechaNacPos');
+  const inpNac = document.getElementById('cliFechaNac');
+
+  if (tipo === 'RNC') {
+    if (grpNac) grpNac.style.display = 'none';
+    if (inpNac) { inpNac.required = false; inpNac.value = ''; }
+  } else {
+    if (grpNac) grpNac.style.display = '';
+    if (inpNac) inpNac.required = true;
+  }
+
   if (!inp) return;
   if (tipo === 'PASAPORTE') {
     inp.maxLength = 20;
     inp.value = inp.value.replace(/[^a-zA-Z0-9-]/g, '').toUpperCase();
+  } else {
+    const dig = inp.value.replace(/\D/g, '');
+    if (tipo === 'RNC') {
+      inp.maxLength = 11;
+      const d = dig.slice(0, 9);
+      inp.value = d.length > 8 ? `${d.slice(0, 3)}-${d.slice(3, 8)}-${d.slice(8, 9)}` : (d.length > 3 ? `${d.slice(0, 3)}-${d.slice(3)}` : d);
+    } else {
+      inp.maxLength = 13;
+      const d = dig.slice(0, 11);
+      inp.value = d.length > 10 ? `${d.slice(0, 3)}-${d.slice(3, 10)}-${d.slice(10, 11)}` : (d.length > 3 ? `${d.slice(0, 3)}-${d.slice(3)}` : d);
+    }
+  }
+
+  const limpio = inp.value.replace(/[^0-9A-Za-z]/g, '');
+  const listo = (tipo === 'CEDULA' && limpio.length === 11) || (tipo === 'RNC' && limpio.length === 9) || (tipo === 'PASAPORTE' && limpio.length >= 6);
+  if (listo) {
+    clearTimeout(TIMER_BUSCAR_PER_POS);
+    TIMER_BUSCAR_PER_POS = setTimeout(buscarPersonaClienteRapidoPos, 280);
+  }
+}
+
+async function buscarPersonaClienteRapidoPos() {
+  const doc = (document.getElementById('cliDocumento')?.value || '').trim();
+  const limpio = doc.replace(/[^0-9A-Za-z]/g, '');
+  const fb = document.getElementById('cliPosPersonaFeedback');
+  if (limpio.length < 6) {
+    if (fb) fb.style.display = 'none';
     return;
   }
-  const dig = inp.value.replace(/\D/g, '');
-  if (tipo === 'RNC') {
-    inp.maxLength = 11;
-    const d = dig.slice(0, 9);
-    inp.value = d.length > 8 ? `${d.slice(0, 3)}-${d.slice(3, 8)}-${d.slice(8, 9)}` : (d.length > 3 ? `${d.slice(0, 3)}-${d.slice(3)}` : d);
-  } else {
-    inp.maxLength = 13;
-    const d = dig.slice(0, 11);
-    inp.value = d.length > 10 ? `${d.slice(0, 3)}-${d.slice(3, 10)}-${d.slice(10, 11)}` : (d.length > 3 ? `${d.slice(0, 3)}-${d.slice(3)}` : d);
-  }
+  try {
+    const res = await fetch('../../Gestion de Identidad/clientes/procesar_clientes.php?documento=' + encodeURIComponent(doc));
+    const data = await res.json();
+    if (!data.encontrado || !data.persona) {
+      if (fb) fb.style.display = 'none';
+      return;
+    }
+    const p = data.persona;
+    if (p.nombre_razon_social) document.getElementById('cliNombre').value = p.nombre_razon_social;
+    if (p.telefono_principal) {
+      const t = document.getElementById('cliTelefono');
+      t.value = p.telefono_principal;
+      formatearTelefonoRapido(t);
+    }
+    if (p.fecha_nacimiento) {
+      const fn = document.getElementById('cliFechaNac');
+      if (fn) fn.value = String(p.fecha_nacimiento).substring(0, 10);
+    }
+    if (p.categoria_cliente) {
+      const cat = document.getElementById('cliCategoria');
+      if (cat) cat.value = p.categoria_cliente;
+    }
+    if (fb) {
+      fb.textContent = p.codigo_cliente
+        ? `✓ Cliente existente (${p.codigo_cliente}). Datos cargados.`
+        : '✓ Persona localizada en directorio. Datos y fecha de nacimiento cargados.';
+      fb.style.display = 'block';
+    }
+  } catch (err) {}
 }
 
 function formatearTelefonoRapido(input) {
@@ -1417,7 +1480,12 @@ async function guardarClienteRapido(e) {
   const tipoDoc = document.getElementById('cliTipoDoc').value;
   const fechaNac = (document.getElementById('cliFechaNac').value || '').trim();
 
-  if (tipoDoc !== 'RNC' && fechaNac !== '') {
+  if (tipoDoc !== 'RNC') {
+    if (fechaNac === '') {
+      mostrarToast('La fecha de nacimiento es obligatoria para personas físicas (mayores de 18 años).', 'error');
+      document.getElementById('cliFechaNac')?.focus();
+      return;
+    }
     const edad = calcularEdadExactaPos(fechaNac);
     if (edad === null || edad < 0) {
       mostrarToast('La fecha de nacimiento ingresada no es válida.', 'error');

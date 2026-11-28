@@ -1510,7 +1510,10 @@ try {
 
         $tipoPersona = ($tipoDocumento === 'RNC') ? 'JURIDICA' : 'FISICA';
 
-        if ($fechaNac !== '' && $tipoPersona === 'FISICA') {
+        if ($tipoPersona === 'FISICA') {
+            if ($fechaNac === '') {
+                throw new Exception('La fecha de nacimiento es obligatoria para clientes persona física (mayores de 18 años).');
+            }
             if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $fechaNac)) {
                 throw new Exception('El formato de la fecha de nacimiento no es válido.');
             }
@@ -1523,12 +1526,20 @@ try {
             if ($edad < 18) {
                 throw new Exception("No se puede registrar al cliente: debe ser mayor de 18 años (edad calculada: {$edad} años).");
             }
+        } else {
+            $fechaNac = '';
         }
 
         $pdo->beginTransaction();
 
-        $stmtPer = $pdo->prepare("SELECT persona_id FROM identidad.personas WHERE documento_identidad = ? LIMIT 1");
-        $stmtPer->execute([$documento]);
+        $docLimpio = preg_replace('/[\s\-\.]+/', '', $documento);
+        $stmtPer = $pdo->prepare("
+            SELECT persona_id FROM identidad.personas
+            WHERE UPPER(REPLACE(REPLACE(documento_identidad, '-', ''), ' ', '')) = UPPER(?)
+               OR UPPER(documento_identidad) = UPPER(?)
+            LIMIT 1
+        ");
+        $stmtPer->execute([$docLimpio, $documento]);
         $personaId = $stmtPer->fetchColumn();
 
         if ($personaId) {
@@ -1536,6 +1547,10 @@ try {
             $stmtChkCli->execute([$personaId]);
             if ($stmtChkCli->fetchColumn()) {
                 throw new Exception('Este cliente ya se encuentra registrado en el sistema.');
+            }
+            if ($fechaNac !== '' && $tipoPersona === 'FISICA') {
+                $pdo->prepare("UPDATE identidad.personas SET fecha_nacimiento = COALESCE(fecha_nacimiento, ?) WHERE persona_id = ?")
+                    ->execute([$fechaNac, $personaId]);
             }
         } else {
             $stmtInsPer = $pdo->prepare("

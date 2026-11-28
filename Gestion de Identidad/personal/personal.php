@@ -25,7 +25,7 @@ if ($pdo) {
             SELECT e.empleado_id, e.persona_id, e.codigo_empleado, e.cargo, 
                    e.fecha_ingreso, e.estado_laboral, e.creado_en,
                    p.tipo_documento, p.documento_identidad, p.nombre_razon_social, 
-                   p.nombre_comercial, p.email, p.telefono_principal, p.tipo_persona,
+                   p.nombre_comercial, p.email, p.telefono_principal, p.fecha_nacimiento, p.tipo_persona,
                    (SELECT COUNT(*) FROM identidad.repartidores r WHERE r.empleado_id = e.empleado_id) AS es_repartidor
             FROM identidad.empleados e
             JOIN identidad.personas p ON e.persona_id = p.persona_id
@@ -394,10 +394,17 @@ $tipoMsg = $_GET['tipo'] ?? 'exito';
             </div>
           </div>
 
-          <div class="form-group">
-            <label for="emp_nombre_razon_social" class="form-label">Nombre Completo *</label>
-            <input type="text" id="emp_nombre_razon_social" name="nombre_razon_social" class="form-control" required
-              placeholder="Ej. Juan Carlos Pérez Morales" onblur="verificarTerceroPorNombre(this.value)" />
+          <div class="form-row-2">
+            <div class="form-group">
+              <label for="emp_nombre_razon_social" class="form-label">Nombre Completo *</label>
+              <input type="text" id="emp_nombre_razon_social" name="nombre_razon_social" class="form-control" required
+                placeholder="Ej. Juan Carlos Pérez Morales" onblur="verificarTerceroPorNombre(this.value)" />
+            </div>
+            <div class="form-group">
+              <label for="emp_fecha_nacimiento" class="form-label">Fecha de Nacimiento (&ge; 18 años) *</label>
+              <input type="date" id="emp_fecha_nacimiento" name="fecha_nacimiento" class="form-control"
+                max="<?= date('Y-m-d', strtotime('-18 years')) ?>" required />
+            </div>
           </div>
 
           <div class="form-row-2">
@@ -453,6 +460,7 @@ $tipoMsg = $_GET['tipo'] ?? 'exito';
       <form id="formRepartidor" onsubmit="guardarRepartidor(event)">
         <input type="hidden" name="accion" id="formAccionRep" value="crear_repartidor" />
         <input type="hidden" name="tab" value="repartidores" />
+        <input type="hidden" name="empleado_id_edit" id="rep_empleado_id_hidden" value="" />
 
         <div class="modal-body">
           <div class="form-group" id="grupoSelectEmpleado">
@@ -508,8 +516,9 @@ $tipoMsg = $_GET['tipo'] ?? 'exito';
             <div class="form-group">
               <label for="rep_placa_vehiculo" class="form-label">Placa del Vehículo *</label>
               <input type="text" id="rep_placa_vehiculo" name="placa_vehiculo" class="form-control" required
-                maxlength="10" placeholder="Ej. K0123456" style="text-transform: uppercase;"
-                oninput="this.value = this.value.toUpperCase().replace(/[^A-Z0-9]/g, '')" />
+                maxlength="7" placeholder="Ej. K031012" style="text-transform: uppercase; font-family: monospace; font-weight: 700;"
+                oninput="formatearPlacaRD(this)" />
+              <small style="color: #8e8071; font-size: 0.74rem;">1 letra + 6 dígitos (ej. K031012, A123456)</small>
             </div>
           </div>
 
@@ -544,7 +553,7 @@ $tipoMsg = $_GET['tipo'] ?? 'exito';
   <!-- TOAST DE NOTIFICACIONES -->
   <div id="toast" class="toast"></div>
 
-  <script src="personal.js?v=4"></script>
+  <script src="personal.js?v=<?= time() ?>"></script>
 </body>
 
 </html>

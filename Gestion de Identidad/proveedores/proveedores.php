@@ -25,7 +25,7 @@ if ($pdo) {
                        WHERE prr.proveedor_id = prv.persona_id
                    ), '') AS retenciones_nombres,
                    p.persona_id, p.documento_identidad, p.tipo_documento, p.nombre_razon_social, p.nombre_comercial,
-                   p.tipo_persona, p.telefono_principal, p.email, p.estado
+                   p.tipo_persona, p.telefono_principal, p.email, p.fecha_nacimiento, p.estado
             FROM identidad.proveedores prv
             JOIN identidad.personas p ON prv.persona_id = p.persona_id
             ORDER BY prv.creado_en DESC
@@ -349,7 +349,7 @@ $tipoMsg = $_GET['tipo'] ?? 'exito';
             </div>
             <div class="form-group">
               <label for="tipo_persona" class="form-label">Tipo de Suplidor *</label>
-              <select id="tipo_persona" name="tipo_persona" class="form-control">
+              <select id="tipo_persona" name="tipo_persona" class="form-control" onchange="ajustarTipoPersonaProveedor()">
                 <option value="JURIDICA">Persona Jurídica (SRL, SAS, SA)</option>
                 <option value="FISICA">Persona Física</option>
               </select>
@@ -365,6 +365,11 @@ $tipoMsg = $_GET['tipo'] ?? 'exito';
                 onkeydown="return soloNumerosEnteros(event)"
                 oninput="this.value = this.value.replace(/[^0-9]/g, ''); if(parseInt(this.value || '0', 10) > 180) this.value = '180';" />
               <small style="color: #999;">Solo números enteros (0 a 180 días para Cuentas por Pagar).</small>
+            </div>
+            <div class="form-group" id="grupoFechaNacProv" style="display: none;">
+              <label for="fecha_nacimiento" class="form-label">Fecha de Nacimiento (&ge; 18 años) *</label>
+              <input type="date" id="fecha_nacimiento" name="fecha_nacimiento" class="form-control"
+                max="<?= date('Y-m-d', strtotime('-18 years')) ?>" />
             </div>
           </div>
 
@@ -415,7 +420,7 @@ $tipoMsg = $_GET['tipo'] ?? 'exito';
 
   <div id="toast" class="toast"></div>
 
-  <script src="proveedores.js?v=5"></script>
+  <script src="proveedores.js?v=<?= time() ?>"></script>
 </body>
 
 </html>

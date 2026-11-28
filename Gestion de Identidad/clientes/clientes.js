@@ -86,6 +86,10 @@
       const optCed = selDoc ? selDoc.querySelector('option[value="CEDULA"]') : null;
       const optPas = selDoc ? selDoc.querySelector('option[value="PASAPORTE"]') : null;
 
+      const grpFecha = document.getElementById('grupoFechaNacimiento');
+      const inpFecha = document.getElementById('fecha_nacimiento');
+
+      const esEdicion = (document.getElementById('formAccion')?.value === 'editar');
       if (tp === 'JURIDICA') {
         lbl.textContent = 'Razón Social de la Empresa *';
         inp.placeholder = 'Ej. Distribuidora del Cibao SAS';
@@ -93,6 +97,8 @@
         if (optCed) optCed.hidden = true;
         if (optPas) optPas.hidden = true;
         if (selDoc && selDoc.value !== 'RNC') selDoc.value = 'RNC';
+        if (grpFecha) grpFecha.style.display = 'none';
+        if (inpFecha) { inpFecha.required = false; inpFecha.value = ''; }
       } else {
         lbl.textContent = 'Nombres y Apellidos *';
         inp.placeholder = 'Ej. Juan Pérez';
@@ -100,6 +106,8 @@
         if (optCed) optCed.hidden = false;
         if (optPas) optPas.hidden = false;
         if (selDoc && selDoc.value === 'RNC') selDoc.value = 'CEDULA';
+        if (grpFecha) grpFecha.style.display = '';
+        if (inpFecha) inpFecha.required = !esEdicion;
       }
     }
 
@@ -129,16 +137,20 @@
       if (p.nombre_comercial) document.getElementById('nombre_comercial').value = p.nombre_comercial;
       if (p.telefono_principal || p.telefono) document.getElementById('telefono_principal').value = p.telefono_principal || p.telefono;
       if (p.email) document.getElementById('email').value = p.email;
+      if (p.tipo_persona) {
+        document.getElementById('tipo_persona').value = p.tipo_persona;
+        ajustarTipoPersona();
+      }
+      if (p.fecha_nacimiento) {
+        const fn = document.getElementById('fecha_nacimiento');
+        if (fn) fn.value = String(p.fecha_nacimiento).substring(0, 10);
+      }
       if (p.categoria_cliente) document.getElementById('categoria_cliente').value = p.categoria_cliente;
       if (p.permite_credito !== undefined && p.permite_credito !== null) {
         const tieneCred = (p.permite_credito === true || p.permite_credito === 't' || p.permite_credito === 1);
         document.getElementById('permite_credito').checked = tieneCred;
         document.getElementById('limite_credito').value = parseFloat(p.limite_credito || 0).toFixed(2);
         toggleCreditoInput();
-      }
-      if (p.tipo_persona) {
-        document.getElementById('tipo_persona').value = p.tipo_persona;
-        ajustarTipoPersona();
       }
       if (feedback) {
         feedback.style.display = 'block';
@@ -218,6 +230,8 @@
       document.getElementById('nombre_comercial').value = '';
       document.getElementById('telefono_principal').value = '';
       document.getElementById('email').value = '';
+      const fnCli = document.getElementById('fecha_nacimiento');
+      if (fnCli) fnCli.value = '';
       document.getElementById('categoria_cliente').value = 'REGULAR';
       document.getElementById('permite_credito').checked = false;
       document.getElementById('limite_credito').value = '0.00';
@@ -249,6 +263,8 @@
       document.getElementById('terceroFeedback').style.display = 'none';
 
       ajustarTipoPersona();
+      const fnCliEdit = document.getElementById('fecha_nacimiento');
+      if (fnCliEdit) fnCliEdit.value = cli.fecha_nacimiento ? String(cli.fecha_nacimiento).substring(0, 10) : '';
       toggleCreditoInput();
       document.getElementById('modalCliente').classList.add('open');
     }

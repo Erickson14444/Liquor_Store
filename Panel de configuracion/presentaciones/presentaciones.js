@@ -1,8 +1,149 @@
+// ============================================================================
+// SELECTOR BUSCABLE DE PRODUCTO MAESTRO (ESCALABLE A 500+ PRODUCTOS)
+// ============================================================================
+let PRES_PRODS_FILTRADOS = [];
+let PRES_PROD_IDX_ACTIVO = -1;
+
+function escPresHtml(s) {
+  return String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+
+function obtenerProductoMaestroPorId(id) {
+  const lista = typeof PRODUCTOS_MAESTROS_LISTA !== 'undefined' ? PRODUCTOS_MAESTROS_LISTA : [];
+  return lista.find(p => String(p.id) === String(id)) || null;
+}
+
+function filtrarProductosMaestro() {
+  const input = document.getElementById('inputBuscarProductoMaestro');
+  const dd = document.getElementById('dropdownProductosMaestros');
+  if (!dd) return;
+
+  const q = (input ? input.value : '').trim().toLowerCase();
+  const lista = typeof PRODUCTOS_MAESTROS_LISTA !== 'undefined' ? PRODUCTOS_MAESTROS_LISTA : [];
+
+  const coincidencias = q === ''
+    ? lista
+    : lista.filter(p => {
+        const nom = (p.nombre || '').toLowerCase();
+        const sku = (p.sku || '').toLowerCase();
+        return nom.includes(q) || sku.includes(q);
+      });
+
+  const maxMostrar = 40;
+  PRES_PRODS_FILTRADOS = coincidencias.slice(0, maxMostrar);
+  PRES_PROD_IDX_ACTIVO = -1;
+
+  if (PRES_PRODS_FILTRADOS.length === 0) {
+    dd.innerHTML = `<div class="pres-prod-empty">No se encontraron productos para "<strong>${escPresHtml(q)}</strong>".</div>`;
+    dd.style.display = 'block';
+    return;
+  }
+
+  let html = PRES_PRODS_FILTRADOS.map((p, i) => {
+    const precio = parseFloat(p.precio_base_unidad || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    return `
+      <div class="pres-prod-opt" data-idx="${i}" onmousedown="event.preventDefault(); seleccionarProductoMaestro(${Number(p.id)})">
+        <div style="min-width: 0;">
+          <div class="pres-prod-opt-name">${escPresHtml(p.nombre || p.sku)}</div>
+          <div class="pres-prod-opt-sku">${escPresHtml(p.sku)}</div>
+        </div>
+        <div class="pres-prod-opt-price">RD$ ${precio}</div>
+      </div>
+    `;
+  }).join('');
+
+  if (coincidencias.length > maxMostrar) {
+    html += `<div class="pres-prod-more">Mostrando ${maxMostrar} de ${coincidencias.length} productos. Escribe más letras para filtrar...</div>`;
+  }
+
+  dd.innerHTML = html;
+  dd.style.display = 'block';
+}
+
+function teclaProductoMaestro(e) {
+  const dd = document.getElementById('dropdownProductosMaestros');
+  if (!dd || dd.style.display !== 'block' || PRES_PRODS_FILTRADOS.length === 0) return;
+
+  if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+    e.preventDefault();
+    const max = PRES_PRODS_FILTRADOS.length - 1;
+    PRES_PROD_IDX_ACTIVO = e.key === 'ArrowDown'
+      ? Math.min(max, PRES_PROD_IDX_ACTIVO + 1)
+      : Math.max(0, PRES_PROD_IDX_ACTIVO - 1);
+    dd.querySelectorAll('.pres-prod-opt').forEach((el, i) => {
+      el.classList.toggle('active', i === PRES_PROD_IDX_ACTIVO);
+      if (i === PRES_PROD_IDX_ACTIVO) el.scrollIntoView({ block: 'nearest' });
+    });
+  } else if (e.key === 'Enter') {
+    e.preventDefault();
+    const elegido = PRES_PRODS_FILTRADOS[PRES_PROD_IDX_ACTIVO >= 0 ? PRES_PROD_IDX_ACTIVO : 0];
+    if (elegido) seleccionarProductoMaestro(elegido.id);
+  } else if (e.key === 'Escape') {
+    dd.style.display = 'none';
+  }
+}
+
+function seleccionarProductoMaestro(prodId) {
+  const prod = obtenerProductoMaestroPorId(prodId);
+  const hid = document.getElementById('producto_maestro_id');
+  const pill = document.getElementById('presProdPill');
+  const pillName = document.getElementById('presProdPillName');
+  const pillSub = document.getElementById('presProdPillSub');
+  const wrap = document.getElementById('presProdInputWrap');
+  const dd = document.getElementById('dropdownProductosMaestros');
+  const errProd = document.getElementById('errorProductoMaestro');
+
+  if (!prod) {
+    limpiarProductoMaestro(false);
+    return;
+  }
+
+  if (hid) hid.value = String(prod.id);
+  if (pillName) pillName.textContent = prod.nombre || prod.sku;
+  if (pillSub) {
+    const baseFmt = parseFloat(prod.precio_base_unidad || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    pillSub.textContent = `${prod.sku} • Base: RD$ ${baseFmt}`;
+  }
+  if (pill) pill.style.display = 'flex';
+  if (wrap) wrap.style.display = 'none';
+  if (dd) dd.style.display = 'none';
+  if (errProd) { errProd.style.display = 'none'; errProd.textContent = ''; }
+
+  actualizarPrecioSugerido();
+}
+
+function limpiarProductoMaestro(enfocar = false) {
+  const hid = document.getElementById('producto_maestro_id');
+  const pill = document.getElementById('presProdPill');
+  const wrap = document.getElementById('presProdInputWrap');
+  const inp = document.getElementById('inputBuscarProductoMaestro');
+  const dd = document.getElementById('dropdownProductosMaestros');
+
+  if (hid) hid.value = '';
+  if (pill) pill.style.display = 'none';
+  if (wrap) wrap.style.display = 'block';
+  if (inp) inp.value = '';
+  if (dd) dd.style.display = 'none';
+
+  if (enfocar && inp) {
+    inp.focus();
+    filtrarProductosMaestro();
+  }
+}
+
+document.addEventListener('click', (e) => {
+  const picker = document.getElementById('presProdPicker');
+  const dd = document.getElementById('dropdownProductosMaestros');
+  if (picker && dd && !picker.contains(e.target)) {
+    dd.style.display = 'none';
+  }
+});
+
 function actualizarPrecioSugerido() {
-  const sel = document.getElementById('producto_maestro_id');
-  const opt = sel.options[sel.selectedIndex];
-  if (!opt) return;
-  const base = parseFloat(opt.getAttribute('data-precio') || 0);
+  const prodId = document.getElementById('producto_maestro_id')?.value;
+  const prod = obtenerProductoMaestroPorId(prodId);
+  if (!prod) return;
+  const base = parseFloat(prod.precio_base_unidad || 0);
   const factor = parseInt(document.getElementById('factor_multiplicador').value || 1, 10);
   if (document.getElementById('formAccion').value === 'crear') {
     document.getElementById('precio_venta_presentacion').value = (base * (isNaN(factor) || factor < 1 ? 1 : factor)).toFixed(2);
@@ -52,7 +193,7 @@ function validarInputCodigoBarra(input) {
           if (!idActual || String(idActual) !== String(pr.id)) {
             document.getElementById('formAccion').value = 'editar';
             document.getElementById('presentacion_id').value = pr.id;
-            document.getElementById('producto_maestro_id').value = pr.producto_maestro_id;
+            seleccionarProductoMaestro(pr.producto_maestro_id);
             document.getElementById('descripcion_presentacion').value = pr.descripcion_presentacion;
             document.getElementById('factor_multiplicador').value = pr.factor_multiplicador;
             document.getElementById('precio_venta_presentacion').value = parseFloat(pr.precio_venta_presentacion || 0).toFixed(2);
@@ -69,6 +210,19 @@ function validarInputCodigoBarra(input) {
 }
 
 function validarFormularioPresentacion(e) {
+  const prodId = parseInt(document.getElementById('producto_maestro_id')?.value || '0', 10);
+  const errProd = document.getElementById('errorProductoMaestro');
+  if (!prodId || prodId <= 0) {
+    e.preventDefault();
+    if (errProd) {
+      errProd.textContent = 'Debes buscar y seleccionar un Producto Maestro.';
+      errProd.style.display = 'block';
+    }
+    mostrarToast('Error: Selecciona un Producto Maestro de la lista.');
+    document.getElementById('inputBuscarProductoMaestro')?.focus();
+    return false;
+  }
+
   const cbInput = document.getElementById('codigo_barra');
   const cb = (cbInput ? cbInput.value : '').replace(/\D/g, '').trim();
   const factor = parseInt(document.getElementById('factor_multiplicador').value || '0', 10);
@@ -109,20 +263,27 @@ function abrirModal() {
   document.getElementById('codigo_barra').value = '';
   document.getElementById('descripcion_presentacion').value = '';
   document.getElementById('factor_multiplicador').value = '1';
+  document.getElementById('precio_venta_presentacion').value = '0.00';
+  limpiarProductoMaestro(false);
   const errEl = document.getElementById('errorCodigoBarra');
   if (errEl) {
     errEl.style.display = 'none';
     errEl.textContent = '';
   }
-  actualizarPrecioSugerido();
+  const errProd = document.getElementById('errorProductoMaestro');
+  if (errProd) {
+    errProd.style.display = 'none';
+    errProd.textContent = '';
+  }
   document.getElementById('modalPresentacion').classList.add('open');
+  setTimeout(() => document.getElementById('inputBuscarProductoMaestro')?.focus(), 60);
 }
 
 function editarPresentacion(pres) {
   document.getElementById('formAccion').value = 'editar';
   document.getElementById('modalTitulo').textContent = 'Editar Presentación (' + pres.codigo_barra + ')';
   document.getElementById('presentacion_id').value = pres.id;
-  document.getElementById('producto_maestro_id').value = pres.producto_maestro_id;
+  seleccionarProductoMaestro(pres.producto_maestro_id);
   document.getElementById('codigo_barra').value = pres.codigo_barra;
   document.getElementById('descripcion_presentacion').value = pres.descripcion_presentacion;
   document.getElementById('factor_multiplicador').value = pres.factor_multiplicador;
